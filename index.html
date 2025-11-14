@@ -34,7 +34,7 @@
 
     .header {
       background: #15171c;
-      padding: 16px 24px;
+      padding: 20px 32px;
       border-bottom: 1px solid #242733;
       display: flex;
       align-items: center;
@@ -43,8 +43,10 @@
 
 
     .header h1 {
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 600;
+      letter-spacing: -0.3px;
+      color: #e9ecf1;
     }
 
 
@@ -56,34 +58,109 @@
 
     .main {
       display: flex;
+      flex-direction: row;
       flex: 1;
       overflow-x: auto;
       overflow-y: hidden;
     }
 
 
+    .tabs-panel {
+      background: #0e0f12;
+      width: 140px;
+      flex: 0 0 140px;
+      overflow-y: auto;
+      border-right: 1px solid #242733;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+    
+    .tab {
+      width: 100%;
+      padding: 12px 14px;
+      background: transparent;
+      color: #8a8f9c;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.2s ease;
+      user-select: none;
+      -webkit-user-select: none;
+      border: none;
+      border-left: 3px solid transparent;
+      font-weight: 500;
+      letter-spacing: -0.1px;
+    }
+    
+    .tab:hover {
+      background: #1a1c21;
+      color: #e9ecf1;
+    }
+    
+    .tab.active {
+      background: #12141a;
+      color: #027EF2;
+      border-left-color: #027EF2;
+    }
+    
+    .tab.active:hover {
+      background: #12141a;
+      color: #027EF2;
+    }
+    
+    .tab-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
     .panel {
       background: #15171c;
-      width: 320px;
-      flex: 0 0 320px; /* fixed width sidebars */
+      width: 300px;
+      flex: 0 0 300px; /* fixed width sidebars */
       overflow-y: auto;
-      padding: 20px;
+      padding: 24px;
       border-right: 1px solid #242733;
+    }
+    
+    .panel-section {
+      display: none;
+      animation: fadeIn 0.2s ease;
+    }
+    
+    .panel-section.active {
+      display: block;
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
 
     .panel:last-child {
       border-right: none;
       border-left: 1px solid #242733;
+      width: 300px;
+      flex: 0 0 300px;
     }
 
 
     .canvas-area {
       flex: 1 1 0; /* grow and shrink, prefer shrinking before side panels */
       min-width: 0; /* allow center to shrink so right panel stays visible */
-      padding: 20px;
+      padding: 32px;
       overflow-y: auto;
       overflow-x: hidden;
+      background: #0e0f12;
     }
 
     #previewCanvas {
@@ -92,22 +169,25 @@
 
 
     .section {
-      margin-bottom: 16px;
-      border: 1px solid #242733;
-      border-radius: 6px;
+      margin-bottom: 20px;
+      border-radius: 10px;
       overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    
+    .section:hover {
     }
 
 
     .section-header {
       background: #0e0f12;
-      padding: 10px 12px;
+      padding: 8px 12px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
       font-weight: 600;
-      font-size: 13px;
+      font-size: 12px;
       text-transform: uppercase;
       color: #8a8f9c;
       letter-spacing: 0.5px;
@@ -130,6 +210,10 @@
     .section-arrow.collapsed {
       transform: rotate(-90deg);
     }
+    
+    .section-content.collapsed {
+      display: none !important;
+    }
 
 
     .section-content {
@@ -139,6 +223,10 @@
 
     .section-content.collapsed {
       display: none;
+    }
+    
+    .section-content:not(.collapsed) {
+      display: block;
     }
 
 
@@ -153,47 +241,125 @@
 
 
     .form-group {
-      margin-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    #titlePairEditor {
+      margin-bottom: 24px !important;
+    }
+
+    #titlePairEditor + .form-group {
+      margin-top: 24px;
+    }
+
+    #subtitlePairEditor {
+      margin-bottom: 24px !important;
+    }
+
+    #subtitlePairEditor + .form-group {
+      margin-top: 24px;
+    }
+
+    .form-group-section {
+      margin-top: 24px;
+      padding-top: 24px;
     }
 
 
     label {
       display: block;
       font-size: 13px;
-      color: #8a8f9c;
-      margin-bottom: 6px;
+      color: #b4b8c4;
+      margin-bottom: 8px;
+      font-weight: 500;
+      letter-spacing: -0.1px;
     }
 
 
     input[type="text"],
     input[type="number"],
-    textarea,
-    select {
+    textarea {
       width: 100%;
       background: #0e0f12;
-      border: 1px solid #242733;
+      border: none;
       color: #e9ecf1;
-      padding: 8px 12px;
-      border-radius: 6px;
+      padding: 10px 14px;
+      border-radius: 8px;
       font-size: 14px;
       font-family: inherit;
+      transition: all 0.2s ease;
+      outline: none;
+      position: relative;
+      z-index: 0;
+    }
+    
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    textarea:focus {
+      background: #12141a;
+      box-shadow: 0 0 0 3px rgba(2, 126, 242, 0.1);
+    }
+
+    select {
+      width: 100%;
+      background: #242733;
+      border: none;
+      color: #e9ecf1;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      transition: all 0.2s ease;
+      outline: none;
+      cursor: pointer;
+      letter-spacing: -0.1px;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23e9ecf1' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+    
+    select:hover {
+      background-color: #2a2d3a;
+    }
+    
+    select:focus {
+      background-color: #2a2d3a;
+      box-shadow: 0 0 0 3px rgba(2, 126, 242, 0.1);
     }
 
 
     textarea {
       resize: vertical;
-      min-height: 60px;
+      min-height: 80px;
+      line-height: 1.5;
     }
 
 
     input[type="color"] {
       width: 100%;
-      height: 48px;
+      height: 52px;
       background: #0e0f12;
-      border: 1px solid #242733;
-      border-radius: 6px;
+      border: none;
+      border-radius: 10px;
       cursor: pointer;
-      padding: 4px;
+      padding: 6px;
+      transition: all 0.2s ease;
+      position: relative;
+      z-index: 1;
+    }
+    
+    input[type="color"]:hover {
+      transform: scale(1.02);
+      z-index: 2;
     }
 
 
@@ -201,7 +367,7 @@
       width: 100%;
       padding: 8px;
       background: #0e0f12;
-      border: 1px solid #242733;
+      border: none;
       border-radius: 6px;
       color: #8a8f9c;
       font-size: 13px;
@@ -213,54 +379,145 @@
       background: #242733;
       border: none;
       color: #e9ecf1;
-      padding: 6px 12px;
-      border-radius: 4px;
+      padding: 10px 16px;
+      border-radius: 8px;
       cursor: pointer;
       margin-right: 8px;
+      font-size: 13px;
+      font-weight: 500;
     }
 
 
     input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
+      width: 20px;
+      height: 20px;
       cursor: pointer;
+      border-radius: 5px;
+      accent-color: #027EF2;
     }
 
 
     .checkbox-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+    }
+    
+    .checkbox-group label {
+      margin: 0;
+      cursor: pointer;
+    }
+
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+      height: 40px;
+      background: #0e0f12;
+      border-radius: 8px;
+      padding: 4px;
+      cursor: pointer;
+    }
+
+    .toggle-switch-track {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      border-radius: 6px;
+    }
+
+    .toggle-switch-option {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: #8a8f9c;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      z-index: 1;
+    }
+
+    .toggle-switch-slider {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      height: calc(100% - 8px);
+      background: #242733;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      z-index: 0;
+    }
+
+    /* Для тумблера с 2 опциями (язык логотипа) */
+    .toggle-switch[data-options="2"] .toggle-switch-slider {
+      width: calc(50% - 4px);
+    }
+
+    .toggle-switch[data-options="2"][data-value="kz"] .toggle-switch-slider,
+    .toggle-switch[data-options="2"].lang-kz .toggle-switch-slider {
+      transform: translateX(100%);
+    }
+
+    /* Для тумблера с 3 опциями (выключка текста, вертикальная позиция) */
+    .toggle-switch[data-options="3"] .toggle-switch-slider {
+      width: calc(33.333% - 2.67px);
+    }
+
+    .toggle-switch[data-options="3"][data-value="center"] .toggle-switch-slider {
+      /* translateX считается от ширины слайдера, слайдер = ~33.333% track */
+      /* Для сдвига на одну секцию (33.333% track) нужен translateX = 100% слайдера + компенсация gap */
+      transform: translateX(calc(100% + 4px));
+    }
+
+    .toggle-switch[data-options="3"][data-value="right"] .toggle-switch-slider,
+    .toggle-switch[data-options="3"][data-value="bottom"] .toggle-switch-slider {
+      /* Для сдвига на две секции (66.666% track) нужен translateX = 200% слайдера + компенсация gap */
+      transform: translateX(calc(200% + 8px));
+    }
+
+    .toggle-switch-option.active {
+      color: #e9ecf1;
     }
 
 
     .btn {
       background: #242733;
-      border: 1px solid #2a2d3a;
+      border: none;
       color: #e9ecf1;
       padding: 10px 16px;
-      border-radius: 6px;
-      font-size: 14px;
+      border-radius: 8px;
+      font-size: 13px;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.2s ease;
+      outline: none;
+      letter-spacing: -0.1px;
+      height: 40px;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
 
     .btn:hover {
       background: #2a2d3a;
+      transform: translateY(-1px);
     }
 
 
     .btn.primary {
-      background: #4da3ff;
-      border-color: #4da3ff;
+      background: #027EF2;
       color: #fff;
     }
 
 
     .btn.primary:hover {
-      background: #3d93ef;
+      background: #026dd9;
+      transform: translateY(-1px);
     }
 
 
@@ -283,21 +540,31 @@
 
     .chip {
       background: #0e0f12;
-      border: 1px solid #242733;
-      color: #8a8f9c;
-      padding: 8px;
-      border-radius: 6px;
-      font-size: 12px;
+      border: none;
+      color: #b4b8c4;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
       cursor: pointer;
       text-align: center;
-      transition: all 0.2s;
+      transition: all 0.2s ease;
+      font-weight: 500;
+      letter-spacing: -0.1px;
+    }
+    
+    .chip:hover {
+      background: #12141a;
+      transform: translateY(-1px);
     }
 
 
     .chip.active {
-      background: #4da3ff;
-      border-color: #4da3ff;
+      background: #027EF2;
       color: #fff;
+    }
+    
+    .chip.active:hover {
+      transform: translateY(-1px);
     }
 
 
@@ -327,7 +594,6 @@
       background: #0e0f12;
       padding: 8px;
       border-radius: 6px;
-      border: 1px solid #242733;
     }
 
 
@@ -340,46 +606,82 @@
     .btn-small {
       padding: 4px 8px;
       font-size: 12px;
+      height: 32px;
     }
 
 
     .hint {
-      font-size: 11px;
-      color: #8a8f9c;
-      font-style: italic;
-      margin-top: 4px;
+      font-size: 12px;
+      color: #6a6f7a;
+      margin-top: 6px;
+      line-height: 1.5;
+      letter-spacing: -0.1px;
+    }
+    
+    .hint-box {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #1a1c21 0%, #15171c 100%);
+      border-radius: 10px;
+      border-left: 3px solid #027EF2;
+    }
+    
+    .hint-icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      line-height: 1.2;
+    }
+    
+    .hint-text {
+      font-size: 13px;
+      color: #b4b8c4;
+      line-height: 1.6;
+      flex: 1;
+      letter-spacing: -0.1px;
     }
 
 
     input[type="range"] {
       width: 100%;
-      height: 6px;
+      height: 8px;
       background: #242733;
-      border-radius: 3px;
+      border-radius: 4px;
       outline: none;
       appearance: none;
       -webkit-appearance: none;
+      cursor: pointer;
     }
 
 
     input[type="range"]::-webkit-slider-thumb {
       appearance: none;
       -webkit-appearance: none;
-      width: 16px;
-      height: 16px;
-      background: #4da3ff;
+      width: 20px;
+      height: 20px;
+      background: #027EF2;
       border-radius: 50%;
       cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
     }
 
 
     input[type="range"]::-moz-range-thumb {
-      width: 16px;
-      height: 16px;
-      background: #4da3ff;
+      width: 20px;
+      height: 20px;
+      background: #027EF2;
       border-radius: 50%;
       cursor: pointer;
       border: none;
+      transition: all 0.2s ease;
+    }
+    
+    input[type="range"]::-moz-range-thumb:hover {
+      transform: scale(1.15);
     }
 
 
@@ -388,33 +690,46 @@
       justify-content: space-between;
       font-size: 12px;
       color: #8a8f9c;
-      margin-top: 4px;
+      margin-top: 8px;
+      font-weight: 500;
+    }
+    
+    .slider-value span:nth-child(2) {
+      color: #027EF2;
+      font-weight: 600;
     }
 
 
     .platform-group {
-      margin-bottom: 16px;
-      border: 1px solid #242733;
-      border-radius: 6px;
+      margin-bottom: 20px;
+      border-radius: 10px;
       overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    
+    .platform-group:hover {
     }
 
 
     .platform-header {
       background: #0e0f12;
-      padding: 10px 12px;
+      padding: 14px 16px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      font-weight: 500;
-      font-size: 13px;
+      font-weight: 600;
+      font-size: 14px;
       user-select: none;
+      -webkit-user-select: none;
+      color: #b4b8c4;
+      transition: all 0.2s ease;
     }
 
 
     .platform-header:hover {
       background: #12141a;
+      color: #e9ecf1;
     }
 
 
@@ -430,10 +745,11 @@
 
 
     .platform-sizes {
-      padding: 8px;
+      padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
+      background: #15171c;
     }
 
 
@@ -445,15 +761,16 @@
     .size-checkbox-item {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 8px;
-      border-radius: 4px;
-      transition: background 0.2s;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
     }
 
 
     .size-checkbox-item:hover {
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.04);
+      transform: translateX(2px);
     }
 
 
@@ -464,33 +781,29 @@
 
     .size-checkbox-item label {
       margin: 0;
-      font-size: 12px;
+      font-size: 13px;
       cursor: pointer;
       flex: 1;
+      color: #b4b8c4;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+    
+    .size-checkbox-item:hover label {
+      color: #e9ecf1;
     }
 
 
             /* === FONT LOADING === */
-        @font-face {
-            font-family: 'YS Text';
-            src: url('font/YS Text-Regular.woff2') format('woff2');
-            font-weight: 400;
-            font-style: normal;
-            font-display: swap;
-        }
-        
-        @font-face {
-            font-family: 'YS Text';
-            src: url('font/YS Text-Medium.woff2') format('woff2');
-            font-weight: 500;
-            font-style: normal;
-            font-display: swap;
-        }
+        /* Шрифты теперь загружаются динамически через scanFonts() и loadFonts() */
         
             /* === PERFORMANCE OPTIMIZATIONS === */
         
         /* Canvas rendering optimization */
-        #previewCanvas {
+        #previewCanvas,
+        #previewCanvasNarrow,
+        #previewCanvasWide,
+        #previewCanvasSquare {
             will-change: contents;
             transform: translateZ(0);
             image-rendering: -webkit-optimize-contrast;
@@ -516,121 +829,588 @@
             transform: translateZ(0);
             -webkit-overflow-scrolling: touch;
         }
-  </style>
+        
+        /* Custom select dropdown styles */
+        .custom-select-dropdown {
+            scrollbar-width: thin;
+            scrollbar-color: #242733 #15171c;
+        }
+        
+        .custom-select-dropdown::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-select-dropdown::-webkit-scrollbar-track {
+            background: #15171c;
+        }
+        
+        .custom-select-dropdown::-webkit-scrollbar-thumb {
+            background: #242733;
+            border-radius: 3px;
+        }
+        
+        .custom-select-option {
+            padding: 10px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: none;
+            transition: background-color 0.2s;
+        }
+        
+        .custom-select-option:last-child {
+            border-bottom: none;
+        }
+        
+        .custom-select-option:hover {
+            background: #1e2025;
+        }
+        
+        .custom-select-option.selected {
+            background: #242733;
+        }
+        
+        .custom-select-option-preview {
+            width: 24px;
+            height: 24px;
+            object-fit: contain;
+            border: none;
+            border-radius: 3px;
+            padding: 2px;
+            background: #0e0f12;
+            flex-shrink: 0;
+        }
+        
+        .custom-select-option-label {
+            flex: 1;
+            font-size: 14px;
+            color: #e9ecf1;
+        }
+        
+        .custom-select-option-group {
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #8a8f9c;
+            font-weight: 600;
+            background: #1a1c21;
+            border-bottom: none;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        /* === УНИФИЦИРОВАННЫЕ СТИЛИ КОЛОНОК === */
+        .column-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #b4b8c4;
+            border-bottom: 1px solid #242733;
+            transition: all 0.2s ease;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .column-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+        }
+        
+        .column-item.active {
+            background: #242733;
+            color: #e9ecf1;
+        }
+        
+        .column-empty-message {
+            padding: 20px;
+            text-align: center;
+            font-size: 13px;
+            color: #8a8f9c;
+        }
+        
+        /* Колонки в модальных окнах */
+        .modal-column {
+            overflow-y: auto;
+            background: #0e0f12;
+        }
+        
+        .modal-column:nth-child(2) {
+            background: #12141a;
+        }
+        
+        .modal-column:nth-child(3) {
+            background: #1a1c21;
+        }
+        
+        .modal-column:last-child {
+            background: #15171c;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
+            align-content: start;
+        }
+        
+        /* Элементы превью в колонках изображений */
+        .preview-item {
+            position: relative;
+            cursor: pointer;
+            border: 2px solid #242733;
+            border-radius: 6px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+            aspect-ratio: 1;
+        }
+        
+        .preview-item:hover {
+            border-color: #027EF2;
+            transform: scale(1.05);
+        }
+        
+        .preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        
+        /* Унифицированные стили для форм */
+        .form-item {
+            background: #0e0f12;
+            border: 1px solid #242733;
+            border-radius: 6px;
+            padding: 12px;
+        }
+        
+        .form-item.active {
+            border-color: #027EF2;
+        }
+        
+        .form-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .form-label {
+            margin: 0;
+            font-size: 12px;
+            color: #8a8f9c;
+            font-weight: 400;
+            cursor: pointer;
+        }
+        
+        .form-label.active {
+            color: #027EF2;
+            font-weight: 500;
+        }
+        
+        .form-textarea {
+            width: 100%;
+            min-height: 60px;
+            background: #0e0f12;
+            border: 1px solid #242733;
+            color: #e9ecf1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .form-textarea:focus {
+            outline: none;
+            border-color: #027EF2;
+            background: #12141a;
+        }
+        
+        /* Кнопки действий */
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+            height: 32px;
+        }
+        
+        .btn-tiny {
+            padding: 4px 10px;
+            font-size: 12px;
+            white-space: nowrap;
+            height: 32px;
+        }
+        
+        /* Заголовки модальных окон */
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #242733;
+            background: #0e0f12;
+        }
+        
+        .modal-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e9ecf1;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        /* Превью контейнеры */
+        .preview-container {
+            width: 100%;
+            height: 60px;
+            background: #15171c;
+            border: none;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        .preview-placeholder {
+            color: #6a6f7a;
+            font-size: 12px;
+        }
+        
+        .preview-img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        /* Унифицированные размеры для labels */
+        .label-small {
+            font-size: 11px;
+            color: #6a6f7a;
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+        
+        .label-medium {
+            font-size: 12px;
+            color: #8a8f9c;
+            font-weight: 500;
+        }
+        
+        /* Унифицированные отступы */
+        .gap-sm {
+            gap: 8px;
+        }
+        
+        .gap-md {
+            gap: 12px;
+        }
+        
+        .gap-lg {
+            gap: 16px;
+        }
+        
+        .mb-sm {
+            margin-bottom: 8px;
+        }
+        
+        .mb-md {
+            margin-bottom: 12px;
+        }
+        
+        .mb-lg {
+            margin-bottom: 16px;
+        }
+        
+        .mt-md {
+            margin-top: 12px;
+        }
+        
+        .mt-lg {
+            margin-top: 24px;
+        }
+        
+          </style>
 </head>
 <body>
   <div class="app">
     <div class="header">
       <h1>Генератор макетов</h1>
-      <div class="header-actions">
-        <button class="btn" onclick="resetAll()">Сброс</button>
-        <button class="btn primary" onclick="exportAllPNG()">Экспорт PNG</button>
-      </div>
     </div>
     <div class="main">
+      <!-- Icons Panel -->
+      <div class="tabs-panel">
+        <div class="tab active" onclick="showSection('layout')" data-section="layout">
+          <span>Макет</span>
+        </div>
+        <div class="tab" onclick="showSection('logo')" data-section="logo">
+          <span>Логотип</span>
+        </div>
+        <div class="tab" onclick="showSection('title')" data-section="title">
+          <span>Заголовок</span>
+        </div>
+        <div class="tab" onclick="showSection('subtitle')" data-section="subtitle">
+          <span>Подзаголовок</span>
+        </div>
+        <div class="tab" onclick="showSection('legal')" data-section="legal">
+          <span>Лигал</span>
+        </div>
+        <div class="tab" onclick="showSection('kv')" data-section="kv">
+          <span>KV</span>
+        </div>
+        <div style="margin-top: auto; padding: 16px; text-align: center; font-size: 12px; color: #8a8f9c;">
+          <span>Вайб-код от <a href="https://staff.yandex-team.ru/vidmich" target="_blank" rel="noopener" style="color: #027EF2; text-decoration: none;">@vidmich</a></span>
+        </div>
+      </div>
+      
       <!-- Left Panel -->
       <div class="panel">
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('layout')">
-            <span>Макет и отступы</span>
-            <span class="section-arrow" id="arrow-layout">▼</span>
-          </div>
-          <div class="section-content" id="content-layout">
+        <!-- Layout Section -->
+        <div class="panel-section active" id="panel-section-layout">
             <div class="form-group">
-              <label>Внутренний отступ (%)</label>
-              <input type="range" id="paddingPercent" value="5" min="0" max="20" oninput="updatePadding(this.value)">
+              <label>Отступ от края</label>
+              <input type="range" id="paddingPercent" value="5" min="2" max="8" oninput="updatePadding(this.value)">
               <div class="slider-value">
-                <span>0%</span>
+                <span>2%</span>
                 <span id="paddingValue">5%</span>
-                <span>20%</span>
+                <span>8%</span>
               </div>
             </div>
             <div class="form-group">
               <div class="checkbox-group">
                 <input type="checkbox" id="showBlocks" onchange="updateState('showBlocks', this.checked)">
-                <label for="showBlocks">Показывать блоки</label>
+                <label for="showBlocks">Блоки</label>
               </div>
             </div>
             <div class="form-group">
               <div class="checkbox-group">
                 <input type="checkbox" id="showGuides" checked onchange="updateState('showGuides', this.checked)">
-                <label for="showGuides">Показывать направляющие</label>
+                <label for="showGuides">Направляющие</label>
               </div>
+            </div>
+            <div class="form-group form-group-section">
+            <label>Фон</label>
+            <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
+              <input type="color" id="bgColor" value="#1e1e1e" onchange="updateColorFromPicker('bgColor', this.value)" style="flex: 0 0 60px;">
+              <input type="text" id="bgColorHex" value="#1e1e1e" placeholder="#1e1e1e" onchange="updateColorFromHex('bgColor', this.value)" style="flex: 1;">
+            </div>
+            <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
+              <button class="btn" onclick="applyPresetBgColor('#027EF2')" style="background: #027EF2; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#027EF2"></button>
+              <button class="btn" onclick="applyPresetBgColor('#98D2FE')" style="background: #98D2FE; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#98D2FE"></button>
+              <button class="btn" onclick="applyPresetBgColor('#07AB4B')" style="background: #07AB4B; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#07AB4B"></button>
+              <button class="btn" onclick="applyPresetBgColor('#E84033')" style="background: #E84033; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#E84033"></button>
+              <button class="btn" onclick="applyPresetBgColor('#FF6C26')" style="background: #FF6C26; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#FF6C26"></button>
+              <button class="btn" onclick="applyPresetBgColor('#FFD20A')" style="background: #FFD20A; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#FFD20A"></button>
+              <button class="btn" onclick="applyPresetBgColor('#726BFF')" style="background: #726BFF; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#726BFF"></button>
+              <button class="btn" onclick="applyPresetBgColor('#1E1E1E')" style="background: #1E1E1E; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#1E1E1E"></button>
+              <button class="btn" onclick="applyPresetBgColor('#FFFFFF')" style="background: #FFFFFF; width: 40px; height: 40px; padding: 0; border-radius: 8px; border: none;" title="#FFFFFF"></button>
+            </div>
+          </div>
+          <div class="form-group" id="bgPreview" style="display: none;">
+            <label>Текущий фон</label>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div id="bgThumb" style="width: 48px; height: 48px; border: none; border-radius: 4px; background-size: cover; background-position: center;"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <button class="btn btn-full" onclick="document.getElementById('bgUpload').click()">Загрузить изображение</button>
+            <input type="file" id="bgUpload" accept="image/*" style="display: none;" onchange="handleBgUpload(event)">
+          </div>
+          <div class="form-group" id="bgActions" style="display: none;">
+            <div class="input-group">
+              <button class="btn" onclick="document.getElementById('bgUpload').click()">Заменить</button>
+              <button class="btn" onclick="clearBg()">Очистить</button>
+            </div>
+          </div>
+          <div class="form-group" id="bgImageOptions" style="display: none;">
+            <label>Стиль размещения</label>
+            <div class="chips chips-3" style="margin-bottom: 12px;">
+              <div class="chip active" data-group="bg-size" data-value="cover" onclick="selectBgSize('cover')">Cover</div>
+              <div class="chip" data-group="bg-size" data-value="contain" onclick="selectBgSize('contain')">Contain</div>
+              <div class="chip" data-group="bg-size" data-value="repeat" onclick="selectBgSize('repeat')">Repeat</div>
+            </div>
+            <label>Позиция</label>
+            <div class="chips chips-3" style="margin-top: 8px;">
+              <div class="chip active" data-group="bg-position" data-value="center" onclick="selectBgPosition('center')">Центр</div>
+              <div class="chip" data-group="bg-position" data-value="top" onclick="selectBgPosition('top')">Верх</div>
+              <div class="chip" data-group="bg-position" data-value="bottom" onclick="selectBgPosition('bottom')">Низ</div>
+              <div class="chip" data-group="bg-position" data-value="left" onclick="selectBgPosition('left')">Слева</div>
+              <div class="chip" data-group="bg-position" data-value="right" onclick="selectBgPosition('right')">Справа</div>
             </div>
           </div>
         </div>
-
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('title')">
-            <span>Заголовок</span>
-            <span class="section-arrow" id="arrow-title">▼</span>
+        <!-- End Layout Section -->
+        
+        <!-- Logo Section -->
+        <div class="panel-section" id="panel-section-logo">
+          <div class="form-group">
+            <div class="toggle-switch" id="logoLangToggle" data-value="ru" data-options="2">
+              <div class="toggle-switch-slider"></div>
+              <div class="toggle-switch-track">
+                <div class="toggle-switch-option active" data-value="ru">RU</div>
+                <div class="toggle-switch-option" data-value="kz">KZ</div>
+              </div>
+            </div>
           </div>
-          <div class="section-content" id="content-title">
-            <div class="form-group">
-            <label>Текст</label>
-            <textarea id="title" oninput="updateState('title', this.value)">Курс «Frontend-разработчик» от Практикума</textarea>
+          <div class="form-group">
+            <div id="logoPreviewContainer" class="preview-container">
+              <img id="logoPreviewImg" src="" class="preview-img" style="display: none;">
+              <span id="logoPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
+            </div>
+            <div id="logoSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" onclick="closeLogoSelectModal()">
+              <div id="logoSelectPanel" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; background: #15171c; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                  <span class="modal-title">Выбрать логотип</span>
+                  <div class="modal-actions">
+                    <button class="btn" onclick="refreshLogoColumns(); event.stopPropagation();">Обновить</button>
+                    <button class="btn" onclick="closeLogoSelectModal(); event.stopPropagation();">✕</button>
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 150px 150px 150px 1fr; height: calc(70vh - 50px); max-height: 550px;">
+                  <!-- Колонка 1: Верхнеуровневые папки -->
+                  <div id="logoFolder1Column" class="modal-column">
+                  </div>
+                  <!-- Колонка 2: Подпапки -->
+                  <div id="logoFolder2Column" class="modal-column">
+                  </div>
+                  <!-- Колонка 3: Языковые коды (для трехуровневой структуры) -->
+                  <div id="logoFolder3Column" class="modal-column" style="display: none;">
+                  </div>
+                  <!-- Колонка 4: Превью картинок -->
+                  <div id="logoImagesColumn" class="modal-column">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-full mb-sm" id="logoSelectTrigger"><span id="logoSelectText">Выбрать</span></button>
+            <select id="logoSelect" style="display: none;" onchange="selectPreloadedLogo(this.value)">
+              <option value="" selected>— Нет —</option>
+            </select>
+            <div style="display: flex; gap: 8px; width: 100%;">
+              <button class="btn" onclick="document.getElementById('logoUpload').click()" style="flex: 1;">Загрузить</button>
+              <button class="btn" id="logoRemoveBtn" onclick="clearLogo()" style="flex: 1; background: #2a1f1f; color: #ff6b6b; border-color: #ff6b6b; opacity: 0.5; cursor: not-allowed;" disabled>Удалить</button>
+              <input type="file" id="logoUpload" accept="image/*,.svg" style="display: none;" onchange="handleLogoUpload(event)">
+            </div>
           </div>
+          <div class="form-group">
+            <label>Размер</label>
+            <input type="range" id="logoSize" value="40" min="5" max="60" step="1" oninput="updateLogoSize(this.value)">
+            <div class="slider-value">
+              <span>5%</span>
+              <span id="logoSizeValue">40%</span>
+              <span>60%</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Позиция</label>
+            <div class="toggle-switch" id="logoPosToggle" data-value="left" data-options="2">
+              <div class="toggle-switch-slider"></div>
+              <div class="toggle-switch-track">
+                <div class="toggle-switch-option active" data-value="left">Слева</div>
+                <div class="toggle-switch-option" data-value="center">По центру</div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+        <!-- End Logo Section -->
+        
+        <!-- Title Section -->
+        <div class="panel-section" id="panel-section-title">
+            <div id="titlePairsContainer" style="display: flex; flex-direction: column; gap: 16px;">
+              <!-- Пары заголовок/подзаголовок будут добавлены динамически -->
+            </div>
+            <div class="form-group" id="titlePairEditor" style="display: none;">
+              <label>Текст заголовка (для активной пары)</label>
+              <textarea id="title" oninput="updateActivePairTitle(this.value)">Курс «Frontend-разработчик» от Практикума</textarea>
+            </div>
           <div class="form-group">
             <label>Цвет</label>
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
               <input type="color" id="titleColor" value="#ffffff" onchange="updateColorFromPicker('titleColor', this.value)" style="flex: 0 0 60px;">
               <input type="text" id="titleColorHex" value="#ffffff" placeholder="#ffffff" onchange="updateColorFromHex('titleColor', this.value)" style="flex: 1;">
             </div>
+            <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
+              <button class="btn" onclick="updateColorFromPicker('titleColor', '#FFFFFF')" style="background: #FFFFFF; width: 40px; height: 40px; padding: 0; border-radius: 8px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" onclick="updateColorFromPicker('titleColor', '#1E1E1E')" style="background: #1E1E1E; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#1E1E1E"></button>
+            </div>
           </div>
           <div class="form-group">
             <label>Выключка текста</label>
-            <div class="chips chips-3">
-              <div class="chip active" data-group="title-align" data-value="left" onclick="selectTitleAlign('left')">Слева</div>
-              <div class="chip" data-group="title-align" data-value="center" onclick="selectTitleAlign('center')">Центр</div>
-              <div class="chip" data-group="title-align" data-value="right" onclick="selectTitleAlign('right')">Справа</div>
+            <div class="toggle-switch" id="titleAlignToggle" data-value="left" data-options="3">
+              <div class="toggle-switch-slider"></div>
+              <div class="toggle-switch-track">
+                <div class="toggle-switch-option active" data-value="left">Слева</div>
+                <div class="toggle-switch-option" data-value="center">Центр</div>
+                <div class="toggle-switch-option" data-value="right">Справа</div>
+              </div>
             </div>
           </div>
           <div class="form-group">
             <label>Вертикальная позиция</label>
-            <div class="chips chips-3">
-              <div class="chip active" data-group="title-vpos" data-value="top" onclick="selectTitleVPos('top')">Сверху</div>
-              <div class="chip" data-group="title-vpos" data-value="center" onclick="selectTitleVPos('center')">По центру</div>
-              <div class="chip" data-group="title-vpos" data-value="bottom" onclick="selectTitleVPos('bottom')">Снизу</div>
+            <div class="toggle-switch" id="titleVPosToggle" data-value="top" data-options="3">
+              <div class="toggle-switch-slider"></div>
+              <div class="toggle-switch-track">
+                <div class="toggle-switch-option active" data-value="top">Сверху</div>
+                <div class="toggle-switch-option" data-value="center">По центру</div>
+                <div class="toggle-switch-option" data-value="bottom">Снизу</div>
+              </div>
             </div>
           </div>
           <div class="form-group">
             <label>Размер шрифта (% от макета)</label>
-            <input type="number" id="titleSize" value="7" min="1" max="20" step="0.1" oninput="updateState('titleSize', parseFloat(this.value))">
+            <input type="range" id="titleSize" value="7" min="1" max="12" step="0.1" oninput="updateTitleSize(this.value)">
+            <div class="slider-value">
+              <span>1%</span>
+              <span id="titleSizeValue">7%</span>
+              <span>12%</span>
+            </div>
             <div class="hint">Процент от минимального размера макета (подзаголовок автоматически масштабируется)</div>
           </div>
           <div class="form-group">
+            <label>Гарнитура</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="titleFontFamily" onchange="selectTitleFontFamily(this.value)" style="flex: 1;">
+                <!-- Опции будут заполнены динамически через initializeFontDropdowns() -->
+              </select>
+              <button class="btn" onclick="document.getElementById('titleFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
+              <input type="file" id="titleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleTitleFontUpload(event)">
+            </div>
+            <div id="titleCustomFontInfo" style="display: none; margin-top: 8px; font-size: 12px; color: #8a8f9c;">
+              <span id="titleCustomFontName"></span>
+              <button class="btn btn-small" onclick="clearTitleCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+            </div>
+          </div>
+          <div class="form-group">
             <label>Начертание</label>
-            <select id="titleWeight" onchange="updateState('titleWeight', parseInt(this.value))">
-              <option value="100">100 — Тонкий</option>
-              <option value="200">200 — Экстра-светлый</option>
-              <option value="300">300 — Светлый</option>
-              <option value="400" selected>400 — Обычный</option>
-              <option value="500">500 — Средний</option>
-              <option value="600">600 — Полужирный</option>
-              <option value="700">700 — Жирный</option>
-              <option value="800">800 — Экстра-жирный</option>
-              <option value="900">900 — Чёрный</option>
+            <select id="titleWeight" onchange="updateState('titleWeight', this.value)">
+              <option value="Thin">Thin — Тонкий</option>
+              <option value="ExtraLight">ExtraLight — Экстра-светлый</option>
+              <option value="Light">Light — Светлый</option>
+              <option value="Regular" selected>Regular — Обычный</option>
+              <option value="Medium">Medium — Средний</option>
+              <option value="SemiBold">SemiBold — Полужирный</option>
+              <option value="Bold">Bold — Жирный</option>
+              <option value="Heavy">Heavy — Экстра-жирный</option>
+              <option value="Black">Black — Чёрный</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Межбуквенное расстояние (px)</label>
-            <input type="number" id="titleLetterSpacing" value="0" step="0.5" oninput="updateState('titleLetterSpacing', parseFloat(this.value))">
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
+            <input type="number" id="titleLetterSpacing" value="0" step="0.5" oninput="updateState('titleLetterSpacing', parseFloat(this.value))" style="width: 80px;">
           </div>
-          <div class="form-group">
-            <label>Межстрочный интервал</label>
-            <input type="number" id="titleLineHeight" value="1.1" min="1.0" max="3.0" step="0.1" oninput="updateState('titleLineHeight', parseFloat(this.value))">
-          </div>
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <label style="margin: 0; flex: 1;">Межстрочный интервал</label>
+            <input type="number" id="titleLineHeight" value="1.1" min="1.0" max="3.0" step="0.1" oninput="updateState('titleLineHeight', parseFloat(this.value))" style="width: 80px;">
           </div>
         </div>
-
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('subtitle')">
-            <span>Подзаголовок</span>
-            <span class="section-arrow" id="arrow-subtitle">▼</span>
-          </div>
-          <div class="section-content" id="content-subtitle">
+        <!-- End Title Section -->
+        
+        <!-- Subtitle Section -->
+        <div class="panel-section" id="panel-section-subtitle">
             <div class="form-group">
             <div class="checkbox-group">
               <input type="checkbox" id="showSubtitle" checked onchange="updateState('showSubtitle', this.checked)">
@@ -638,14 +1418,28 @@
             </div>
           </div>
           <div class="form-group">
-            <label>Текст</label>
-            <textarea id="subtitle" oninput="updateState('subtitle', this.value)">Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев</textarea>
+            <div class="checkbox-group">
+              <input type="checkbox" id="hideSubtitleOnWide" onchange="updateState('hideSubtitleOnWide', this.checked)">
+              <label style="margin: 0">Скрывать подзаголовок на широких форматах</label>
+            </div>
+            <div class="hint">Скрывает подзаголовок на макетах с высотой меньше 150px</div>
           </div>
+          <div id="subtitlePairsContainer" style="display: flex; flex-direction: column; gap: 16px;">
+              <!-- Пары заголовок/подзаголовок будут добавлены динамически -->
+            </div>
+            <div class="form-group" id="subtitlePairEditor" style="display: none;">
+              <label>Текст подзаголовка (для активной пары)</label>
+              <textarea id="subtitle" oninput="updateActivePairSubtitle(this.value)">Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев</textarea>
+            </div>
           <div class="form-group">
             <label>Цвет</label>
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
               <input type="color" id="subtitleColor" value="#e0e0e0" onchange="updateColorFromPicker('subtitleColor', this.value)" style="flex: 0 0 60px;">
               <input type="text" id="subtitleColorHex" value="#e0e0e0" placeholder="#e0e0e0" onchange="updateColorFromHex('subtitleColor', this.value)" style="flex: 1;">
+            </div>
+            <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
+              <button class="btn" onclick="updateColorFromPicker('subtitleColor', '#FFFFFF')" style="background: #FFFFFF; width: 40px; height: 40px; padding: 0; border-radius: 8px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" onclick="updateColorFromPicker('subtitleColor', '#1E1E1E')" style="background: #1E1E1E; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#1E1E1E"></button>
             </div>
           </div>
           <div class="form-group">
@@ -659,45 +1453,59 @@
           </div>
           <div class="form-group">
             <label>Размер шрифта (% от макета)</label>
-            <input type="number" id="subtitleSize" value="4" min="0.5" max="15" step="0.1" oninput="updateState('subtitleSize', parseFloat(this.value))">
+            <input type="range" id="subtitleSize" value="4" min="1" max="12" step="0.1" oninput="updateSubtitleSize(this.value)">
+            <div class="slider-value">
+              <span>1%</span>
+              <span id="subtitleSizeValue">4%</span>
+              <span>12%</span>
+            </div>
             <div class="hint">Процент от минимального размера макета (заголовок автоматически масштабируется)</div>
           </div>
           <div class="form-group">
+            <label>Гарнитура</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="subtitleFontFamily" onchange="selectSubtitleFontFamily(this.value)" style="flex: 1;">
+                <!-- Опции будут заполнены динамически через initializeFontDropdowns() -->
+              </select>
+              <button class="btn" onclick="document.getElementById('subtitleFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
+              <input type="file" id="subtitleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleSubtitleFontUpload(event)">
+            </div>
+            <div id="subtitleCustomFontInfo" style="display: none; margin-top: 8px; font-size: 12px; color: #8a8f9c;">
+              <span id="subtitleCustomFontName"></span>
+              <button class="btn btn-small" onclick="clearSubtitleCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+            </div>
+          </div>
+          <div class="form-group">
             <label>Начертание</label>
-            <select id="subtitleWeight" onchange="updateState('subtitleWeight', parseInt(this.value))">
-              <option value="100">100 — Тонкий</option>
-              <option value="200">200 — Экстра-светлый</option>
-              <option value="300">300 — Светлый</option>
-              <option value="400" selected>400 — Обычный</option>
-              <option value="500">500 — Средний</option>
-              <option value="600">600 — Полужирный</option>
-              <option value="700">700 — Жирный</option>
-              <option value="800">800 — Экстра-жирный</option>
-              <option value="900">900 — Чёрный</option>
+            <select id="subtitleWeight" onchange="updateState('subtitleWeight', this.value)">
+              <option value="Thin">Thin — Тонкий</option>
+              <option value="ExtraLight">ExtraLight — Экстра-светлый</option>
+              <option value="Light">Light — Светлый</option>
+              <option value="Regular" selected>Regular — Обычный</option>
+              <option value="Medium">Medium — Средний</option>
+              <option value="SemiBold">SemiBold — Полужирный</option>
+              <option value="Bold">Bold — Жирный</option>
+              <option value="Heavy">Heavy — Экстра-жирный</option>
+              <option value="Black">Black — Чёрный</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Межбуквенное расстояние (px)</label>
-            <input type="number" id="subtitleLetterSpacing" value="0" step="0.5" oninput="updateState('subtitleLetterSpacing', parseFloat(this.value))">
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
+            <input type="number" id="subtitleLetterSpacing" value="0" step="0.5" oninput="updateState('subtitleLetterSpacing', parseFloat(this.value))" style="width: 80px;">
           </div>
-          <div class="form-group">
-            <label>Межстрочный интервал</label>
-            <input type="number" id="subtitleLineHeight" value="1.2" min="1.0" max="3.0" step="0.1" oninput="updateState('subtitleLineHeight', parseFloat(this.value))">
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <label style="margin: 0; flex: 1;">Межстрочный интервал</label>
+            <input type="number" id="subtitleLineHeight" value="1.2" min="1.0" max="3.0" step="0.1" oninput="updateState('subtitleLineHeight', parseFloat(this.value))" style="width: 80px;">
           </div>
-          <div class="form-group">
-            <label>Отступ от заголовка (%)</label>
-            <input type="number" id="subtitleGap" value="0" min="0" max="20" step="0.5" oninput="updateState('subtitleGap', parseFloat(this.value))">
-          </div>
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <label style="margin: 0; flex: 1;">Отступ от заголовка (%)</label>
+            <input type="number" id="subtitleGap" value="-1.5" min="-20" max="20" step="0.5" oninput="updateState('subtitleGap', parseFloat(this.value))" style="width: 80px;">
           </div>
         </div>
-
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('legal')">
-            <span>Юридический текст</span>
-            <span class="section-arrow" id="arrow-legal">▼</span>
-          </div>
-          <div class="section-content" id="content-legal">
+        <!-- End Subtitle Section -->
+        
+        <!-- Legal Section -->
+        <div class="panel-section" id="panel-section-legal">
             <div class="form-group">
               <div class="checkbox-group">
                 <input type="checkbox" id="showLegal" checked onchange="updateState('showLegal', this.checked)">
@@ -713,6 +1521,10 @@
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
               <input type="color" id="legalColor" value="#ffffff" onchange="updateColorFromPicker('legalColor', this.value)" style="flex: 0 0 60px;">
               <input type="text" id="legalColorHex" value="#ffffff" placeholder="#ffffff" onchange="updateColorFromHex('legalColor', this.value)" style="flex: 1;">
+            </div>
+            <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
+              <button class="btn" onclick="updateColorFromPicker('legalColor', '#FFFFFF')" style="background: #FFFFFF; width: 40px; height: 40px; padding: 0; border-radius: 8px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" onclick="updateColorFromPicker('legalColor', '#1E1E1E')" style="background: #1E1E1E; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#1E1E1E"></button>
             </div>
           </div>
           <div class="form-group">
@@ -730,37 +1542,43 @@
             <div class="hint">Процент от минимального размера макета</div>
           </div>
           <div class="form-group">
+            <label>Гарнитура</label>
+            <div style="display: flex; gap: 8px;">
+              <select id="legalFontFamily" onchange="selectLegalFontFamily(this.value)" style="flex: 1;">
+                <!-- Опции будут заполнены динамически через initializeFontDropdowns() -->
+              </select>
+              <button class="btn" onclick="document.getElementById('legalFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
+              <input type="file" id="legalFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleLegalFontUpload(event)">
+            </div>
+            <div id="legalCustomFontInfo" style="display: none; margin-top: 8px; font-size: 12px; color: #8a8f9c;">
+              <span id="legalCustomFontName"></span>
+              <button class="btn btn-small" onclick="clearLegalCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+            </div>
+          </div>
+          <div class="form-group">
             <label>Начертание</label>
-            <select id="legalWeight" onchange="updateState('legalWeight', parseInt(this.value))">
-              <option value="100">100 — Тонкий</option>
-              <option value="200">200 — Экстра-светлый</option>
-              <option value="300">300 — Светлый</option>
-              <option value="400" selected>400 — Обычный</option>
-              <option value="500">500 — Средний</option>
-              <option value="600">600 — Полужирный</option>
-              <option value="700">700 — Жирный</option>
-              <option value="800">800 — Экстра-жирный</option>
-              <option value="900">900 — Чёрный</option>
+            <select id="legalWeight" onchange="updateState('legalWeight', this.value)">
+              <option value="Thin">Thin — Тонкий</option>
+              <option value="ExtraLight">ExtraLight — Экстра-светлый</option>
+              <option value="Light">Light — Светлый</option>
+              <option value="Regular" selected>Regular — Обычный</option>
+              <option value="Medium">Medium — Средний</option>
+              <option value="SemiBold">SemiBold — Полужирный</option>
+              <option value="Bold">Bold — Жирный</option>
+              <option value="Heavy">Heavy — Экстра-жирный</option>
+              <option value="Black">Black — Чёрный</option>
             </select>
           </div>
-          <div class="form-group">
-            <label>Межбуквенное расстояние (px)</label>
-            <input type="number" id="legalLetterSpacing" value="0" step="0.5" oninput="updateState('legalLetterSpacing', parseFloat(this.value))">
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
+            <input type="number" id="legalLetterSpacing" value="0" step="0.5" oninput="updateState('legalLetterSpacing', parseFloat(this.value))" style="width: 80px;">
           </div>
-          <div class="form-group">
-            <label>Межстрочный интервал</label>
-            <input type="number" id="legalLineHeight" value="1.4" min="1.0" max="3.0" step="0.1" oninput="updateState('legalLineHeight', parseFloat(this.value))">
+          <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+            <label style="margin: 0; flex: 1;">Межстрочный интервал</label>
+            <input type="number" id="legalLineHeight" value="1.4" min="1.0" max="3.0" step="0.1" oninput="updateState('legalLineHeight', parseFloat(this.value))" style="width: 80px;">
           </div>
-          </div>
-        </div>
-
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('age')">
-            <span>Возрастное ограничение</span>
-            <span class="section-arrow" id="arrow-age">▼</span>
-          </div>
-          <div class="section-content" id="content-age">
+          
+          <div class="form-group-section">
             <div class="form-group">
               <div class="checkbox-group">
                 <input type="checkbox" id="showAge" checked onchange="updateState('showAge', this.checked)">
@@ -773,153 +1591,142 @@
             </div>
             <div class="form-group">
               <label>Размер шрифта (% от макета)</label>
-              <input type="number" id="ageSize" value="4" min="0.3" max="5" step="0.1" oninput="updateState('ageSize', parseFloat(this.value))">
+              <input type="range" id="ageSize" value="4" min="1" max="12" step="0.1" oninput="updateAgeSize(this.value)">
+              <div class="slider-value">
+                <span>1%</span>
+                <span id="ageSizeValue">4%</span>
+                <span>12%</span>
+              </div>
               <div class="hint">Процент от минимального размера макета</div>
             </div>
             <div class="form-group">
-              <label>Отступ от юридического текста (%)</label>
-              <input type="number" id="ageGapPercent" value="1" min="0" max="20" step="0.5" oninput="updateState('ageGapPercent', parseFloat(this.value))">
-              <div class="hint">Горизонтальный отступ в % от ширины холста</div>
+              <label>Гарнитура</label>
+              <div style="display: flex; gap: 8px;">
+                <select id="ageFontFamily" onchange="selectAgeFontFamily(this.value)" style="flex: 1;">
+                  <!-- Опции будут заполнены динамически через initializeFontDropdowns() -->
+                </select>
+                <button class="btn" onclick="document.getElementById('ageFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
+                <input type="file" id="ageFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleAgeFontUpload(event)">
+              </div>
+              <div id="ageCustomFontInfo" style="display: none; margin-top: 8px; font-size: 12px; color: #8a8f9c;">
+                <span id="ageCustomFontName"></span>
+                <button class="btn btn-small" onclick="clearAgeCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+              </div>
             </div>
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+              <label style="margin: 0; flex: 1;">Отступ от юридического текста (%)</label>
+              <input type="number" id="ageGapPercent" value="1" min="0" max="20" step="0.5" oninput="updateState('ageGapPercent', parseFloat(this.value))" style="width: 80px;">
+            </div>
+            <div class="hint" style="margin-top: -8px;">Горизонтальный отступ в % от ширины холста</div>
           </div>
         </div>
-
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('logo')">
-            <span>Логотип</span>
-            <span class="section-arrow" id="arrow-logo">▼</span>
-          </div>
-          <div class="section-content" id="content-logo">
-            <div class="form-group">
-              <label>Выбрать логотип</label>
-              <select id="logoSelect" onchange="selectPreloadedLogo(this.value)">
-                <option value="" selected>— Нет —</option>
-              </select>
-            </div>
-          <div class="form-group" id="logoPreview" style="display: none;">
-            <label>Текущий логотип</label>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <img id="logoThumb" src="" style="height: 48px; border: 1px solid #242733; border-radius: 4px; background: #0e0f12; padding: 4px;">
-            </div>
-          </div>
-          <div class="form-group">
-            <button class="btn btn-full" onclick="document.getElementById('logoUpload').click()">Загрузить логотип</button>
-            <input type="file" id="logoUpload" accept="image/*,.svg" style="display: none;" onchange="handleLogoUpload(event)">
-          </div>
-          <div class="form-group" id="logoActions" style="display: none;">
-            <div class="input-group">
-              <button class="btn" onclick="document.getElementById('logoUpload').click()">Заменить</button>
-              <button class="btn" onclick="clearLogo()">Очистить</button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Размер логотипа (% ширины холста)</label>
-            <input type="range" id="logoSize" value="40" min="5" max="60" step="1" oninput="updateLogoSize(this.value)">
-            <div class="slider-value">
-              <span>5%</span>
-              <span id="logoSizeValue">40%</span>
-              <span>60%</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Позиция логотипа</label>
-            <div class="chips">
-              <div class="chip active" data-group="logo-pos" data-value="left" onclick="selectLogoPos('left')">Слева</div>
-              <div class="chip" data-group="logo-pos" data-value="center" onclick="selectLogoPos('center')">По центру</div>
-            </div>
-            <div class="hint">Горизонтальное расположение логотипа</div>
-          </div>
-          </div>
-        </div>
-
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('kv')">
-            <span>Ключевой визуал</span>
-            <span class="section-arrow" id="arrow-kv">▼</span>
-          </div>
-          <div class="section-content" id="content-kv">
+        <!-- End Legal Section -->
+        
+        <!-- KV Section -->
+        <div class="panel-section" id="panel-section-kv">
             <div class="form-group">
             <div class="checkbox-group">
               <input type="checkbox" id="showKV" checked onchange="updateState('showKV', this.checked)">
               <label style="margin: 0">Показывать KV</label>
             </div>
           </div>
-          <div class="form-group" id="kvPreview" style="display: none;">
-            <label>Текущий KV</label>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <img id="kvThumb" src="" style="height: 80px; border: 1px solid #242733; border-radius: 4px; background: #0e0f12; padding: 4px;">
-            </div>
-          </div>
           <div class="form-group">
-            <button class="btn btn-full" onclick="document.getElementById('kvUpload').click()">Загрузить KV</button>
-            <input type="file" id="kvUpload" accept="image/*" style="display: none;" onchange="handleKVUpload(event)">
-          </div>
-          <div class="form-group" id="kvActions" style="display: none;">
-            <div class="input-group">
-              <button class="btn" onclick="document.getElementById('kvUpload').click()">Заменить</button>
-              <button class="btn" onclick="clearKV()">Очистить</button>
+            <label>Скругление углов (%)</label>
+            <input type="range" id="kvBorderRadius" value="0" min="0" max="20" step="1" oninput="updateKVBorderRadius(this.value)">
+            <div class="slider-value">
+              <span>0%</span>
+              <span id="kvBorderRadiusValue">0%</span>
+              <span>20%</span>
             </div>
           </div>
+          <div class="form-group-section">
+            <div class="form-group form-item">
+              <label id="kvActivePairLabel" class="form-label mb-sm" style="display: block;">KV для заголовка 1</label>
+              <div id="kvPreviewContainer" class="preview-container">
+                <img id="kvPreviewImg" src="" class="preview-img" style="display: none;">
+                <span id="kvPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
+              </div>
+              <div id="kvSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" onclick="closeKVSelectModal()">
+                <div id="kvSelectPanel" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; background: #15171c; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" onclick="event.stopPropagation()">
+                  <div class="modal-header">
+                    <span class="modal-title">Выбрать KV</span>
+                    <div class="modal-actions">
+                      <button class="btn" onclick="refreshKVColumns(); event.stopPropagation();">Обновить</button>
+                      <button class="btn" onclick="closeKVSelectModal(); event.stopPropagation();">✕</button>
+                    </div>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 150px 150px 1fr; height: calc(70vh - 50px); max-height: 550px;">
+                    <!-- Колонка 1: Верхнеуровневые папки -->
+                    <div id="kvFolder1Column" class="modal-column">
+                    </div>
+                    <!-- Колонка 2: Подпапки -->
+                    <div id="kvFolder2Column" class="modal-column">
+                    </div>
+                    <!-- Колонка 3: Превью картинок -->
+                    <div id="kvImagesColumn" class="modal-column">
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button class="btn btn-full mb-sm" id="kvSelectTrigger"><span id="kvSelectText">Выбрать</span></button>
+              <select id="kvSelect" style="display: none;" onchange="selectPreloadedKV(this.value)">
+                <option value="" selected>— Нет —</option>
+              </select>
+              <div style="display: flex; gap: 8px; width: 100%;">
+                <button class="btn" onclick="document.getElementById('kvUpload').click()" style="flex: 1;">Загрузить</button>
+                <button class="btn" id="kvRemoveBtn" onclick="clearKV()" style="flex: 1; background: #2a1f1f; color: #ff6b6b; border-color: #ff6b6b; opacity: 0.5; cursor: not-allowed;" disabled>Удалить</button>
+                <input type="file" id="kvUpload" accept="image/*" style="display: none;" onchange="handleKVUpload(event)">
+              </div>
+            </div>
+          </div>
+          <div id="kvPairsContainer" class="gap-lg mt-lg" style="display: flex; flex-direction: column;">
+            <!-- KV для каждой пары заголовок/подзаголовок будут добавлены динамически -->
           </div>
         </div>
-
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('background')">
-            <span>Фон</span>
-            <span class="section-arrow" id="arrow-background">▼</span>
-          </div>
-          <div class="section-content" id="content-background">
-            <div class="form-group">
-            <label>Цвет фона</label>
-            <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
-              <input type="color" id="bgColor" value="#1e1e1e" onchange="updateColorFromPicker('bgColor', this.value)" style="flex: 0 0 60px;">
-              <input type="text" id="bgColorHex" value="#1e1e1e" placeholder="#1e1e1e" onchange="updateColorFromHex('bgColor', this.value)" style="flex: 1;">
-            </div>
-          </div>
-          <div class="form-group" id="bgPreview" style="display: none;">
-            <label>Текущий фон</label>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <div id="bgThumb" style="width: 48px; height: 48px; border: 1px solid #242733; border-radius: 4px; background-size: cover; background-position: center;"></div>
-            </div>
-          </div>
-          <div class="form-group">
-            <button class="btn btn-full" onclick="document.getElementById('bgUpload').click()">Загрузить фон</button>
-            <input type="file" id="bgUpload" accept="image/*" style="display: none;" onchange="handleBgUpload(event)">
-          </div>
-          <div class="form-group" id="bgActions" style="display: none;">
-            <div class="input-group">
-              <button class="btn" onclick="document.getElementById('bgUpload').click()">Заменить</button>
-              <button class="btn" onclick="clearBg()">Очистить</button>
-            </div>
-          </div>
-        </div>
-
-
-        <div class="section">
-          <div class="section-title">Типографика</div>
-          <div class="form-group">
-            <label>Шрифт</label>
-            <select id="fontFamily" onchange="selectFontFamily(this.value)">
-              <option value="system-ui">Системный</option>
-            </select>
-          </div>
-        </div>
+        <!-- End KV Section -->
+        
       </div>
-    </div>
-          <!-- Center Canvas Preview -->
+      
+      <!-- Center Canvas Preview -->
       <div class="canvas-area" id="canvasArea">
-        <div style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
-          <div style="background: #15171c; padding: 12px; border-radius: 8px; border: 1px solid #242733;">
-            <label style="font-size: 13px; color: #8a8f9c; margin-bottom: 8px; display: block;">Размер предпросмотра:</label>
-            <select id="previewSizeSelect" onchange="changePreviewSize(this.value)" style="width: 100%; background: #0e0f12; border: 1px solid #242733; color: #e9ecf1; padding: 8px 12px; border-radius: 6px; font-size: 14px;">
-            </select>
+        <div style="max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
+          <div style="background: #15171c; padding: 12px; border-radius: 8px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+              <div>
+                <label class="label-small">Узкий формат</label>
+                <select id="previewSizeSelectNarrow" onchange="changePreviewSizeCategory('narrow', this.value)">
+                </select>
+              </div>
+              <div>
+                <label class="label-small">Квадратный формат</label>
+                <select id="previewSizeSelectSquare" onchange="changePreviewSizeCategory('square', this.value)">
+                </select>
+              </div>
+              <div>
+                <label class="label-small">Широкий формат</label>
+                <select id="previewSizeSelectWide" onchange="changePreviewSizeCategory('wide', this.value)">
+                </select>
+              </div>
+            </div>
           </div>
-          <div style="background: #0a0d13; border: 1px solid #242733; border-radius: 8px; padding: 16px; display: flex; align-items: center; justify-content: center; min-height: 400px;">
-            <div style="width: 100%;">
-              <canvas id="previewCanvas" style="max-width: 100%; height: auto; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></canvas>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+            <div style="background: #0a0d13; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+              <div class="label-medium">Узкий</div>
+              <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
+                <canvas id="previewCanvasNarrow" style="max-width: 100%; max-height: 100%; height: auto; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></canvas>
+              </div>
+            </div>
+            <div style="background: #0a0d13; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+              <div class="label-medium">Квадратный</div>
+              <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
+                <canvas id="previewCanvasSquare" style="max-width: 100%; max-height: 100%; height: auto; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></canvas>
+              </div>
+            </div>
+            <div style="background: #0a0d13; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+              <div class="label-medium">Широкий</div>
+              <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
+                <canvas id="previewCanvasWide" style="max-width: 100%; max-height: 100%; height: auto; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></canvas>
+              </div>
             </div>
           </div>
         </div>
@@ -928,53 +1735,44 @@
 
       <!-- Right Panel -->
       <div class="panel">
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('preset-sizes')">
-            <span>Предустановленные размеры</span>
-            <span class="section-arrow" id="arrow-preset-sizes">▼</span>
+        <div class="form-group">
+          <label>Название архива</label>
+          <input type="text" id="namePrefix" value="layout" oninput="updateState('namePrefix', this.value)">
+        </div>
+        <div class="form-group">
+          <div style="display: flex; gap: 8px;">
+            <button class="btn primary" onclick="exportAllPNG()" style="flex: 1;">PNG</button>
+            <button class="btn" onclick="exportAllJPG()" style="flex: 1;">JPG</button>
           </div>
-          <div class="section-content" id="content-preset-sizes">
+        </div>
+        <div class="form-group-section">
+          <label>Предустановленные размеры</label>
+          <div id="content-preset-sizes">
             <div class="form-group">
-              <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+              <div class="gap-sm mb-md" style="display: flex;">
                 <button class="btn btn-full" onclick="selectAllSizes()">Выбрать все</button>
                 <button class="btn btn-full" onclick="deselectAllSizes()">Снять выбор</button>
               </div>
             </div>
             <div class="form-group">
-              <div id="sizesSummary" style="font-size: 13px; color: #8a8f9c; text-align: center; margin-bottom: 12px;">Выбрано: 0 размеров</div>
+              <div id="sizesSummary" class="mb-md" style="font-size: 13px; color: #8a8f9c; text-align: center;">Выбрано: 0 размеров</div>
             </div>
             <div id="presetSizesList"></div>
+            <div class="form-group form-group-section">
+              <label>Добавить размер</label>
+              <div class="gap-sm mb-sm" style="display: flex; align-items: center;">
+                <input type="number" id="customWidth" placeholder="Ширина" min="1" style="flex: 1; background: #0e0f12; border: none; color: #e9ecf1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+                <span style="color: #8a8f9c; font-size: 16px; padding: 0 4px;">×</span>
+                <input type="number" id="customHeight" placeholder="Высота" min="1" style="flex: 1; background: #0e0f12; border: none; color: #e9ecf1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+              </div>
+              <button class="btn btn-full" onclick="addCustomSizeFromInput()">+ Добавить размер</button>
+            </div>
           </div>
         </div>
 
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('batch-export')">
-            <span>Пакетный экспорт</span>
-            <span class="section-arrow" id="arrow-batch-export">▼</span>
-          </div>
-          <div class="section-content" id="content-batch-export">
-            <div class="form-group">
-              <label>Префикс имени файла</label>
-              <input type="text" id="namePrefix" value="layout" oninput="updateState('namePrefix', this.value)">
-            </div>
-            <div class="form-group">
-              <button class="btn btn-full primary" onclick="exportAllPNG()">Пакет PNG</button>
-            </div>
-            <div class="form-group">
-              <button class="btn btn-full" onclick="exportAllJPG()">Пакет JPG</button>
-            </div>
-            <div class="hint">Файлы скачиваются как layout-1.png, layout-2.jpg и т.д.</div>
-          </div>
-        </div>
-
-
-        <div class="section">
-          <div class="section-header" onclick="toggleSection('settings')">
-            <span>Настройки</span>
-            <span class="section-arrow" id="arrow-settings">▼</span>
-          </div>
-          <div class="section-content" id="content-settings">
+        <div class="form-group-section">
+          <label>Настройки</label>
+          <div id="content-settings">
             <div class="form-group">
               <button class="btn btn-full" onclick="saveSettings()">Сохранить настройки</button>
             </div>
@@ -992,6 +1790,7 @@
 
 
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

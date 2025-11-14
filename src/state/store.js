@@ -1,40 +1,63 @@
-import { PRESET_SIZES } from '../constants.js';
+import { PRESET_SIZES, FONT_NAME_TO_WEIGHT, FONT_WEIGHT_TO_NAME } from '../constants.js';
 
 const TITLE_SUBTITLE_RATIO = 1 / 2;
 
 const cloneDeep = (value) => JSON.parse(JSON.stringify(value));
 
+const createTitleSubtitlePair = (index = 0) => ({
+  id: `pair-${Date.now()}-${index}`,
+  title: index === 0 ? 'Курс «Frontend-разработчик» от Практикума' : '',
+  subtitle: index === 0 ? 'Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев' : '',
+  kvSelected: index === 0 ? 'assets/3d/sign/01.png' : '', // KV для этой пары
+});
+
 const createInitialState = () => ({
   paddingPercent: 5,
-  title: 'Курс «Frontend-разработчик» от Практикума',
+  // Массивы заголовков и подзаголовков
+  titleSubtitlePairs: [createTitleSubtitlePair(0)],
+  activePairIndex: 0, // Индекс активной пары для отображения на превью
+  // Общие настройки для всех заголовков
   titleColor: '#ffffff',
   titleAlign: 'left',
   titleVPos: 'top',
   titleSize: 8,
-  titleWeight: 400,
+  titleWeight: 'Regular', // Используем название начертания вместо цифр
   titleLetterSpacing: 0,
   titleLineHeight: 1.1,
-  subtitle: 'Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев',
+  titleFontFamily: 'YS Text',
+  titleFontFamilyFile: null,
+  titleCustomFont: null, // URL blob для загруженного шрифта
+  titleCustomFontName: null, // Имя загруженного файла
+  // Общие настройки для всех подзаголовков
   subtitleColor: '#e0e0e0',
   subtitleOpacity: 90,
   subtitleAlign: 'left',
   subtitleSize: 4,
-  subtitleWeight: 400,
+  subtitleWeight: 'Regular', // Используем название начертания вместо цифр
   subtitleLetterSpacing: 0,
   subtitleLineHeight: 1.2,
-  subtitleGap: 0,
+  subtitleGap: -1.5,
+  subtitleFontFamily: 'YS Text',
+  subtitleFontFamilyFile: null,
+  subtitleCustomFont: null,
+  subtitleCustomFontName: null,
+  // Обратная совместимость (используются для рендеринга активной пары)
+  title: 'Курс «Frontend-разработчик» от Практикума',
+  subtitle: 'Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев',
   legal: 'Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/',
   legalColor: '#ffffff',
   legalOpacity: 60,
   legalAlign: 'left',
   legalSize: 2,
-  legalWeight: 400,
+  legalWeight: 'Regular', // Используем название начертания вместо цифр
   legalLetterSpacing: 0,
   legalLineHeight: 1.4,
   age: '18+',
   ageGapPercent: 1,
   ageSize: 4,
+  ageWeight: 'Regular', // Используем название начертания вместо цифр
   showSubtitle: true,
+  hideSubtitleOnWide: false,
   showLegal: true,
   showAge: true,
   showKV: true,
@@ -42,16 +65,30 @@ const createInitialState = () => ({
   showGuides: true,
   layoutMode: 'auto',
   logo: null,
-  logoSelected: 'logo/white.svg',
+  logoSelected: 'logo/white/ru/main.svg',
   logoSize: 40,
+  logoLanguage: 'ru', // ru или kz
   kv: null,
+  kvSelected: 'assets/3d/sign/01.png',
+  kvBorderRadius: 0,
   bgColor: '#1e1e1e',
   bgImage: null,
+  bgSize: 'cover',
+  bgPosition: 'center',
   logoPos: 'left',
-  fontFamily: 'YS Text',
+  fontFamily: 'YS Text', // Общая гарнитура (для обратной совместимости)
   fontFamilyFile: null,
   customFont: null,
+  legalFontFamily: 'YS Text',
+  legalFontFamilyFile: null,
+  legalCustomFont: null,
+  legalCustomFontName: null,
+  ageFontFamily: 'YS Text',
+  ageFontFamilyFile: null,
+  ageCustomFont: null,
+  ageCustomFontName: null,
   presetSizes: cloneDeep(PRESET_SIZES),
+  customSizes: [], // Кастомные размеры: [{ width, height, checked, id }]
   namePrefix: 'layout',
   kvCanvasWidth: null,
   kvCanvasHeight: null
@@ -126,6 +163,20 @@ const applyDerivedState = (state, delta) => {
     next.titleSize = parseFloat((state.subtitleSize / TITLE_SUBTITLE_RATIO).toFixed(2));
   }
 
+  // Синхронизируем активную пару с полями title/subtitle/kvSelected для обратной совместимости
+  if (next.titleSubtitlePairs && next.titleSubtitlePairs.length > 0) {
+    const activeIndex = next.activePairIndex || 0;
+    const activePair = next.titleSubtitlePairs[activeIndex];
+    if (activePair) {
+      next.title = activePair.title || '';
+      next.subtitle = activePair.subtitle || '';
+      // Синхронизируем KV из активной пары
+      if (activePair.kvSelected !== undefined) {
+        next.kvSelected = activePair.kvSelected || '';
+      }
+    }
+  }
+
   return next;
 };
 
@@ -157,8 +208,69 @@ export const resetPresetSizes = (checked) => {
   setKey('presetSizes', presets);
 };
 
+// Функции для управления парами заголовок/подзаголовок
+export const addTitleSubtitlePair = () => {
+  const state = getState();
+  const newPair = createTitleSubtitlePair(state.titleSubtitlePairs.length);
+  const newPairs = [...state.titleSubtitlePairs, newPair];
+  setState({ titleSubtitlePairs: newPairs });
+};
+
+export const removeTitleSubtitlePair = (index) => {
+  const state = getState();
+  if (state.titleSubtitlePairs.length <= 1) {
+    alert('Нельзя удалить последнюю пару заголовок/подзаголовок');
+    return;
+  }
+  const newPairs = state.titleSubtitlePairs.filter((_, i) => i !== index);
+  let newActiveIndex = state.activePairIndex;
+  if (newActiveIndex >= newPairs.length) {
+    newActiveIndex = newPairs.length - 1;
+  } else if (newActiveIndex > index) {
+    newActiveIndex = newActiveIndex - 1;
+  }
+  setState({ 
+    titleSubtitlePairs: newPairs,
+    activePairIndex: newActiveIndex
+  });
+};
+
+export const setActivePairIndex = (index) => {
+  const state = getState();
+  if (index >= 0 && index < state.titleSubtitlePairs.length) {
+    setKey('activePairIndex', index);
+  }
+};
+
+export const updatePairTitle = (index, title) => {
+  const state = getState();
+  const newPairs = [...state.titleSubtitlePairs];
+  if (newPairs[index]) {
+    newPairs[index] = { ...newPairs[index], title };
+    setState({ titleSubtitlePairs: newPairs });
+  }
+};
+
+export const updatePairSubtitle = (index, subtitle) => {
+  const state = getState();
+  const newPairs = [...state.titleSubtitlePairs];
+  if (newPairs[index]) {
+    newPairs[index] = { ...newPairs[index], subtitle };
+    setState({ titleSubtitlePairs: newPairs });
+  }
+};
+
+export const updatePairKV = (index, kvSelected) => {
+  const state = getState();
+  const newPairs = [...state.titleSubtitlePairs];
+  if (newPairs[index]) {
+    newPairs[index] = { ...newPairs[index], kvSelected: kvSelected || '' };
+    setState({ titleSubtitlePairs: newPairs });
+  }
+};
+
 export const getCheckedSizes = () => {
-  const { presetSizes } = store.getState();
+  const { presetSizes, customSizes } = store.getState();
   const sizes = [];
   Object.keys(presetSizes).forEach((platform) => {
     presetSizes[platform].forEach((size) => {
@@ -166,6 +278,12 @@ export const getCheckedSizes = () => {
         sizes.push({ width: size.width, height: size.height, platform });
       }
     });
+  });
+  // Добавляем кастомные размеры
+  customSizes.forEach((size) => {
+    if (size.checked) {
+      sizes.push({ width: size.width, height: size.height, platform: 'Custom' });
+    }
   });
   return sizes;
 };
@@ -188,6 +306,32 @@ export const deselectAllPresetSizes = () => {
   const presets = cloneDeep(store.getState().presetSizes);
   Object.values(presets).forEach((sizes) => sizes.forEach((size) => (size.checked = false)));
   setKey('presetSizes', presets);
+};
+
+export const addCustomSize = (width, height) => {
+  const { customSizes } = store.getState();
+  const newSize = {
+    id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    width: parseInt(width, 10),
+    height: parseInt(height, 10),
+    checked: true
+  };
+  const newCustomSizes = [...customSizes, newSize];
+  setKey('customSizes', newCustomSizes);
+};
+
+export const removeCustomSize = (id) => {
+  const { customSizes } = store.getState();
+  const newCustomSizes = customSizes.filter(size => size.id !== id);
+  setKey('customSizes', newCustomSizes);
+};
+
+export const toggleCustomSize = (id) => {
+  const { customSizes } = store.getState();
+  const newCustomSizes = customSizes.map(size => 
+    size.id === id ? { ...size, checked: !size.checked } : size
+  );
+  setKey('customSizes', newCustomSizes);
 };
 
 const hasCheckedSize = (presetSizes) =>
@@ -215,6 +359,29 @@ export const saveSettingsSnapshot = () => {
 
 export const applySavedSettings = (snapshot) => {
   const current = store.getState();
+  
+  // Конвертируем числовые веса в названия для обратной совместимости
+  const convertWeight = (weight) => {
+    if (typeof weight === 'number') {
+      return FONT_WEIGHT_TO_NAME[weight.toString()] || 'Regular';
+    }
+    return weight || 'Regular';
+  };
+  
+  // Конвертируем веса в snapshot
+  if (snapshot.titleWeight !== undefined) {
+    snapshot.titleWeight = convertWeight(snapshot.titleWeight);
+  }
+  if (snapshot.subtitleWeight !== undefined) {
+    snapshot.subtitleWeight = convertWeight(snapshot.subtitleWeight);
+  }
+  if (snapshot.legalWeight !== undefined) {
+    snapshot.legalWeight = convertWeight(snapshot.legalWeight);
+  }
+  if (snapshot.ageWeight !== undefined) {
+    snapshot.ageWeight = convertWeight(snapshot.ageWeight);
+  }
+  
   store.state = applyDerivedState({ ...current, ...snapshot }, snapshot);
   store.notify();
 };

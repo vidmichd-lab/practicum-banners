@@ -1,12 +1,52 @@
 import { getState, getCheckedSizes, setKey } from './state/store.js';
+import { FONT_NAME_TO_WEIGHT } from './constants.js';
+
+// Функция для конвертации названия начертания в вес
+const getFontWeight = (weightName) => {
+  if (typeof weightName === 'number') {
+    return weightName; // Для обратной совместимости
+  }
+  return FONT_NAME_TO_WEIGHT[weightName] || '400';
+};
 
 const TITLE_SUBTITLE_RATIO = 1 / 2;
 const LEGAL_DESCENT_FACTOR = 0.2;
 
 let previewCanvas = null;
+let previewCanvasNarrow = null;
+let previewCanvasWide = null;
+let previewCanvasSquare = null;
 let currentPreviewIndex = 0;
+let currentNarrowIndex = 0;
+let currentWideIndex = 0;
+let currentSquareIndex = 0;
 let rafId = null;
 let lastRenderMeta = null;
+
+// Получаем отсортированные размеры по высоте (от маленькой к большой)
+const getSortedSizes = () => {
+  const sizes = getCheckedSizes();
+  return [...sizes].sort((a, b) => a.height - b.height);
+};
+
+// Категоризация размеров
+const categorizeSizes = (sizes) => {
+  const narrow = []; // height > width * 1.5 (вертикальные)
+  const wide = [];   // width >= height * 3 (горизонтальные)
+  const square = []; // остальные (примерно квадратные)
+  
+  sizes.forEach((size) => {
+    if (size.height > size.width * 1.5) {
+      narrow.push(size);
+    } else if (size.width >= size.height * 3) {
+      wide.push(size);
+    } else {
+      square.push(size);
+    }
+  });
+  
+  return { narrow, wide, square };
+};
 
 const textMeasurementCache = new Map();
 
@@ -52,6 +92,23 @@ const drawTextWithSpacing = (ctx, text, x, y, letterSpacing, align) => {
   });
 };
 
+// Предлоги и союзы, которые не должны оставаться в конце строки
+const HANGING_PREPOSITIONS = new Set([
+  'в', 'во', 'на', 'над', 'под', 'с', 'со', 'к', 'ко', 'от', 'о', 'об', 'обо',
+  'из', 'изо', 'до', 'по', 'про', 'для', 'при', 'без', 'безо', 'через', 'сквозь',
+  'между', 'среди', 'перед', 'передо', 'за', 'у', 'около', 'возле', 'вдоль',
+  'поперёк', 'против', 'ради', 'благодаря', 'согласно', 'вопреки', 'навстречу',
+  'наперекор', 'подобно', 'соответственно', 'относительно', 'касательно',
+  'и', 'а', 'но', 'или', 'либо', 'что', 'как', 'когда', 'если', 'хотя', 'чтобы'
+]);
+
+// Проверяет, является ли слово висячим предлогом/союзом
+const isHangingPreposition = (word) => {
+  // Убираем знаки препинания для проверки
+  const cleanWord = word.replace(/[.,!?;:—–\-()«»""'']/g, '').toLowerCase();
+  return HANGING_PREPOSITIONS.has(cleanWord);
+};
+
 const wrapText = (ctx, text, maxWidth, fontSize, fontWeight, lineHeight) => {
   if (!text) return [];
 
@@ -62,18 +119,29 @@ const wrapText = (ctx, text, maxWidth, fontSize, fontWeight, lineHeight) => {
     const words = paragraph.split(/\s+/);
     let currentLine = '';
 
-    words.forEach((word) => {
+    words.forEach((word, wordIndex) => {
       if (!word) return;
-      const tentativeLine = currentLine ? `${currentLine} ${word}` : word;
-      const tentativeWidth = measureLineWidth(ctx, tentativeLine);
-
-      if (tentativeWidth <= maxWidth || !currentLine) {
-        currentLine = tentativeLine;
-        return;
-      }
-
-      // handle words longer than max width by breaking by characters
+      
+      // handle words longer than max width
       if (!currentLine) {
+        // Сначала пробуем разбить по дефису, если слово содержит дефис
+        if (word.includes('-') && word.length > 1) {
+          const parts = word.split('-');
+          // Пробуем найти место разрыва
+          for (let i = parts.length - 1; i > 0; i--) {
+            const firstPart = parts.slice(0, i).join('-') + '-';
+            const firstPartWidth = measureLineWidth(ctx, firstPart);
+            
+            if (firstPartWidth <= maxWidth) {
+              // Первая часть помещается, переносим остальное на новую строку
+              lines.push(firstPart);
+              currentLine = parts.slice(i).join('-');
+              return;
+            }
+          }
+        }
+        
+        // Если не удалось разбить по дефису, разбиваем по символам
         const chars = Array.from(word);
         let chunk = '';
         chars.forEach((char) => {
@@ -91,12 +159,105 @@ const wrapText = (ctx, text, maxWidth, fontSize, fontWeight, lineHeight) => {
         return;
       }
 
-      lines.push(currentLine);
-      currentLine = word;
+      const tentativeLine = `${currentLine} ${word}`;
+      const tentativeWidth = measureLineWidth(ctx, tentativeLine);
+
+      if (tentativeWidth <= maxWidth) {
+        currentLine = tentativeLine;
+        return;
+      }
+
+      // Слово не помещается на текущей строке
+      // Проверяем, можно ли разбить слово по дефису
+      if (word.includes('-') && word.length > 1) {
+        const parts = word.split('-');
+        // Пробуем найти место разрыва, где можно перенести
+        for (let i = parts.length - 1; i > 0; i--) {
+          const firstPart = parts.slice(0, i).join('-') + '-';
+          const secondPart = '-' + parts.slice(i).join('-');
+          
+          const lineWithFirstPart = currentLine ? `${currentLine} ${firstPart}` : firstPart;
+          const firstPartWidth = measureLineWidth(ctx, lineWithFirstPart);
+          
+          if (firstPartWidth <= maxWidth) {
+            // Первая часть помещается, переносим остальное на новую строку
+            lines.push(lineWithFirstPart.trim());
+            currentLine = parts.slice(i).join('-');
+            return;
+          }
+        }
+      }
+
+      // Проверяем, не остался ли висячий предлог в конце текущей строки
+      const lineWords = currentLine.trim().split(/\s+/);
+      const lastWord = lineWords[lineWords.length - 1];
+      
+      if (isHangingPreposition(lastWord) && lineWords.length > 1) {
+        // Если последнее слово - предлог, переносим его на следующую строку вместе со следующим словом
+        // Убираем предлог из текущей строки
+        lineWords.pop();
+        const lineWithoutPreposition = lineWords.join(' ');
+        
+        // Формируем новую строку с предлогом и следующим словом
+        const newLineWithPreposition = `${lastWord} ${word}`;
+        const newLineWidth = measureLineWidth(ctx, newLineWithPreposition);
+        
+        // Если новая строка с предлогом помещается, используем её
+        if (newLineWidth <= maxWidth || lineWords.length === 0) {
+          if (lineWithoutPreposition) {
+            lines.push(lineWithoutPreposition);
+          }
+          currentLine = newLineWithPreposition;
+        } else {
+          // Если не помещается даже предлог со словом, проверяем дефис
+          if (word.includes('-') && word.length > 1) {
+            const parts = word.split('-');
+            for (let i = parts.length - 1; i > 0; i--) {
+              const firstPart = parts.slice(0, i).join('-') + '-';
+              const lineWithPrepositionAndFirst = `${lastWord} ${firstPart}`;
+              const width = measureLineWidth(ctx, lineWithPrepositionAndFirst);
+              if (width <= maxWidth) {
+                if (lineWithoutPreposition) {
+                  lines.push(lineWithoutPreposition);
+                }
+                lines.push(lineWithPrepositionAndFirst.trim());
+                currentLine = parts.slice(i).join('-');
+                return;
+              }
+            }
+          }
+          // Если не помещается даже предлог со словом, оставляем как есть
+          lines.push(currentLine);
+          currentLine = word;
+        }
+      } else {
+        // Обычный перенос
+        lines.push(currentLine);
+        currentLine = word;
+      }
     });
 
     if (currentLine) {
-      lines.push(currentLine);
+      // Финальная проверка на висячий предлог в последней строке
+      const lastWord = currentLine.trim().split(/\s+/).pop();
+      if (isHangingPreposition(lastWord) && lines.length > 0) {
+        // Переносим предлог на предыдущую строку, если это возможно
+        const prevLine = lines[lines.length - 1];
+        const newPrevLine = `${prevLine} ${lastWord}`;
+        const newPrevWidth = measureLineWidth(ctx, newPrevLine);
+        if (newPrevWidth <= maxWidth) {
+          lines[lines.length - 1] = newPrevLine;
+          const remainingWords = currentLine.trim().split(/\s+/);
+          remainingWords.pop();
+          if (remainingWords.length > 0) {
+            lines.push(remainingWords.join(' '));
+          }
+        } else {
+          lines.push(currentLine);
+        }
+      } else {
+        lines.push(currentLine);
+      }
     }
 
     if (paragraphIndex < paragraphs.length - 1) {
@@ -197,6 +358,11 @@ const renderToCanvas = (canvas, width, height, state) => {
   const horizontalThreshold = 1.35;
   const isHorizontalLayout = layoutMode === 'horizontal' || (layoutMode === 'auto' && aspectRatio >= horizontalThreshold);
   const isUltraWide = width >= height * 8;
+  // Супер широкие форматы (например, 728x90) - очень маленькая высота
+  const isSuperWide = isUltraWide && height < 120;
+  
+  // Увеличиваем отступы для супер широких форматов
+  const effectivePaddingPx = isSuperWide ? paddingPx * 2 : paddingPx;
 
   let logoSizePercent = state.logoSize;
   let titleSizeMultiplier = 1;
@@ -205,10 +371,56 @@ const renderToCanvas = (canvas, width, height, state) => {
 
   if (height >= width * 1.5) {
     logoSizePercent *= 2;
-  } else if (width >= height * 3) {
+  } else if (isUltraWide) {
+    // Ultra-wide layouts: make title and legal larger
+    // Учитываем высоту макета - для больших размеров делаем меньше, чтобы подзаголовок не залезал на legal
     logoSizePercent *= 0.75;
-    titleSizeMultiplier = 2;
-    legalMultiplier = 2;
+    if (height < 120) {
+      // Супер широкие форматы (728x90 и т.д.) - можно больше
+      titleSizeMultiplier = 3;
+    } else if (height < 200) {
+      // Средние широкие форматы - умеренно
+      titleSizeMultiplier = 2.2;
+    } else {
+      // Большие широкие форматы - меньше, чтобы подзаголовок помещался
+      titleSizeMultiplier = 2;
+    }
+    // Для форматов типа 1320x300 делаем legal чуть меньше
+    if (height >= 250 && height <= 350) {
+      legalMultiplier = 2;
+    } else {
+      legalMultiplier = 2.5;
+    }
+    ageMultiplier = 2;
+  } else if (width >= height * 4) {
+    // Очень широкие форматы (>= 4:1)
+    logoSizePercent *= 0.75;
+    if (height < 200) {
+      titleSizeMultiplier = 2.2;
+    } else {
+      titleSizeMultiplier = 2;
+    }
+    // Для форматов типа 1320x300 делаем legal чуть меньше
+    if (height >= 250 && height <= 350) {
+      legalMultiplier = 2;
+    } else {
+      legalMultiplier = 2.5;
+    }
+    ageMultiplier = 2;
+  } else if (width >= height * 3) {
+    // Средние широкие форматы (3:1 - 4:1)
+    logoSizePercent *= 0.75;
+    if (height < 200) {
+      titleSizeMultiplier = 1.8;
+    } else {
+      titleSizeMultiplier = 1.6;
+    }
+    // Для форматов типа 1320x300 делаем legal чуть меньше
+    if (height >= 250 && height <= 350) {
+      legalMultiplier = 1.8;
+    } else {
+      legalMultiplier = 2;
+    }
     ageMultiplier = 2;
   }
 
@@ -234,11 +446,80 @@ const renderToCanvas = (canvas, width, height, state) => {
     rightSectionWidth = 0;
   }
 
+  // Рисуем фон (цвет или изображение)
+  ctx.fillStyle = state.bgColor;
+  ctx.fillRect(0, 0, width, height);
+  
   if (state.bgImage) {
-    ctx.drawImage(state.bgImage, 0, 0, width, height);
-  } else {
-    ctx.fillStyle = state.bgColor;
-    ctx.fillRect(0, 0, width, height);
+    const img = state.bgImage;
+    const imgWidth = img.width;
+    const imgHeight = img.height;
+    const imgAspect = imgWidth / imgHeight;
+    const canvasAspect = width / height;
+    
+    let drawWidth = width;
+    let drawHeight = height;
+    let drawX = 0;
+    let drawY = 0;
+    
+    const bgSize = state.bgSize || 'cover';
+    const bgPosition = state.bgPosition || 'center';
+    
+    if (bgSize === 'cover') {
+      if (imgAspect > canvasAspect) {
+        // Изображение шире - подгоняем по высоте
+        drawHeight = height;
+        drawWidth = height * imgAspect;
+      } else {
+        // Изображение выше - подгоняем по ширине
+        drawWidth = width;
+        drawHeight = width / imgAspect;
+      }
+    } else if (bgSize === 'contain') {
+      if (imgAspect > canvasAspect) {
+        // Изображение шире - подгоняем по ширине
+        drawWidth = width;
+        drawHeight = width / imgAspect;
+      } else {
+        // Изображение выше - подгоняем по высоте
+        drawHeight = height;
+        drawWidth = height * imgAspect;
+      }
+    } else if (bgSize === 'repeat') {
+      // Для repeat просто заполняем всё пространство
+      drawWidth = width;
+      drawHeight = height;
+    }
+    
+    // Позиционирование
+    if (bgSize !== 'repeat') {
+      if (bgPosition === 'center' || bgPosition === '') {
+        drawX = (width - drawWidth) / 2;
+        drawY = (height - drawHeight) / 2;
+      } else if (bgPosition === 'top') {
+        drawX = (width - drawWidth) / 2;
+        drawY = 0;
+      } else if (bgPosition === 'bottom') {
+        drawX = (width - drawWidth) / 2;
+        drawY = height - drawHeight;
+      } else if (bgPosition === 'left') {
+        drawX = 0;
+        drawY = (height - drawHeight) / 2;
+      } else if (bgPosition === 'right') {
+        drawX = width - drawWidth;
+        drawY = (height - drawHeight) / 2;
+      }
+    }
+    
+    if (bgSize === 'repeat') {
+      // Повторяем изображение по всему canvas
+      const pattern = ctx.createPattern(img, 'repeat');
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, width, height);
+    } else {
+      // Рисуем изображение один раз с учетом размера и позиции
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+    }
   }
 
   let legalLines = [];
@@ -249,7 +530,8 @@ const renderToCanvas = (canvas, width, height, state) => {
   let ageBoundsRect = null;
   if (state.showAge && state.age) {
     ageSizePx = (state.ageSize / 100) * minDimension * ageMultiplier;
-    ctx.font = `${state.legalWeight} ${ageSizePx}px ${state.fontFamily}`;
+    const ageWeight = getFontWeight(state.ageWeight || state.legalWeight);
+    ctx.font = `${ageWeight} ${ageSizePx}px ${state.ageFontFamily || state.fontFamily}`;
     ageTextWidth = measureLineWidth(ctx, state.age || '');
   }
 
@@ -267,13 +549,14 @@ const renderToCanvas = (canvas, width, height, state) => {
   
   if (state.showLegal && state.legal) {
     legalSize = (state.legalSize / 100) * minDimension * legalMultiplier;
-    ctx.font = `${state.legalWeight} ${legalSize}px ${state.fontFamily}`;
+    const legalWeight = getFontWeight(state.legalWeight);
+    ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
     // Calculate available width for legal text (reserve space for age on the right)
     const availableWidth = isUltraWide || !isHorizontalLayout
       ? Math.max(0, width - paddingPx * 2)
       : Math.max(0, leftSectionWidth - paddingPx * 2);
     const legalMaxWidth = Math.max(50, availableWidth - ageReservedWidth);
-    legalLines = wrapText(ctx, state.legal, legalMaxWidth, legalSize, state.legalWeight, state.legalLineHeight);
+    legalLines = wrapText(ctx, state.legal, legalMaxWidth, legalSize, legalWeight, state.legalLineHeight);
     preliminaryLegalBlockHeight = Math.max(preliminaryLegalBlockHeight, legalLines.length * legalSize * state.legalLineHeight);
   }
   
@@ -306,11 +589,14 @@ const renderToCanvas = (canvas, width, height, state) => {
     } else {
       let logoX;
       let logoY;
+      // If text is centered, logo should also be centered
+      const effectiveLogoPos = (state.titleAlign === 'center') ? 'center' : state.logoPos;
+      
       if (state.titleVPos === 'top') {
-        if (state.logoPos === 'left') {
+        if (effectiveLogoPos === 'left') {
           logoX = paddingPx;
           logoY = paddingPx;
-        } else if (state.logoPos === 'center') {
+        } else if (effectiveLogoPos === 'center') {
           logoX = (width - logoWidth) / 2;
           logoY = paddingPx;
         } else {
@@ -318,10 +604,10 @@ const renderToCanvas = (canvas, width, height, state) => {
           logoY = paddingPx;
         }
       } else if (state.titleVPos === 'center') {
-        if (state.logoPos === 'center') {
+        if (effectiveLogoPos === 'center') {
           logoX = (width - logoWidth) / 2;
           logoY = paddingPx;
-        } else if (state.logoPos === 'left') {
+        } else if (effectiveLogoPos === 'left') {
           logoX = paddingPx;
           logoY = paddingPx;
         } else {
@@ -329,10 +615,10 @@ const renderToCanvas = (canvas, width, height, state) => {
           logoY = paddingPx;
         }
       } else {
-        if (state.logoPos === 'left') {
+        if (effectiveLogoPos === 'left') {
           logoX = paddingPx;
           logoY = paddingPx;
-        } else if (state.logoPos === 'center') {
+        } else if (effectiveLogoPos === 'center') {
           logoX = (width - logoWidth) / 2;
           logoY = paddingPx;
         } else {
@@ -346,7 +632,31 @@ const renderToCanvas = (canvas, width, height, state) => {
 
   let kvPlannedMeta = null;
 
-  if (isUltraWide && state.showKV && state.kv) {
+  if (isSuperWide && state.showKV && state.kv) {
+    // Для супер широких форматов: KV после логотипа, все свободное место для заголовка
+    const availableHeight = Math.max(0, height - effectivePaddingPx * 2);
+    const logoRight = logoBounds ? logoBounds.x + logoBounds.width : effectivePaddingPx;
+    const gap = Math.max(effectivePaddingPx * 0.5, width * 0.01);
+    
+    let kvScale = availableHeight > 0 ? (availableHeight * 0.75) / state.kv.height : 0;
+    let kvW = state.kv.width * kvScale;
+    let kvH = state.kv.height * kvScale;
+    const maxKvWidth = Math.max(50, width * 0.25);
+    if (kvW > maxKvWidth) {
+      kvScale = maxKvWidth / state.kv.width;
+      kvW = maxKvWidth;
+      kvH = state.kv.height * kvScale;
+    }
+    
+    const kvX = logoRight + gap;
+    const kvY = effectivePaddingPx + Math.max(0, (availableHeight - kvH) / 2);
+    kvPlannedMeta = { kvX, kvY, kvW, kvH, kvScale, paddingPx: effectivePaddingPx };
+
+    // Текст занимает все оставшееся место после KV
+    const textStart = kvX + kvW + gap;
+    textArea.left = textStart;
+    textArea.right = width - effectivePaddingPx;
+  } else if (isUltraWide && state.showKV && state.kv) {
     const availableHeight = Math.max(0, height - paddingPx * 2);
     let kvScale = availableHeight > 0 ? (availableHeight * 0.75) / state.kv.height : 0;
     let kvW = state.kv.width * kvScale;
@@ -367,6 +677,11 @@ const renderToCanvas = (canvas, width, height, state) => {
     if (textArea.right - textArea.left < 200) {
       textArea.left = Math.max(paddingPx, textArea.right - 200);
     }
+  } else if (isSuperWide) {
+    // Для супер широких форматов без KV: текст начинается после логотипа
+    const logoRight = logoBounds ? logoBounds.x + logoBounds.width : effectivePaddingPx;
+    textArea.left = logoRight + Math.max(effectivePaddingPx * 0.5, width * 0.01);
+    textArea.right = width - effectivePaddingPx;
   } else if (isUltraWide) {
     const logoRight = logoBounds ? logoBounds.x + logoBounds.width : paddingPx;
     textArea.left = logoRight + paddingPx;
@@ -411,72 +726,132 @@ const renderToCanvas = (canvas, width, height, state) => {
   }
 
   if (textArea.right <= textArea.left) {
-    textArea.right = width - paddingPx;
-    textArea.left = paddingPx;
+    textArea.right = width - effectivePaddingPx;
+    textArea.left = effectivePaddingPx;
   }
   maxTextWidth = Math.max(50, textArea.right - textArea.left);
 
   // Common baseline for legal and age - both should be on the same line at the bottom
   // Age is always at the bottom right, legal text takes remaining space on the left
-  const commonBaselineY = height - paddingPx;
+  const commonBaselineY = height - effectivePaddingPx;
+  
+  // Check if KV will be positioned on the right in horizontal layout (to avoid legal text overlap)
+  let kvRightEdge = width - paddingPx;
+  if (isHorizontalLayout && state.showKV && state.kv && !kvPlannedMeta) {
+    // Estimate KV position - it will be on the right side
+    const widthAfterPadding = Math.max(0, width - paddingPx * 2);
+    const minTextRatio = width >= height * 3 ? 0.68 : 0.5;
+    const minTextWidth = Math.max(widthAfterPadding * minTextRatio, 200);
+    const gap = Math.max(paddingPx, width * 0.02);
+    const availableHeight = Math.max(0, height - paddingPx * 2);
+    const maxKvWidth = Math.max(0, widthAfterPadding - minTextWidth - gap);
+    if (maxKvWidth > 10) {
+      const scaleByHeight = availableHeight > 0 ? availableHeight / state.kv.height : 0;
+      let kvW = state.kv.width * scaleByHeight;
+      if (kvW > maxKvWidth) {
+        kvW = maxKvWidth;
+      }
+      if (kvW > 10) {
+        kvRightEdge = width - paddingPx - kvW - gap;
+      }
+    }
+  } else if (kvPlannedMeta && isHorizontalLayout) {
+    // KV is already planned, use its left edge
+    kvRightEdge = kvPlannedMeta.kvX - Math.max(paddingPx, width * 0.02);
+  }
   
   if ((state.showLegal && legalLines.length > 0) || (state.showAge && state.age)) {
     // Calculate available width for legal text (leave space for age on the right if it exists)
-    const availableWidth = width - paddingPx * 2;
+    // Also account for KV on the right in horizontal layouts
+    const availableWidth = isHorizontalLayout ? Math.max(effectivePaddingPx, kvRightEdge - effectivePaddingPx) : (width - effectivePaddingPx * 2);
     const ageWidth = (state.showAge && state.age && ageTextWidth > 0) ? ageTextWidth + ageGapPx : 0;
     let legalMaxWidthForFlex = Math.max(0, availableWidth - ageWidth);
     
     // Calculate legal text block - last line should be at commonBaselineY
     if (state.showLegal && legalLines.length > 0) {
-      // Position legal text so that its last line baseline is at commonBaselineY
-      // Last line is at index (legalLines.length - 1)
-      // Baseline for last line = commonBaselineY
-      // Baseline for first line = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight
-      const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
-      
-      // Calculate bounds based on first line baseline
-      legalTextBounds = getTextBlockBounds(ctx, legalLines, paddingPx, firstLineBaselineY, legalSize, state.legalLineHeight, 'left', legalMaxWidthForFlex);
-      
-      if (legalTextBounds) {
-        // Verify that last line is at commonBaselineY (or adjust if needed)
-        const calculatedLastBaseline = legalTextBounds.y + legalTextBounds.height - (legalTextBounds.height - legalSize);
+      // Для супер широких форматов legal занимает всю нижнюю часть и всю ширину
+      if (isSuperWide) {
+        // Legal начинается от определенной высоты и занимает всю нижнюю часть до низа
+        // Legal занимает всю ширину макета (минус отступы и место для age)
+        const legalAreaStartY = height - effectivePaddingPx - legalBlockHeight;
+        const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
         const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
-        const legalTop = commonBaselineY - legalHeight;
+        
+        // Legal занимает всю ширину макета (минус отступы слева и справа, минус место для age)
+        const fullLegalWidth = width - effectivePaddingPx * 2 - ageWidth;
         
         legalContentBounds = {
-          x: paddingPx,
-          y: Math.max(paddingPx, legalTop),
-          width: legalMaxWidthForFlex,
+          x: effectivePaddingPx,
+          y: legalAreaStartY,
+          width: fullLegalWidth,
           height: legalHeight
         };
         
-        // Update legalTextBounds with correct position
         legalTextBounds = {
-          x: paddingPx,
+          x: effectivePaddingPx,
           y: legalContentBounds.y,
-          width: legalMaxWidthForFlex,
+          width: fullLegalWidth,
           height: legalHeight
         };
+        
+        legalBounds = { ...legalContentBounds };
+        
+        // Пересчитываем legalLines с учетом полной ширины
+        legalMaxWidthForFlex = fullLegalWidth;
+        const legalWeight = getFontWeight(state.legalWeight);
+        legalLines = wrapText(ctx, state.legal, legalMaxWidthForFlex, legalSize, legalWeight, state.legalLineHeight);
       } else {
-        const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
-        const legalTop = commonBaselineY - legalHeight;
-        legalContentBounds = {
-          x: paddingPx,
-          y: Math.max(paddingPx, legalTop),
-          width: legalMaxWidthForFlex,
-          height: legalHeight
-        };
-        legalTextBounds = { ...legalContentBounds };
+        // Обычная логика для других форматов
+        // Position legal text so that its last line baseline is at commonBaselineY
+        // Last line is at index (legalLines.length - 1)
+        // Baseline for last line = commonBaselineY
+        // Baseline for first line = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight
+        const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
+        
+        // Calculate bounds based on first line baseline
+        legalTextBounds = getTextBlockBounds(ctx, legalLines, effectivePaddingPx, firstLineBaselineY, legalSize, state.legalLineHeight, 'left', legalMaxWidthForFlex);
+        
+        if (legalTextBounds) {
+          // Verify that last line is at commonBaselineY (or adjust if needed)
+          const calculatedLastBaseline = legalTextBounds.y + legalTextBounds.height - (legalTextBounds.height - legalSize);
+          const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
+          const legalTop = commonBaselineY - legalHeight;
+          
+          legalContentBounds = {
+            x: effectivePaddingPx,
+            y: Math.max(effectivePaddingPx, legalTop),
+            width: legalMaxWidthForFlex,
+            height: legalHeight
+          };
+          
+          // Update legalTextBounds with correct position
+          legalTextBounds = {
+            x: effectivePaddingPx,
+            y: legalContentBounds.y,
+            width: legalMaxWidthForFlex,
+            height: legalHeight
+          };
+        } else {
+          const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
+          const legalTop = commonBaselineY - legalHeight;
+          legalContentBounds = {
+            x: effectivePaddingPx,
+            y: Math.max(effectivePaddingPx, legalTop),
+            width: legalMaxWidthForFlex,
+            height: legalHeight
+          };
+          legalTextBounds = { ...legalContentBounds };
+        }
+        
+        legalBounds = { ...legalContentBounds };
       }
-      
-      legalBounds = { ...legalContentBounds };
     }
 
     // Position age at the same baseline as legal's last line (commonBaselineY)
     if (state.showAge && state.age && ageTextWidth > 0) {
       const ageBaseline = commonBaselineY;
       const ageY = ageBaseline - ageSizePx;
-      const ageXRight = width - paddingPx;
+      const ageXRight = width - effectivePaddingPx;
       
       ageBoundsRect = {
         x: ageXRight - ageTextWidth,
@@ -496,7 +871,8 @@ const renderToCanvas = (canvas, width, height, state) => {
       
       // Always recalculate legal text wrapping with the correct width to ensure no overlap
       if (state.showLegal && state.legal) {
-        legalLines = wrapText(ctx, state.legal, legalMaxWidthForFlex, legalSize, state.legalWeight, state.legalLineHeight);
+        const legalWeight = getFontWeight(state.legalWeight);
+        legalLines = wrapText(ctx, state.legal, legalMaxWidthForFlex, legalSize, legalWeight, state.legalLineHeight);
         
         // Recalculate legal bounds with adjusted width
         if (legalLines.length > 0) {
@@ -554,27 +930,65 @@ const renderToCanvas = (canvas, width, height, state) => {
   const baseTitleSize = (state.titleSize / 100) * minDimension;
   const titleSize = baseTitleSize * titleSizeMultiplier;
   const baseSubtitleSize = (state.subtitleSize / 100) * minDimension;
-  const subtitleSize = baseSubtitleSize * titleSizeMultiplier;
+  let subtitleSize = baseSubtitleSize * titleSizeMultiplier;
+  
+  // For layouts up to 150px, preserve the title/subtitle ratio
+  // For larger layouts, ensure minimum subtitle size for readability
+  const isSmallLayout = height <= 150;
+  if (!isSmallLayout) {
+    const minSubtitleSize = Math.max(8, minDimension * 0.02); // At least 2% of min dimension or 8px
+    subtitleSize = Math.max(subtitleSize, minSubtitleSize);
+  }
 
-  ctx.font = `${state.titleWeight} ${titleSize}px ${state.fontFamily}`;
-  const titleLines = wrapText(ctx, state.title, maxTextWidth, titleSize, state.titleWeight, state.titleLineHeight);
+  // Hide subtitle on wide formats (height < 150px) if option is enabled
+  const shouldShowSubtitle = state.showSubtitle && state.subtitle && !(state.hideSubtitleOnWide && height < 150);
+  
+  // Получаем веса шрифтов один раз
+  const titleWeight = getFontWeight(state.titleWeight);
+  const subtitleWeight = getFontWeight(state.subtitleWeight);
+  
+  ctx.font = `${titleWeight} ${titleSize}px ${state.titleFontFamily || state.fontFamily}`;
+  const titleLines = wrapText(ctx, state.title, maxTextWidth, titleSize, titleWeight, state.titleLineHeight);
   const titleBlockHeight = titleLines.length * titleSize * state.titleLineHeight;
 
   let subtitleBlockHeight = 0;
   let subtitleLines = [];
-  if (state.showSubtitle && state.subtitle && height >= 150) {
-    ctx.font = `${state.subtitleWeight} ${subtitleSize}px ${state.fontFamily}`;
-    subtitleLines = wrapText(ctx, state.subtitle, maxTextWidth, subtitleSize, state.subtitleWeight, state.subtitleLineHeight);
-    subtitleBlockHeight = subtitleLines.length * subtitleSize * state.subtitleLineHeight + (state.subtitleGap / 100) * height;
+  if (shouldShowSubtitle) {
+    ctx.font = `${subtitleWeight} ${subtitleSize}px ${state.subtitleFontFamily || state.fontFamily}`;
+    // Учитываем letter spacing при обертке текста - уменьшаем maxWidth
+    let effectiveMaxWidth = maxTextWidth;
+    if (state.subtitleLetterSpacing) {
+      // Приблизительно вычитаем максимальный letter spacing для длинной строки
+      // Это консервативная оценка, чтобы гарантировать, что текст не выйдет за границы
+      const estimatedCharsPerLine = Math.floor(maxTextWidth / (subtitleSize * 0.6)); // примерная ширина символа
+      const letterSpacingImpact = state.subtitleLetterSpacing * Math.max(0, estimatedCharsPerLine - 1);
+      effectiveMaxWidth = Math.max(50, maxTextWidth - letterSpacingImpact);
+    }
+    subtitleLines = wrapText(ctx, state.subtitle, effectiveMaxWidth, subtitleSize, subtitleWeight, state.subtitleLineHeight);
+    if (subtitleLines.length > 0) {
+      // Gap is calculated separately, not included in block height
+      subtitleBlockHeight = subtitleLines.length * subtitleSize * state.subtitleLineHeight;
+    }
   }
 
-  const totalTextHeight = titleBlockHeight + subtitleBlockHeight;
+  // Total text height includes title, subtitle, and gap between them
+  // For ultra-wide formats, reduce gap by 3% (closer to title)
+  const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+  const subtitleGapPx = shouldShowSubtitle && subtitleLines.length > 0 ? (effectiveSubtitleGap / 100) * height : 0;
+  const totalTextHeight = titleBlockHeight + subtitleGapPx + subtitleBlockHeight;
 
   let startY;
 
-  if (isUltraWide) {
-    const availableHeight = Math.max(0, height - paddingPx * 2);
-    startY = paddingPx + (availableHeight - totalTextHeight) / 2 + titleSize;
+  if (isSuperWide) {
+    // Для супер широких форматов: центрируем заголовок с подзаголовком по высоте,
+    // но учитываем, что legal занимает всю нижнюю часть
+    const legalAreaHeight = legalBlockHeight > 0 ? legalBlockHeight + effectivePaddingPx * 0.5 : 0;
+    const availableHeightForText = Math.max(0, height - effectivePaddingPx - legalAreaHeight);
+    const textCenterY = effectivePaddingPx + availableHeightForText / 2;
+    startY = textCenterY - totalTextHeight / 2 + titleSize;
+  } else if (isUltraWide) {
+    const availableHeight = Math.max(0, height - effectivePaddingPx * 2);
+    startY = effectivePaddingPx + (availableHeight - totalTextHeight) / 2 + titleSize;
   } else if (isHorizontalLayout) {
     startY = paddingPx + titleSize;
     if (legalBlockHeight > 0) {
@@ -601,8 +1015,11 @@ const renderToCanvas = (canvas, width, height, state) => {
       startY = (availableHeight - totalTextHeight) / 2 + paddingPx + titleSize;
     } else {
       const legalTop = height - paddingPx - legalBlockHeight;
-      const subtitleGapPx = (state.subtitleGap / 100) * height;
-      const gapFromSubtitle = subtitleLines.length > 0 ? Math.max(subtitleGapPx, subtitleSize * state.subtitleLineHeight * 0.3) : titleSize * state.titleLineHeight * 0.3;
+      // For ultra-wide formats, reduce gap by 3% (closer to title)
+      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+      const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
+      // Use user-defined gap, with minimum safety gap to avoid overlap
+      const gapFromSubtitle = subtitleLines.length > 0 ? subtitleGapPx : titleSize * state.titleLineHeight * 0.3;
       const safetyGap = Math.max(paddingPx * 0.5, gapFromSubtitle, legalSize * state.legalLineHeight * 0.5);
       const textBottom = legalTop - safetyGap;
       startY = textBottom - totalTextHeight + titleSize;
@@ -614,7 +1031,8 @@ const renderToCanvas = (canvas, width, height, state) => {
 
   const effectiveTitleAlign = state.titleAlign || 'left';
   const titleX = getAlignedXWithinArea(effectiveTitleAlign, textArea);
-  ctx.font = `${state.titleWeight} ${titleSize}px ${state.fontFamily}`;
+  // titleWeight уже определен выше
+  ctx.font = `${titleWeight} ${titleSize}px ${state.titleFontFamily || state.fontFamily}`;
   ctx.fillStyle = state.titleColor;
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = effectiveTitleAlign;
@@ -631,10 +1049,16 @@ const renderToCanvas = (canvas, width, height, state) => {
       maxTextWidth
     );
 
-    let subtitleYLocal = baseY + titleBlockHeight + (state.subtitleGap / 100) * height;
+    let subtitleYLocal = null;
     let subtitleBoundsLocal = null;
 
-    if (state.showSubtitle && subtitleLines.length > 0) {
+    if (shouldShowSubtitle && subtitleLines.length > 0) {
+      // Calculate subtitle Y position based on title block
+      // For ultra-wide formats, reduce gap by 3% (closer to title)
+      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+      const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
+      subtitleYLocal = baseY + titleBlockHeight + subtitleGapPx;
+      
       subtitleBoundsLocal = getTextBlockBounds(
         ctx,
         subtitleLines,
@@ -645,8 +1069,6 @@ const renderToCanvas = (canvas, width, height, state) => {
         effectiveTitleAlign,
         maxTextWidth
       );
-    } else {
-      subtitleYLocal = null;
     }
 
     return { titleBounds: titleBoundsLocal, subtitleBounds: subtitleBoundsLocal, subtitleY: subtitleYLocal };
@@ -656,10 +1078,12 @@ const renderToCanvas = (canvas, width, height, state) => {
 
     if (!isHorizontalLayout && legalBlockHeight > 0) {
       const legalTop = height - paddingPx - legalBlockHeight;
-      const subtitleGapPx = (state.subtitleGap / 100) * height;
+      // For ultra-wide formats, reduce gap by 3% (closer to title)
+      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+      const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
       const desiredGap = Math.max(
         paddingPx * 0.5,
-        state.showSubtitle && subtitleLines.length > 0 ? Math.max(subtitleGapPx, subtitleSize * state.subtitleLineHeight * 0.3) : titleSize * state.titleLineHeight * 0.3,
+        shouldShowSubtitle && subtitleLines.length > 0 ? Math.max(subtitleGapPx, subtitleSize * state.subtitleLineHeight * 0.3) : titleSize * state.titleLineHeight * 0.3,
         legalSize * state.legalLineHeight * 0.4
       );
       const textBottom = Math.max(
@@ -684,21 +1108,84 @@ const renderToCanvas = (canvas, width, height, state) => {
     }
   });
 
-  if (state.showSubtitle && subtitleLines.length > 0 && subtitleY !== null) {
+  // Draw subtitle if it's enabled and has content
+  if (shouldShowSubtitle && subtitleLines.length > 0) {
+    // Ensure subtitleY is calculated if it wasn't set
+    let actualSubtitleY = subtitleY;
+    if (actualSubtitleY === null || actualSubtitleY === undefined) {
+      // Calculate subtitle Y position if it wasn't calculated
+      // For ultra-wide formats, reduce gap by 3% (closer to title)
+      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+      const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
+      actualSubtitleY = startY + titleBlockHeight + subtitleGapPx;
+    }
+    
     const subtitleX = getAlignedXWithinArea(effectiveTitleAlign, textArea);
     const effectiveSubtitleAlign = effectiveTitleAlign;
-    ctx.font = `${state.subtitleWeight} ${subtitleSize}px ${state.fontFamily}`;
+    // subtitleWeight уже определен выше
+    ctx.font = `${subtitleWeight} ${subtitleSize}px ${state.subtitleFontFamily || state.fontFamily}`;
     const { r, g, b } = hexToRgb(state.subtitleColor);
     const opacity = Math.max(0, Math.min(100, state.subtitleOpacity || 100)) / 100;
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
     ctx.textAlign = effectiveSubtitleAlign;
+    ctx.textBaseline = 'alphabetic';
 
     subtitleLines.forEach((line, index) => {
-      const lineY = subtitleY + index * subtitleSize * state.subtitleLineHeight;
-      if (state.subtitleLetterSpacing) {
-        drawTextWithSpacing(ctx, line, subtitleX, lineY, state.subtitleLetterSpacing, effectiveSubtitleAlign);
-      } else {
-        ctx.fillText(line, subtitleX, lineY);
+      const lineY = actualSubtitleY + index * subtitleSize * state.subtitleLineHeight;
+      // For layouts up to 150px height, always show subtitle even if it overflows
+      // For larger layouts, only draw if line is at least partially visible
+      const isSmallLayout = height <= 150;
+      if (isSmallLayout || (lineY > -subtitleSize && lineY < height + subtitleSize)) {
+        // Проверяем, что текст не выходит за границы охранного поля
+        let lineToDraw = line;
+        const availableWidth = textArea.right - textArea.left;
+        
+        if (state.subtitleLetterSpacing) {
+          // Измеряем реальную ширину строки с letter spacing
+          const characters = Array.from(line);
+          const widths = characters.map((char) => measureLineWidth(ctx, char));
+          const totalWidth = widths.reduce((acc, width) => acc + width, 0) + state.subtitleLetterSpacing * (characters.length - 1);
+          
+          // Если текст выходит за границы, обрезаем его
+          if (totalWidth > availableWidth) {
+            // Обрезаем строку до нужной длины
+            let truncatedLine = '';
+            let truncatedWidth = 0;
+            for (let i = 0; i < characters.length; i++) {
+              const char = characters[i];
+              const charWidth = widths[i];
+              const spacing = i > 0 ? state.subtitleLetterSpacing : 0;
+              if (truncatedWidth + charWidth + spacing <= availableWidth) {
+                truncatedLine += char;
+                truncatedWidth += charWidth + spacing;
+              } else {
+                break;
+              }
+            }
+            lineToDraw = truncatedLine;
+          }
+          drawTextWithSpacing(ctx, lineToDraw, subtitleX, lineY, state.subtitleLetterSpacing, effectiveSubtitleAlign);
+        } else {
+          // Проверяем ширину без letter spacing
+          const lineWidth = measureLineWidth(ctx, line);
+          if (lineWidth > availableWidth) {
+            // Обрезаем строку
+            let truncatedLine = '';
+            let truncatedWidth = 0;
+            const characters = Array.from(line);
+            for (const char of characters) {
+              const charWidth = measureLineWidth(ctx, char);
+              if (truncatedWidth + charWidth <= availableWidth) {
+                truncatedLine += char;
+                truncatedWidth += charWidth;
+              } else {
+                break;
+              }
+            }
+            lineToDraw = truncatedLine;
+          }
+          ctx.fillText(lineToDraw, subtitleX, lineY);
+        }
       }
     });
   }
@@ -772,19 +1259,23 @@ const renderToCanvas = (canvas, width, height, state) => {
   }
 
   if (state.showLegal && legalLines.length > 0) {
-    ctx.font = `${state.legalWeight} ${legalSize}px ${state.fontFamily}`;
+    const legalWeight = getFontWeight(state.legalWeight);
+    ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
     const { r, g, b } = hexToRgb(state.legalColor);
     const opacity = Math.max(0, Math.min(100, state.legalOpacity || 100)) / 100;
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
     ctx.textAlign = 'left';
 
-    // Draw legal text - last line should be at commonBaselineY (height - paddingPx)
-    const commonBaselineY = height - paddingPx;
+    // Draw legal text - last line should be at commonBaselineY (height - effectivePaddingPx)
+    const commonBaselineY = height - effectivePaddingPx;
     const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
-    const drawX = paddingPx;
+    const drawX = effectivePaddingPx;
     
     // Get the maximum allowed width for legal text (to prevent overlap with age)
-    const maxLegalWidth = legalTextBounds ? legalTextBounds.width : (width - paddingPx * 2);
+    // Для супер широких форматов legal занимает всю ширину
+    const maxLegalWidth = isSuperWide 
+      ? (width - effectivePaddingPx * 2 - (state.showAge && state.age ? ageTextWidth + ageGapPx : 0))
+      : (legalTextBounds ? legalTextBounds.width : (width - effectivePaddingPx * 2));
     
     // Use clipping to ensure text doesn't go beyond the allowed area
     ctx.save();
@@ -812,7 +1303,8 @@ const renderToCanvas = (canvas, width, height, state) => {
   }
 
   if (state.showAge && state.age && ageBoundsRect) {
-    ctx.font = `${state.legalWeight} ${ageSizePx}px ${state.fontFamily}`;
+    const ageWeight = getFontWeight(state.ageWeight || state.legalWeight);
+    ctx.font = `${ageWeight} ${ageSizePx}px ${state.ageFontFamily || state.fontFamily}`;
     const { r, g, b } = hexToRgb(state.legalColor);
     const opacity = Math.max(0, Math.min(100, state.legalOpacity || 100)) / 100;
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
@@ -858,7 +1350,45 @@ const renderToCanvas = (canvas, width, height, state) => {
       }
     }
     
+    // Применяем скругление углов для KV
+    if (state.kvBorderRadius > 0) {
+      ctx.save();
+      const borderRadius = Math.min(state.kvBorderRadius / 100 * Math.min(kvPlannedMeta.kvW, kvPlannedMeta.kvH), 
+                                     Math.min(kvPlannedMeta.kvW, kvPlannedMeta.kvH) / 2);
+      
+      // Создаем скругленный прямоугольник
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        // Используем современный API, если доступен
+        ctx.roundRect(kvPlannedMeta.kvX, kvPlannedMeta.kvY, kvPlannedMeta.kvW, kvPlannedMeta.kvH, borderRadius);
+      } else {
+        // Fallback для старых браузеров
+        const x = kvPlannedMeta.kvX;
+        const y = kvPlannedMeta.kvY;
+        const w = kvPlannedMeta.kvW;
+        const h = kvPlannedMeta.kvH;
+        const r = borderRadius;
+        
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+      }
+      ctx.clip();
+    }
+    
     ctx.drawImage(state.kv, kvPlannedMeta.kvX, kvPlannedMeta.kvY, kvPlannedMeta.kvW, kvPlannedMeta.kvH);
+    
+    if (state.kvBorderRadius > 0) {
+      ctx.restore();
+    }
+    
     kvRenderMeta = kvPlannedMeta;
   }
 
@@ -916,32 +1446,76 @@ const renderToCanvas = (canvas, width, height, state) => {
   };
 };
 
-const doRender = () => {
-  if (!previewCanvas) return;
-  const sizes = getCheckedSizes();
+const doRender = async () => {
+  const sizes = getSortedSizes();
   if (!sizes.length) return;
 
-  if (currentPreviewIndex >= sizes.length) {
-    currentPreviewIndex = 0;
+  const state = getState();
+  const categorized = categorizeSizes(sizes);
+
+  // Рендерим узкий формат
+  if (previewCanvasNarrow && categorized.narrow.length > 0) {
+    if (currentNarrowIndex >= categorized.narrow.length) {
+      currentNarrowIndex = 0;
+    }
+    const narrowSize = categorized.narrow[currentNarrowIndex];
+    renderToCanvas(previewCanvasNarrow, narrowSize.width, narrowSize.height, state);
   }
 
-  const size = sizes[currentPreviewIndex];
-  const state = getState();
-  lastRenderMeta = renderToCanvas(previewCanvas, size.width, size.height, state);
+  // Рендерим широкий формат
+  if (previewCanvasWide && categorized.wide.length > 0) {
+    if (currentWideIndex >= categorized.wide.length) {
+      currentWideIndex = 0;
+    }
+    const wideSize = categorized.wide[currentWideIndex];
+    lastRenderMeta = renderToCanvas(previewCanvasWide, wideSize.width, wideSize.height, state);
+    // Используем размер широкого формата для kvCanvas (для совместимости)
+    setKey('kvCanvasWidth', wideSize.width);
+    setKey('kvCanvasHeight', wideSize.height);
+  }
 
-  setKey('kvCanvasWidth', size.width);
-  setKey('kvCanvasHeight', size.height);
+  // Рендерим квадратный формат
+  if (previewCanvasSquare && categorized.square.length > 0) {
+    if (currentSquareIndex >= categorized.square.length) {
+      currentSquareIndex = 0;
+    }
+    const squareSize = categorized.square[currentSquareIndex];
+    renderToCanvas(previewCanvasSquare, squareSize.width, squareSize.height, state);
+  }
+
+  // Обратная совместимость со старым canvas
+  if (previewCanvas) {
+    if (currentPreviewIndex >= sizes.length) {
+      currentPreviewIndex = 0;
+    }
+    const size = sizes[currentPreviewIndex];
+    lastRenderMeta = renderToCanvas(previewCanvas, size.width, size.height, state);
+    setKey('kvCanvasWidth', size.width);
+    setKey('kvCanvasHeight', size.height);
+  }
 };
 
 export const renderer = {
   initialize(canvas) {
     previewCanvas = canvas;
   },
+  initializeMulti(canvasNarrow, canvasWide, canvasSquare) {
+    previewCanvasNarrow = canvasNarrow;
+    previewCanvasWide = canvasWide;
+    previewCanvasSquare = canvasSquare;
+  },
   render() {
     if (rafId) {
       cancelAnimationFrame(rafId);
     }
     rafId = requestAnimationFrame(doRender);
+  },
+  renderSync() {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    doRender();
   },
   getCurrentIndex() {
     return currentPreviewIndex;
@@ -950,8 +1524,28 @@ export const renderer = {
     currentPreviewIndex = Number(index) || 0;
     this.render();
   },
+  setCategoryIndex(category, index, shouldRender = true) {
+    const idx = Number(index) || 0;
+    if (category === 'narrow') {
+      currentNarrowIndex = idx;
+    } else if (category === 'wide') {
+      currentWideIndex = idx;
+    } else if (category === 'square') {
+      currentSquareIndex = idx;
+    }
+    if (shouldRender) {
+      this.render();
+    }
+  },
+  getCategorizedSizes() {
+    const sizes = getSortedSizes();
+    return categorizeSizes(sizes);
+  },
   getCheckedSizes() {
     return getCheckedSizes();
+  },
+  getSortedSizes() {
+    return getSortedSizes();
   },
   getRenderMeta() {
     return lastRenderMeta;
