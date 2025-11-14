@@ -33,7 +33,7 @@ export const scanLogos = async () => {
     const folderFiles = [];
     
     // Список известных именованных файлов для проверки
-    const knownNames = ['main', 'long', 'logo', 'long_logo', 'black', 'white', 'icon', 'symbol', 'mark', 'emblem'];
+    const knownNames = ['main', 'main_mono', 'mono', 'long', 'logo', 'long_logo', 'black', 'white', 'icon', 'symbol', 'mark', 'emblem'];
     
     // Определяем путь в зависимости от наличия folder2
     const basePath = folder2 ? `logo/${folder1}/${folder2}/${folder3}` : `logo/${folder1}/${folder3}`;
@@ -118,7 +118,7 @@ export const scanLogos = async () => {
     const folderFiles = [];
     
     // Список известных именованных файлов для проверки
-    const knownNames = ['main', 'long', 'logo', 'long_logo', 'black', 'white', 'icon', 'symbol', 'mark', 'emblem'];
+    const knownNames = ['main', 'main_mono', 'mono', 'long', 'logo', 'long_logo', 'black', 'white', 'icon', 'symbol', 'mark', 'emblem'];
     
     // Сначала проверяем именованные файлы
     const namedFilePromises = [];
@@ -309,6 +309,8 @@ export const scanLogos = async () => {
     'logo.svg', 'logo.png',
     'long_logo.svg', 'long_logo.png',
     'main.svg', 'main.png',
+    'main_mono.svg', 'main_mono.png',
+    'mono.svg', 'mono.png',
     'long.svg', 'long.png',
     'icon.svg', 'icon.png',
     'symbol.svg', 'symbol.png',
@@ -379,7 +381,8 @@ export const scanKV = async () => {
   const firstLevelFolders = ['3d', '2d', 'icons', 'illustrations', 'photos', 'images', 'graphics', 'textures', 'vectors', 'backgrounds', 'elements', 'patterns'];
   
   // Расширенный список возможных папок второго уровня
-  const secondLevelFolders = ['sign', 'icons', 'backgrounds', 'elements', 'patterns', 'shapes', 'vectors', 'textures', 'photos', 'illustrations'];
+  // Включаем все известные папки, включая новые: logos, numbers, other, tech, yandex
+  const secondLevelFolders = ['sign', 'icons', 'backgrounds', 'elements', 'patterns', 'shapes', 'vectors', 'textures', 'photos', 'illustrations', 'logos', 'numbers', 'other', 'tech', 'yandex'];
   
   // Функция для сканирования файлов в папке
   const scanFolder = async (folder1, folder2) => {

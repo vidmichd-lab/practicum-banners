@@ -58,6 +58,7 @@ import {
   initializeLogoPosToggle,
   initializeTitleAlignToggle,
   initializeTitleVPosToggle,
+  initializeExportScaleToggle,
   initializeFontDropdown,
   initializeFontDropdowns,
   initializeKVDropdown,
@@ -124,6 +125,9 @@ const exposeGlobals = () => {
       setKey(key, value);
       // Для начертаний используем синхронный рендеринг для немедленного отображения
       if (key === 'titleWeight' || key === 'subtitleWeight' || key === 'legalWeight' || key === 'ageWeight') {
+        // Принудительно очищаем кэш измерения текста перед рендерингом для начертаний
+        clearTextMeasurementCache();
+        // Используем синхронный рендеринг для немедленного отображения изменений
         renderer.renderSync();
       } else {
         renderer.render();
@@ -330,6 +334,9 @@ const initialize = async () => {
     
     initializeTitleVPosToggle();
     console.log('Вертикальная позиция заголовка toggle инициализирована');
+    
+    initializeExportScaleToggle();
+    console.log('Масштаб экспорта toggle инициализирован');
     
     // Инициализируем dropdown для шрифтов после их загрузки
     initializeFontDropdown();

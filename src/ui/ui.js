@@ -22,11 +22,86 @@ import {
   removeCustomSize,
   toggleCustomSize
 } from '../state/store.js';
-import { AVAILABLE_LOGOS, AVAILABLE_FONTS, AVAILABLE_KV, PRESET_BACKGROUND_COLORS, FONT_WEIGHT_TO_NAME, FONT_NAME_TO_WEIGHT } from '../constants.js';
+import { AVAILABLE_LOGOS, AVAILABLE_FONTS, AVAILABLE_KV, PRESET_BACKGROUND_COLORS, FONT_WEIGHT_TO_NAME, FONT_NAME_TO_WEIGHT, AVAILABLE_WEIGHTS } from '../constants.js';
 import { scanLogos, scanKV } from '../utils/assetScanner.js';
 import { renderer, clearTextMeasurementCache } from '../renderer.js';
 import { getDom } from './domCache.js';
 let savedSettings = null;
+
+// Функция для получения доступных начертаний для конкретной гарнитуры
+const getAvailableWeightsForFamily = (fontFamily) => {
+  // Для system-ui и кастомных шрифтов показываем все начертания
+  if (!fontFamily || fontFamily === 'system-ui' || fontFamily.startsWith('CustomFont_')) {
+    return AVAILABLE_WEIGHTS.map(w => w.name);
+  }
+  
+  // Получаем уникальные начертания для данной гарнитуры
+  const availableWeights = new Set();
+  AVAILABLE_FONTS.forEach((font) => {
+    if (font.family === fontFamily && font.weightName) {
+      availableWeights.add(font.weightName);
+    }
+  });
+  
+  // Если начертания не найдены, возвращаем Regular как минимум
+  if (availableWeights.size === 0) {
+    return ['Regular'];
+  }
+  
+  // Сортируем начертания в правильном порядке
+  const weightOrder = ['Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'Heavy', 'Black'];
+  return Array.from(availableWeights).sort((a, b) => {
+    const indexA = weightOrder.indexOf(a);
+    const indexB = weightOrder.indexOf(b);
+    if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
+};
+
+// Функция для обновления селекта начертаний на основе выбранной гарнитуры
+const updateWeightDropdown = (selectElement, fontFamily, currentWeight) => {
+  if (!selectElement) return;
+  
+  const availableWeights = getAvailableWeightsForFamily(fontFamily);
+  const currentValue = currentWeight || 'Regular';
+  
+  // Сохраняем текущее значение, если оно доступно
+  const shouldKeepCurrent = availableWeights.includes(currentValue);
+  
+  // Очищаем селект
+  selectElement.innerHTML = '';
+  
+  // Маппинг названий начертаний на русские описания
+  const weightLabels = {
+    'Thin': 'Thin — Тонкий',
+    'ExtraLight': 'ExtraLight — Экстра-светлый',
+    'Light': 'Light — Светлый',
+    'Regular': 'Regular — Обычный',
+    'Medium': 'Medium — Средний',
+    'SemiBold': 'SemiBold — Полужирный',
+    'Bold': 'Bold — Жирный',
+    'Heavy': 'Heavy — Экстра-жирный',
+    'Black': 'Black — Чёрный'
+  };
+  
+  // Добавляем только доступные начертания
+  availableWeights.forEach((weightName) => {
+    const option = document.createElement('option');
+    option.value = weightName;
+    option.textContent = weightLabels[weightName] || weightName;
+    if (weightName === (shouldKeepCurrent ? currentValue : 'Regular')) {
+      option.selected = true;
+    }
+    selectElement.appendChild(option);
+  });
+  
+  // Если текущее начертание недоступно, выбираем Regular или первое доступное
+  if (!shouldKeepCurrent) {
+    selectElement.value = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
+  }
+};
 
 const updateChipGroup = (group, value) => {
   document.querySelectorAll(`[data-group="${group}"]`).forEach((chip) => {
@@ -73,8 +148,13 @@ export const syncFormFields = () => {
   const titleWeight = typeof state.titleWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
     : (state.titleWeight || 'Regular');
-  dom.titleWeight.value = titleWeight;
-  if (dom.titleFontFamily) dom.titleFontFamily.value = state.titleFontFamily || state.fontFamily || 'YS Text';
+  if (dom.titleFontFamily) {
+    dom.titleFontFamily.value = state.titleFontFamily || state.fontFamily || 'YS Text';
+    // Обновляем селект начертаний на основе выбранной гарнитуры
+    if (dom.titleWeight) {
+      updateWeightDropdown(dom.titleWeight, dom.titleFontFamily.value, titleWeight);
+    }
+  }
   if (state.titleCustomFontName) {
     updateCustomFontInfo('title', state.titleCustomFontName);
   }
@@ -92,8 +172,13 @@ export const syncFormFields = () => {
   const subtitleWeight = typeof state.subtitleWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
     : (state.subtitleWeight || 'Regular');
-  dom.subtitleWeight.value = subtitleWeight;
-  if (dom.subtitleFontFamily) dom.subtitleFontFamily.value = state.subtitleFontFamily || state.fontFamily || 'YS Text';
+  if (dom.subtitleFontFamily) {
+    dom.subtitleFontFamily.value = state.subtitleFontFamily || state.fontFamily || 'YS Text';
+    // Обновляем селект начертаний на основе выбранной гарнитуры
+    if (dom.subtitleWeight) {
+      updateWeightDropdown(dom.subtitleWeight, dom.subtitleFontFamily.value, subtitleWeight);
+    }
+  }
   if (state.subtitleCustomFontName) {
     updateCustomFontInfo('subtitle', state.subtitleCustomFontName);
   }
@@ -112,8 +197,13 @@ export const syncFormFields = () => {
   const legalWeight = typeof state.legalWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
     : (state.legalWeight || 'Regular');
-  dom.legalWeight.value = legalWeight;
-  if (dom.legalFontFamily) dom.legalFontFamily.value = state.legalFontFamily || state.fontFamily || 'YS Text';
+  if (dom.legalFontFamily) {
+    dom.legalFontFamily.value = state.legalFontFamily || state.fontFamily || 'YS Text';
+    // Обновляем селект начертаний на основе выбранной гарнитуры
+    if (dom.legalWeight) {
+      updateWeightDropdown(dom.legalWeight, dom.legalFontFamily.value, legalWeight);
+    }
+  }
   if (state.legalCustomFontName) {
     updateCustomFontInfo('legal', state.legalCustomFontName);
   }
@@ -157,6 +247,10 @@ export const syncFormFields = () => {
   if (dom.bgColorHex) dom.bgColorHex.value = state.bgColor;
 
   dom.namePrefix.value = state.namePrefix;
+  
+  // Обновляем переключатель масштаба экспорта
+  const exportScale = state.exportScale || 1;
+  updateExportScaleToggle(exportScale);
 
   const fontSelect = dom.fontFamily;
   if (fontSelect) {
@@ -897,6 +991,19 @@ export const selectTitleFontFamily = (fontFamily) => {
   if (!fontFamily.startsWith('CustomFont_')) {
     updateCustomFontInfo('title', null);
   }
+  
+  // Обновляем селект начертаний для выбранной гарнитуры
+  const dom = getDom();
+  if (dom.titleWeight) {
+    updateWeightDropdown(dom.titleWeight, fontFamily, state.titleWeight);
+    // Обновляем состояние, если текущее начертание недоступно
+    const availableWeights = getAvailableWeightsForFamily(fontFamily);
+    if (!availableWeights.includes(state.titleWeight)) {
+      const newWeight = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
+      setState({ titleWeight: newWeight });
+    }
+  }
+  
   clearTextMeasurementCache();
   renderer.render();
 };
@@ -919,6 +1026,19 @@ export const selectSubtitleFontFamily = (fontFamily) => {
   if (!fontFamily.startsWith('CustomFont_')) {
     updateCustomFontInfo('subtitle', null);
   }
+  
+  // Обновляем селект начертаний для выбранной гарнитуры
+  const dom = getDom();
+  if (dom.subtitleWeight) {
+    updateWeightDropdown(dom.subtitleWeight, fontFamily, state.subtitleWeight);
+    // Обновляем состояние, если текущее начертание недоступно
+    const availableWeights = getAvailableWeightsForFamily(fontFamily);
+    if (!availableWeights.includes(state.subtitleWeight)) {
+      const newWeight = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
+      setState({ subtitleWeight: newWeight });
+    }
+  }
+  
   clearTextMeasurementCache();
   renderer.render();
 };
@@ -941,6 +1061,19 @@ export const selectLegalFontFamily = (fontFamily) => {
   if (!fontFamily.startsWith('CustomFont_')) {
     updateCustomFontInfo('legal', null);
   }
+  
+  // Обновляем селект начертаний для выбранной гарнитуры
+  const dom = getDom();
+  if (dom.legalWeight) {
+    updateWeightDropdown(dom.legalWeight, fontFamily, state.legalWeight);
+    // Обновляем состояние, если текущее начертание недоступно
+    const availableWeights = getAvailableWeightsForFamily(fontFamily);
+    if (!availableWeights.includes(state.legalWeight)) {
+      const newWeight = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
+      setState({ legalWeight: newWeight });
+    }
+  }
+  
   clearTextMeasurementCache();
   renderer.render();
 };
@@ -963,6 +1096,19 @@ export const selectAgeFontFamily = (fontFamily) => {
   if (!fontFamily.startsWith('CustomFont_')) {
     updateCustomFontInfo('age', null);
   }
+  
+  // Обновляем селект начертаний для выбранной гарнитуры (если есть)
+  const dom = getDom();
+  if (dom.ageWeight) {
+    updateWeightDropdown(dom.ageWeight, fontFamily, state.ageWeight);
+    // Обновляем состояние, если текущее начертание недоступно
+    const availableWeights = getAvailableWeightsForFamily(fontFamily);
+    if (!availableWeights.includes(state.ageWeight)) {
+      const newWeight = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
+      setState({ ageWeight: newWeight });
+    }
+  }
+  
   clearTextMeasurementCache();
   renderer.render();
 };
@@ -993,34 +1139,17 @@ const updateTitleAlignToggle = (align) => {
   });
   
   // Принудительно обновляем CSS для слайдера (3 опции)
-  // Используем точный расчет на основе реальных размеров
+  // Используем процентные значения как в CSS для точного позиционирования
   const slider = toggle.querySelector('.toggle-switch-slider');
-  const track = toggle.querySelector('.toggle-switch-track');
-  if (slider && track) {
-    // Ждем один кадр для получения актуальных размеров
-    requestAnimationFrame(() => {
-      const trackWidth = track.offsetWidth;
-      const sliderWidth = slider.offsetWidth;
-      const sectionWidth = trackWidth / 3;
-      const initialLeft = 4; // padding контейнера
-      
-      // Рассчитываем позицию: начало нужной секции минус начальная позиция слайдера
-      if (align === 'center') {
-        // Позиция начала второй секции: sectionWidth
-        // Нужно сдвинуть на: sectionWidth - initialLeft
-        const translateX = sectionWidth - initialLeft;
-        slider.style.transform = `translateX(${translateX}px)`;
-      } else if (align === 'right') {
-        // Позиция начала третьей секции: sectionWidth * 2
-        // Нужно сдвинуть на: sectionWidth * 2 - initialLeft
-        const translateX = sectionWidth * 2 - initialLeft;
-        slider.style.transform = `translateX(${translateX}px)`;
-      } else {
-        // Позиция начала первой секции: 0, но слайдер уже на left: 4px
-        // Нужно вернуть в исходную позицию (left уже задан в CSS)
-        slider.style.transform = 'translateX(0)';
-      }
-    });
+  if (slider) {
+    // Используем те же значения, что и в CSS
+    if (align === 'center') {
+      slider.style.transform = 'translateX(calc(100% + 4px))';
+    } else if (align === 'right' || align === 'bottom') {
+      slider.style.transform = 'translateX(calc(200% + 8px))';
+    } else {
+      slider.style.transform = 'translateX(0)';
+    }
   }
 };
 
@@ -1050,34 +1179,17 @@ const updateTitleVPosToggle = (vPos) => {
   });
   
   // Принудительно обновляем CSS для слайдера (3 опции)
-  // Используем точный расчет на основе реальных размеров
+  // Используем процентные значения как в CSS для точного позиционирования
   const slider = toggle.querySelector('.toggle-switch-slider');
-  const track = toggle.querySelector('.toggle-switch-track');
-  if (slider && track) {
-    // Ждем один кадр для получения актуальных размеров
-    requestAnimationFrame(() => {
-      const trackWidth = track.offsetWidth;
-      const sliderWidth = slider.offsetWidth;
-      const sectionWidth = trackWidth / 3;
-      const initialLeft = 4; // padding контейнера
-      
-      // Рассчитываем позицию: начало нужной секции минус начальная позиция слайдера
-      if (vPos === 'center') {
-        // Позиция начала второй секции: sectionWidth
-        // Нужно сдвинуть на: sectionWidth - initialLeft
-        const translateX = sectionWidth - initialLeft;
-        slider.style.transform = `translateX(${translateX}px)`;
-      } else if (vPos === 'bottom') {
-        // Позиция начала третьей секции: sectionWidth * 2
-        // Нужно сдвинуть на: sectionWidth * 2 - initialLeft
-        const translateX = sectionWidth * 2 - initialLeft;
-        slider.style.transform = `translateX(${translateX}px)`;
-      } else {
-        // Позиция начала первой секции: 0, но слайдер уже на left: 4px
-        // Нужно вернуть в исходную позицию (left уже задан в CSS)
-        slider.style.transform = 'translateX(0)';
-      }
-    });
+  if (slider) {
+    // Используем те же значения, что и в CSS
+    if (vPos === 'center') {
+      slider.style.transform = 'translateX(calc(100% + 4px))';
+    } else if (vPos === 'bottom') {
+      slider.style.transform = 'translateX(calc(200% + 8px))';
+    } else {
+      slider.style.transform = 'translateX(0)';
+    }
   }
 };
 
@@ -1729,6 +1841,7 @@ export const resetAll = () => {
   resetState();
   ensurePresetSelection();
   initializeLogoDropdown();
+  initializeExportScaleToggle();
   initializeFontDropdown();
   syncFormFields();
   renderPresetSizes();
@@ -1973,13 +2086,21 @@ const renderLogoColumn4 = (images) => {
     return true;
   });
   
-  filteredImages.forEach((logo) => {
+  filteredImages.forEach((logo, index) => {
     const imgContainer = document.createElement('div');
     imgContainer.className = 'preview-item';
     
     const img = document.createElement('img');
-    img.src = logo.file;
     img.alt = logo.name;
+    img.src = logo.file;
+    
+    // Используем нативный loading="lazy" для прогрессивной загрузки
+    // Первые 6 изображений загружаем сразу (eager), остальные - лениво
+    if (index < 6) {
+      img.loading = 'eager'; // Загружаем сразу
+    } else {
+      img.loading = 'lazy'; // Ленивая загрузка
+    }
     
     imgContainer.appendChild(img);
     
@@ -2329,6 +2450,59 @@ export const initializeTitleVPosToggle = () => {
   updateTitleVPosToggle(state.titleVPos || 'top');
 };
 
+const updateExportScaleToggle = (scale) => {
+  const toggle = document.getElementById('exportScaleToggle');
+  if (!toggle) return;
+  
+  // Устанавливаем значение масштаба
+  toggle.setAttribute('data-value', String(scale));
+  
+  // Обновляем опции
+  const options = toggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    if (option.dataset.value === String(scale)) {
+      option.classList.add('active');
+    } else {
+      option.classList.remove('active');
+    }
+  });
+  
+  // Принудительно обновляем CSS для слайдера (4 опции)
+  // Используем процентные значения как в CSS для точного позиционирования
+  const slider = toggle.querySelector('.toggle-switch-slider');
+  if (slider) {
+    // Используем те же значения, что и в CSS
+    if (scale === 2) {
+      slider.style.transform = 'translateX(calc(100% + 4px))';
+    } else if (scale === 3) {
+      slider.style.transform = 'translateX(calc(200% + 8px))';
+    } else if (scale === 4) {
+      slider.style.transform = 'translateX(calc(300% + 12px))';
+    } else {
+      slider.style.transform = 'translateX(0)';
+    }
+  }
+};
+
+export const initializeExportScaleToggle = () => {
+  const toggle = document.getElementById('exportScaleToggle');
+  if (!toggle) return;
+  
+  // Добавляем обработчики клика на опции для прямого выбора
+  const options = toggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const value = parseInt(option.dataset.value, 10);
+      updateState('exportScale', value);
+    });
+  });
+  
+  // Инициализируем состояние тумблера
+  const state = getState();
+  updateExportScaleToggle(state.exportScale || 1);
+};
+
 export const initializeLogoDropdown = async () => {
   const dom = getDom();
   if (!dom.logoSelect) return;
@@ -2467,22 +2641,54 @@ export const initializeFontDropdowns = () => {
   
   // Обновляем dropdown для заголовка
   if (dom.titleFontFamily) {
-    updateFontDropdown(dom.titleFontFamily, state.titleFontFamily || 'YS Text');
+    const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
+    updateFontDropdown(dom.titleFontFamily, titleFontFamily);
+    // Инициализируем селект начертаний
+    if (dom.titleWeight) {
+      const titleWeight = typeof state.titleWeight === 'number' 
+        ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
+        : (state.titleWeight || 'Regular');
+      updateWeightDropdown(dom.titleWeight, titleFontFamily, titleWeight);
+    }
   }
   
   // Обновляем dropdown для подзаголовка
   if (dom.subtitleFontFamily) {
-    updateFontDropdown(dom.subtitleFontFamily, state.subtitleFontFamily || 'YS Text');
+    const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
+    updateFontDropdown(dom.subtitleFontFamily, subtitleFontFamily);
+    // Инициализируем селект начертаний
+    if (dom.subtitleWeight) {
+      const subtitleWeight = typeof state.subtitleWeight === 'number' 
+        ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
+        : (state.subtitleWeight || 'Regular');
+      updateWeightDropdown(dom.subtitleWeight, subtitleFontFamily, subtitleWeight);
+    }
   }
   
   // Обновляем dropdown для юридического текста
   if (dom.legalFontFamily) {
-    updateFontDropdown(dom.legalFontFamily, state.legalFontFamily || 'YS Text');
+    const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
+    updateFontDropdown(dom.legalFontFamily, legalFontFamily);
+    // Инициализируем селект начертаний
+    if (dom.legalWeight) {
+      const legalWeight = typeof state.legalWeight === 'number' 
+        ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
+        : (state.legalWeight || 'Regular');
+      updateWeightDropdown(dom.legalWeight, legalFontFamily, legalWeight);
+    }
   }
   
   // Обновляем dropdown для возраста
   if (dom.ageFontFamily) {
-    updateFontDropdown(dom.ageFontFamily, state.ageFontFamily || 'YS Text');
+    const ageFontFamily = state.ageFontFamily || state.fontFamily || 'YS Text';
+    updateFontDropdown(dom.ageFontFamily, ageFontFamily);
+    // Инициализируем селект начертаний (если есть)
+    if (dom.ageWeight) {
+      const ageWeight = typeof state.ageWeight === 'number' 
+        ? FONT_WEIGHT_TO_NAME[state.ageWeight.toString()] || 'Regular' 
+        : (state.ageWeight || 'Regular');
+      updateWeightDropdown(dom.ageWeight, ageFontFamily, ageWeight);
+    }
   }
 };
 
@@ -2576,6 +2782,8 @@ const renderKVColumn2 = (allKV) => {
   }
 };
 
+// Используем нативный loading="lazy" для прогрессивной загрузки изображений
+
 const renderKVColumn3 = (images) => {
   const column3 = document.getElementById('kvImagesColumn');
   if (!column3) return;
@@ -2598,12 +2806,14 @@ const renderKVColumn3 = (images) => {
     activeKVFile = state.kvSelected || '';
   }
   
-  images.forEach((kv) => {
+  images.forEach((kv, index) => {
     const imgContainer = document.createElement('div');
     imgContainer.className = 'preview-item';
     
+    const isActive = activeKVFile && kv.file === activeKVFile;
+    
     // Добавляем обводку для активного KV
-    if (activeKVFile && kv.file === activeKVFile) {
+    if (isActive) {
       imgContainer.style.border = '2px solid #027EF2';
       imgContainer.style.borderRadius = '4px';
     } else {
@@ -2612,8 +2822,16 @@ const renderKVColumn3 = (images) => {
     }
     
     const img = document.createElement('img');
-    img.src = kv.file;
     img.alt = kv.name;
+    img.src = kv.file;
+    
+    // Используем нативный loading="lazy" для прогрессивной загрузки
+    // Первые 6 изображений и активное загружаем сразу (eager), остальные - лениво
+    if (index < 6 || isActive) {
+      img.loading = 'eager'; // Загружаем сразу
+    } else {
+      img.loading = 'lazy'; // Ленивая загрузка
+    }
     
     imgContainer.appendChild(img);
     
@@ -2686,7 +2904,44 @@ const populateKVColumns = async (forceRefresh = false) => {
 };
 
 export const refreshKVColumns = async () => {
+  // Очищаем все кэши КВ
+  cachedKV = null;
+  selectedFolder1 = null;
+  selectedFolder2 = null;
+  
+  // Принудительно обновляем колонки в модальном окне
   await populateKVColumns(true);
+  
+  // Также обновляем кэш для пар заголовков/подзаголовков
+  // Это пересканирует КВ для отображения в списке пар
+  if (!kvScanning) {
+    kvScanning = true;
+    try {
+      const scannedKV = await scanKV();
+      cachedKV = { ...AVAILABLE_KV };
+      Object.keys(scannedKV).forEach(folder1 => {
+        if (!cachedKV[folder1]) {
+          cachedKV[folder1] = {};
+        }
+        Object.keys(scannedKV[folder1]).forEach(folder2 => {
+          if (!cachedKV[folder1][folder2]) {
+            cachedKV[folder1][folder2] = [];
+          }
+          scannedKV[folder1][folder2].forEach(kv => {
+            if (!cachedKV[folder1][folder2].find(k => k.file === kv.file)) {
+              cachedKV[folder1][folder2].push(kv);
+            }
+          });
+        });
+      });
+      // Перерисовываем пары после обновления кэша
+      renderKVPairs();
+    } catch (error) {
+      console.error('Ошибка при обновлении КВ:', error);
+    } finally {
+      kvScanning = false;
+    }
+  }
 };
 
 // Глобальная переменная для хранения индекса пары, для которой открывается модальное окно
@@ -3228,34 +3483,19 @@ const renderTitleSubtitlePairs = () => {
   pairs.forEach((pair, index) => {
     const isActive = index === activeIndex;
     
-    // Элемент для заголовка
-    const titleItem = document.createElement('div');
-    titleItem.className = `form-group form-item ${isActive ? 'active' : ''}`;
-    
-    // Создаем header с label и кнопкой
+    // Создаем header с label и кнопкой для заголовка
     const titleHeader = document.createElement('div');
     titleHeader.className = 'form-header';
+    if (isActive) titleHeader.classList.add('active');
     
     const titleLabel = document.createElement('label');
     titleLabel.className = `form-label ${isActive ? 'active' : ''}`;
-    titleLabel.textContent = `Заголовок ${index + 1}${isActive ? ' (активен)' : ''}`;
+    titleLabel.textContent = `Заголовок ${String(index + 1).padStart(2, '0')}${isActive ? ' (активен)' : ''}`;
     titleLabel.onclick = () => setActiveTitlePair(index);
     
     const titleButtons = document.createElement('div');
     titleButtons.className = 'gap-sm';
     titleButtons.style.cssText = 'display: flex; align-items: center;';
-    
-    // Добавляем кнопку "Добавить заголовок" только для первого заголовка
-    if (index === 0) {
-      const addBtn = document.createElement('button');
-      addBtn.className = 'btn btn-tiny';
-      addBtn.textContent = '+ Добавить';
-      addBtn.onclick = (e) => {
-        e.stopPropagation();
-        addTitleSubtitlePair();
-      };
-      titleButtons.appendChild(addBtn);
-    }
     
     if (pairs.length > 1) {
       const removeBtn = document.createElement('button');
@@ -3272,7 +3512,7 @@ const renderTitleSubtitlePairs = () => {
     titleHeader.appendChild(titleLabel);
     titleHeader.appendChild(titleButtons);
     
-    // Создаем textarea
+    // Создаем textarea для заголовка
     const titleTextarea = document.createElement('textarea');
     titleTextarea.id = `title-${index}`;
     titleTextarea.className = 'form-textarea';
@@ -3288,21 +3528,18 @@ const renderTitleSubtitlePairs = () => {
       }
     };
     
-    titleItem.appendChild(titleHeader);
-    titleItem.appendChild(titleTextarea);
-    titleContainer.appendChild(titleItem);
+    // Добавляем заголовок напрямую в контейнер
+    titleContainer.appendChild(titleHeader);
+    titleContainer.appendChild(titleTextarea);
     
-    // Элемент для подзаголовка
-    const subtitleItem = document.createElement('div');
-    subtitleItem.className = `form-group form-item ${isActive ? 'active' : ''}`;
-    
-    // Создаем header с label и кнопкой
+    // Создаем header с label и кнопкой для подзаголовка
     const subtitleHeader = document.createElement('div');
     subtitleHeader.className = 'form-header';
+    if (isActive) subtitleHeader.classList.add('active');
     
     const subtitleLabel = document.createElement('label');
     subtitleLabel.className = `form-label ${isActive ? 'active' : ''}`;
-    subtitleLabel.textContent = `Подзаголовок ${index + 1}${isActive ? ' (активен)' : ''}`;
+    subtitleLabel.textContent = `Подзаголовок ${String(index + 1).padStart(2, '0')}${isActive ? ' (активен)' : ''}`;
     subtitleLabel.onclick = () => setActiveTitlePair(index);
     
     const subtitleButtons = document.createElement('div');
@@ -3326,7 +3563,7 @@ const renderTitleSubtitlePairs = () => {
       subtitleHeader.appendChild(subtitleButtons);
     }
     
-    // Создаем textarea
+    // Создаем textarea для подзаголовка
     const subtitleTextarea = document.createElement('textarea');
     subtitleTextarea.id = `subtitle-${index}`;
     subtitleTextarea.className = 'form-textarea';
@@ -3342,9 +3579,57 @@ const renderTitleSubtitlePairs = () => {
       }
     };
     
-    subtitleItem.appendChild(subtitleHeader);
-    subtitleItem.appendChild(subtitleTextarea);
-    subtitleContainer.appendChild(subtitleItem);
+    // Добавляем подзаголовок напрямую в контейнер
+    subtitleContainer.appendChild(subtitleHeader);
+    subtitleContainer.appendChild(subtitleTextarea);
+    
+    // Создаем функцию для создания дивайдера с кнопкой
+    const createDivider = (includeButton) => {
+      const divider = document.createElement('div');
+      divider.style.cssText = 'display: flex; align-items: center; gap: 8px; margin: 12px 0;';
+      
+      const dividerLine = document.createElement('div');
+      dividerLine.style.cssText = 'flex: 1; height: 1px; background: #2a2d35;';
+      divider.appendChild(dividerLine);
+      
+      if (includeButton) {
+        const tooltipWrapper = document.createElement('div');
+        tooltipWrapper.className = 'tooltip-wrapper';
+        
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn btn-tiny';
+        addBtn.textContent = '+ Добавить';
+        addBtn.onclick = (e) => {
+          e.stopPropagation();
+          addTitleSubtitlePairAction();
+        };
+        
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tooltip';
+        tooltip.textContent = 'Добавьте вариант заголовка с подзаголовком и отдельным KV. Экспорт всех макетов за раз создаст три папки с ресайзами для разных заголовков и КВ';
+        
+        // Позиционирование tooltip при наведении
+        tooltipWrapper.addEventListener('mouseenter', () => {
+          const rect = addBtn.getBoundingClientRect();
+          tooltip.style.left = `${rect.right + 8}px`;
+          tooltip.style.top = `${rect.top + rect.height / 2}px`;
+          tooltip.style.transform = 'translateY(-50%)';
+        });
+        
+        tooltipWrapper.appendChild(addBtn);
+        tooltipWrapper.appendChild(tooltip);
+        divider.appendChild(tooltipWrapper);
+      }
+      
+      divider.appendChild(dividerLine.cloneNode(true));
+      return divider;
+    };
+    
+    // Добавляем дивайдер в оба контейнера
+    // Кнопка "Добавить" только для первой пары
+    const includeButton = index === 0;
+    titleContainer.appendChild(createDivider(includeButton));
+    subtitleContainer.appendChild(createDivider(includeButton));
   });
   
   // Обновляем текстовые поля активной пары (для обратной совместимости)

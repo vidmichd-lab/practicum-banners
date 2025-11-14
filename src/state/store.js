@@ -91,7 +91,8 @@ const createInitialState = () => ({
   customSizes: [], // Кастомные размеры: [{ width, height, checked, id }]
   namePrefix: 'layout',
   kvCanvasWidth: null,
-  kvCanvasHeight: null
+  kvCanvasHeight: null,
+  exportScale: 1 // Масштаб экспорта: 1, 2, 3 или 4
 });
 
 class Store {

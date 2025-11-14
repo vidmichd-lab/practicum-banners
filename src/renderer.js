@@ -1,4 +1,4 @@
-import { getState, getCheckedSizes, setKey } from './state/store.js';
+import { getState, getCheckedSizes, setKey, setState } from './state/store.js';
 import { FONT_NAME_TO_WEIGHT } from './constants.js';
 
 // Функция для конвертации названия начертания в вес
@@ -551,10 +551,8 @@ const renderToCanvas = (canvas, width, height, state) => {
     legalSize = (state.legalSize / 100) * minDimension * legalMultiplier;
     const legalWeight = getFontWeight(state.legalWeight);
     ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
-    // Calculate available width for legal text (reserve space for age on the right)
-    const availableWidth = isUltraWide || !isHorizontalLayout
-      ? Math.max(0, width - paddingPx * 2)
-      : Math.max(0, leftSectionWidth - paddingPx * 2);
+    // Legal всегда занимает всю ширину макета (минус отступы и место для age)
+    const availableWidth = width - paddingPx * 2;
     const legalMaxWidth = Math.max(50, availableWidth - ageReservedWidth);
     legalLines = wrapText(ctx, state.legal, legalMaxWidth, legalSize, legalWeight, state.legalLineHeight);
     preliminaryLegalBlockHeight = Math.max(preliminaryLegalBlockHeight, legalLines.length * legalSize * state.legalLineHeight);
@@ -637,38 +635,54 @@ const renderToCanvas = (canvas, width, height, state) => {
     const availableHeight = Math.max(0, height - effectivePaddingPx * 2);
     const logoRight = logoBounds ? logoBounds.x + logoBounds.width : effectivePaddingPx;
     const gap = Math.max(effectivePaddingPx * 0.5, width * 0.01);
+    const minKvSize = 30; // Минимальный размер для KV (уменьшен для более мягкой проверки)
     
-    let kvScale = availableHeight > 0 ? (availableHeight * 0.75) / state.kv.height : 0;
+    // Используем максимально возможную высоту для KV
+    let kvScale = availableHeight > 0 ? availableHeight / state.kv.height : 0;
     let kvW = state.kv.width * kvScale;
     let kvH = state.kv.height * kvScale;
-    const maxKvWidth = Math.max(50, width * 0.25);
+    const maxKvWidth = Math.max(minKvSize, width * 0.25);
     if (kvW > maxKvWidth) {
       kvScale = maxKvWidth / state.kv.width;
       kvW = maxKvWidth;
       kvH = state.kv.height * kvScale;
     }
     
+    // Проверяем, что KV достаточно большой для отображения
+    // Используем более мягкую проверку: хотя бы одна сторона должна быть >= minKvSize
+    if ((kvW >= minKvSize || kvH >= minKvSize) && kvScale > 0) {
     const kvX = logoRight + gap;
-    const kvY = effectivePaddingPx + Math.max(0, (availableHeight - kvH) / 2);
+    const kvY = effectivePaddingPx + (availableHeight - kvH) / 2;
     kvPlannedMeta = { kvX, kvY, kvW, kvH, kvScale, paddingPx: effectivePaddingPx };
 
     // Текст занимает все оставшееся место после KV
     const textStart = kvX + kvW + gap;
     textArea.left = textStart;
     textArea.right = width - effectivePaddingPx;
+    } else {
+      // Если места недостаточно, не размещаем KV
+      textArea.left = logoRight + gap;
+      textArea.right = width - effectivePaddingPx;
+    }
   } else if (isUltraWide && state.showKV && state.kv) {
     const availableHeight = Math.max(0, height - paddingPx * 2);
-    let kvScale = availableHeight > 0 ? (availableHeight * 0.75) / state.kv.height : 0;
+    const minKvSize = 30; // Минимальный размер для KV (уменьшен для более мягкой проверки)
+    // Используем максимально возможную высоту для KV
+    let kvScale = availableHeight > 0 ? availableHeight / state.kv.height : 0;
     let kvW = state.kv.width * kvScale;
     let kvH = state.kv.height * kvScale;
-    const maxKvWidth = Math.max(50, width * 0.25);
+    const maxKvWidth = Math.max(minKvSize, width * 0.25);
     if (kvW > maxKvWidth) {
       kvScale = maxKvWidth / state.kv.width;
       kvW = maxKvWidth;
       kvH = state.kv.height * kvScale;
     }
+    
+    // Проверяем, что KV достаточно большой для отображения
+    // Используем более мягкую проверку: хотя бы одна сторона должна быть >= minKvSize
+    if ((kvW >= minKvSize || kvH >= minKvSize) && kvScale > 0) {
     const kvX = width / 2 - kvW / 2;
-    const kvY = paddingPx + Math.max(0, (availableHeight - kvH) / 2);
+    const kvY = paddingPx + (availableHeight - kvH) / 2;
     kvPlannedMeta = { kvX, kvY, kvW, kvH, kvScale, paddingPx };
 
     const textStart = kvX + kvW + Math.max(paddingPx, width * 0.02);
@@ -676,6 +690,12 @@ const renderToCanvas = (canvas, width, height, state) => {
     textArea.right = width - paddingPx;
     if (textArea.right - textArea.left < 200) {
       textArea.left = Math.max(paddingPx, textArea.right - 200);
+      }
+    } else {
+      // Если места недостаточно, не размещаем KV
+      const logoRight = logoBounds ? logoBounds.x + logoBounds.width : paddingPx;
+      textArea.left = logoRight + paddingPx;
+      textArea.right = width - paddingPx;
     }
   } else if (isSuperWide) {
     // Для супер широких форматов без KV: текст начинается после логотипа
@@ -692,12 +712,13 @@ const renderToCanvas = (canvas, width, height, state) => {
     const minTextWidth = Math.max(widthAfterPadding * minTextRatio, 200);
     const gap = Math.max(paddingPx, width * 0.02);
     const availableHeight = Math.max(0, height - paddingPx * 2);
+    const minKvSize = 30; // Минимальный размер для KV (уменьшен для более мягкой проверки)
 
     let kvMeta = null;
     let textWidth = widthAfterPadding;
 
     const maxKvWidth = Math.max(0, widthAfterPadding - minTextWidth - gap);
-    if (maxKvWidth > 10) {
+    if (maxKvWidth >= minKvSize) {
       const scaleByHeight = availableHeight > 0 ? availableHeight / state.kv.height : 0;
       let kvW = state.kv.width * scaleByHeight;
       let kvH = availableHeight;
@@ -707,7 +728,9 @@ const renderToCanvas = (canvas, width, height, state) => {
         kvH = state.kv.height * scaleByWidth;
       }
 
-      if (kvW > 10 && kvH > 10) {
+      // Проверяем минимальный размер KV
+      // Используем более мягкую проверку: хотя бы одна сторона должна быть >= minKvSize
+      if (kvW >= minKvSize || kvH >= minKvSize) {
         const kvScale = kvW / state.kv.width;
         const kvX = width - paddingPx - kvW;
         const kvY = paddingPx + Math.max(0, (availableHeight - kvH) / 2);
@@ -761,90 +784,38 @@ const renderToCanvas = (canvas, width, height, state) => {
   }
   
   if ((state.showLegal && legalLines.length > 0) || (state.showAge && state.age)) {
-    // Calculate available width for legal text (leave space for age on the right if it exists)
-    // Also account for KV on the right in horizontal layouts
-    const availableWidth = isHorizontalLayout ? Math.max(effectivePaddingPx, kvRightEdge - effectivePaddingPx) : (width - effectivePaddingPx * 2);
+    // Legal всегда занимает всю ширину макета (минус отступы и место для age)
     const ageWidth = (state.showAge && state.age && ageTextWidth > 0) ? ageTextWidth + ageGapPx : 0;
-    let legalMaxWidthForFlex = Math.max(0, availableWidth - ageWidth);
+    // Legal занимает всю ширину макета по нижнему краю на любом макете
+    const fullLegalWidth = width - effectivePaddingPx * 2 - ageWidth;
+    let legalMaxWidthForFlex = Math.max(50, fullLegalWidth);
     
     // Calculate legal text block - last line should be at commonBaselineY
     if (state.showLegal && legalLines.length > 0) {
-      // Для супер широких форматов legal занимает всю нижнюю часть и всю ширину
-      if (isSuperWide) {
-        // Legal начинается от определенной высоты и занимает всю нижнюю часть до низа
-        // Legal занимает всю ширину макета (минус отступы и место для age)
-        const legalAreaStartY = height - effectivePaddingPx - legalBlockHeight;
-        const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
-        const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
-        
-        // Legal занимает всю ширину макета (минус отступы слева и справа, минус место для age)
-        const fullLegalWidth = width - effectivePaddingPx * 2 - ageWidth;
-        
-        legalContentBounds = {
-          x: effectivePaddingPx,
-          y: legalAreaStartY,
-          width: fullLegalWidth,
-          height: legalHeight
-        };
-        
-        legalTextBounds = {
-          x: effectivePaddingPx,
-          y: legalContentBounds.y,
-          width: fullLegalWidth,
-          height: legalHeight
-        };
-        
-        legalBounds = { ...legalContentBounds };
-        
-        // Пересчитываем legalLines с учетом полной ширины
-        legalMaxWidthForFlex = fullLegalWidth;
-        const legalWeight = getFontWeight(state.legalWeight);
-        legalLines = wrapText(ctx, state.legal, legalMaxWidthForFlex, legalSize, legalWeight, state.legalLineHeight);
-      } else {
-        // Обычная логика для других форматов
-        // Position legal text so that its last line baseline is at commonBaselineY
-        // Last line is at index (legalLines.length - 1)
-        // Baseline for last line = commonBaselineY
-        // Baseline for first line = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight
-        const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
-        
-        // Calculate bounds based on first line baseline
-        legalTextBounds = getTextBlockBounds(ctx, legalLines, effectivePaddingPx, firstLineBaselineY, legalSize, state.legalLineHeight, 'left', legalMaxWidthForFlex);
-        
-        if (legalTextBounds) {
-          // Verify that last line is at commonBaselineY (or adjust if needed)
-          const calculatedLastBaseline = legalTextBounds.y + legalTextBounds.height - (legalTextBounds.height - legalSize);
-          const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
-          const legalTop = commonBaselineY - legalHeight;
-          
-          legalContentBounds = {
-            x: effectivePaddingPx,
-            y: Math.max(effectivePaddingPx, legalTop),
-            width: legalMaxWidthForFlex,
-            height: legalHeight
-          };
-          
-          // Update legalTextBounds with correct position
-          legalTextBounds = {
-            x: effectivePaddingPx,
-            y: legalContentBounds.y,
-            width: legalMaxWidthForFlex,
-            height: legalHeight
-          };
-        } else {
-          const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
-          const legalTop = commonBaselineY - legalHeight;
-          legalContentBounds = {
-            x: effectivePaddingPx,
-            y: Math.max(effectivePaddingPx, legalTop),
-            width: legalMaxWidthForFlex,
-            height: legalHeight
-          };
-          legalTextBounds = { ...legalContentBounds };
-        }
-        
-        legalBounds = { ...legalContentBounds };
-      }
+      // Legal всегда занимает всю ширину макета (минус отступы и место для age)
+      const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
+      const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
+      const legalTop = commonBaselineY - legalHeight;
+      
+      // Пересчитываем legalLines с учетом полной ширины
+      const legalWeight = getFontWeight(state.legalWeight);
+      legalLines = wrapText(ctx, state.legal, legalMaxWidthForFlex, legalSize, legalWeight, state.legalLineHeight);
+      
+      legalContentBounds = {
+        x: effectivePaddingPx,
+        y: Math.max(effectivePaddingPx, legalTop),
+        width: legalMaxWidthForFlex,
+        height: legalHeight
+      };
+      
+      legalTextBounds = {
+        x: effectivePaddingPx,
+        y: legalContentBounds.y,
+        width: legalMaxWidthForFlex,
+        height: legalHeight
+      };
+      
+      legalBounds = { ...legalContentBounds };
     }
 
     // Position age at the same baseline as legal's last line (commonBaselineY)
@@ -860,52 +831,30 @@ const renderToCanvas = (canvas, width, height, state) => {
         height: ageSizePx
       };
       
-      // Always recalculate legal width to ensure it doesn't overlap with age
-      // Calculate maximum allowed width for legal text to not overlap with age
-      const maxLegalWidth = Math.max(50, ageBoundsRect.x - ageGapPx - paddingPx);
-      
-      // Update legalMaxWidthForFlex to ensure no overlap
-      if (legalMaxWidthForFlex > maxLegalWidth) {
-        legalMaxWidthForFlex = maxLegalWidth;
-      }
-      
-      // Always recalculate legal text wrapping with the correct width to ensure no overlap
-      if (state.showLegal && state.legal) {
+      // Legal уже занимает всю ширину с учетом места для age (ageWidth уже учтен в legalMaxWidthForFlex)
+      // Пересчитываем legalLines только если нужно, чтобы убедиться, что текст правильно обернут
+      if (state.showLegal && state.legal && legalLines.length > 0) {
         const legalWeight = getFontWeight(state.legalWeight);
-        legalLines = wrapText(ctx, state.legal, legalMaxWidthForFlex, legalSize, legalWeight, state.legalLineHeight);
+        const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
+        const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
+        const legalTop = commonBaselineY - legalHeight;
         
-        // Recalculate legal bounds with adjusted width
-        if (legalLines.length > 0) {
-          const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
-          const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
-          legalTextBounds = getTextBlockBounds(ctx, legalLines, paddingPx, firstLineBaselineY, legalSize, state.legalLineHeight, 'left', legalMaxWidthForFlex);
-          
-          if (legalTextBounds) {
-            const legalTop = commonBaselineY - legalHeight;
-            legalContentBounds = {
-              x: paddingPx,
-              y: Math.max(paddingPx, legalTop),
-              width: legalMaxWidthForFlex,
-              height: legalHeight
-            };
-            legalTextBounds = {
-              x: paddingPx,
-              y: legalContentBounds.y,
-              width: legalMaxWidthForFlex,
-              height: legalHeight
-            };
-          } else {
-            const legalTop = commonBaselineY - legalHeight;
-            legalContentBounds = {
-              x: paddingPx,
-              y: Math.max(paddingPx, legalTop),
-              width: legalMaxWidthForFlex,
-              height: legalHeight
-            };
-            legalTextBounds = { ...legalContentBounds };
-          }
-          legalBounds = { ...legalContentBounds };
-        }
+        // Обновляем bounds с правильной шириной
+        legalContentBounds = {
+          x: effectivePaddingPx,
+          y: Math.max(effectivePaddingPx, legalTop),
+          width: legalMaxWidthForFlex,
+          height: legalHeight
+        };
+        
+        legalTextBounds = {
+          x: effectivePaddingPx,
+          y: legalContentBounds.y,
+          width: legalMaxWidthForFlex,
+          height: legalHeight
+        };
+        
+        legalBounds = { ...legalContentBounds };
       }
     }
   }
@@ -930,15 +879,10 @@ const renderToCanvas = (canvas, width, height, state) => {
   const baseTitleSize = (state.titleSize / 100) * minDimension;
   const titleSize = baseTitleSize * titleSizeMultiplier;
   const baseSubtitleSize = (state.subtitleSize / 100) * minDimension;
-  let subtitleSize = baseSubtitleSize * titleSizeMultiplier;
-  
-  // For layouts up to 150px, preserve the title/subtitle ratio
-  // For larger layouts, ensure minimum subtitle size for readability
-  const isSmallLayout = height <= 150;
-  if (!isSmallLayout) {
-    const minSubtitleSize = Math.max(8, minDimension * 0.02); // At least 2% of min dimension or 8px
-    subtitleSize = Math.max(subtitleSize, minSubtitleSize);
-  }
+  // Подзаголовок всегда масштабируется пропорционально заголовку
+  // Используем то же соотношение, что и для базовых размеров, умноженное на titleSizeMultiplier
+  // Это гарантирует, что при изменении titleSizeMultiplier или state.titleSize подзаголовок будет масштабироваться вместе с заголовком
+  const subtitleSize = baseSubtitleSize * titleSizeMultiplier;
 
   // Hide subtitle on wide formats (height < 150px) if option is enabled
   const shouldShowSubtitle = state.showSubtitle && state.subtitle && !(state.hideSubtitleOnWide && height < 150);
@@ -1207,50 +1151,52 @@ const renderToCanvas = (canvas, width, height, state) => {
 
       const legalReserved = (state.showLegal && legalLines.length > 0) || (state.showAge && state.age) ? legalBlockHeight : 0;
       const bottomAreaStart = textBlockBottom + safeGapY;
-      const bottomAreaEnd = Math.max(bottomAreaStart, height - paddingPx - legalReserved - safeGapY);
+      // Учитываем отступ для legal (safeGap для KV должен быть выше legal)
+      const legalTop = height - paddingPx - legalReserved;
+      const safeGapForLegal = Math.max(paddingPx * 0.5, legalSize * 0.5);
+      const bottomAreaEnd = Math.max(bottomAreaStart, legalTop - safeGapForLegal);
       const bottomAreaHeight = Math.max(0, bottomAreaEnd - bottomAreaStart);
 
-      const computeFit = (availHeight) => {
+      const minKvSize = 30; // Минимальный размер для KV (уменьшен для более мягкой проверки)
+      const computeFit = (availHeight, areaStart, areaEnd) => {
         if (availableWidth <= 0 || availHeight <= 0) return null;
+        // Используем максимально возможный масштаб для заполнения доступного пространства
         const scale = Math.min(availableWidth / state.kv.width, availHeight / state.kv.height);
         if (!(scale > 0) || !Number.isFinite(scale)) return null;
+        const kvW = state.kv.width * scale;
+        const kvH = state.kv.height * scale;
+        
+        // Проверяем минимальный размер KV - если слишком маленький, не размещаем
+        // Используем более мягкую проверку: хотя бы одна сторона должна быть >= minKvSize
+        if (kvW < minKvSize && kvH < minKvSize) return null;
+        
+        // Центрируем KV в доступной области, используя всю доступную высоту
+        const kvX = paddingPx + (availableWidth - kvW) / 2;
+        // Размещаем KV так, чтобы максимально использовать доступное пространство
+        const kvY = areaStart + (availHeight - kvH) / 2;
         return {
-          kvW: state.kv.width * scale,
-          kvH: state.kv.height * scale,
-          kvScale: scale
+          kvW,
+          kvH,
+          kvScale: scale,
+          kvX,
+          kvY
         };
       };
 
-      const topFit = computeFit(topAreaHeight);
-      const bottomFit = computeFit(bottomAreaHeight);
+      const topFit = computeFit(topAreaHeight, topAreaStart, topAreaEnd);
+      const bottomFit = computeFit(bottomAreaHeight, bottomAreaStart, bottomAreaEnd);
       const areaTop = topFit ? topFit.kvW * topFit.kvH : 0;
       const areaBottom = bottomFit ? bottomFit.kvW * bottomFit.kvH : 0;
 
       let placement = null;
       if (bottomFit && (areaBottom >= areaTop || !topFit)) {
-        const kvX = paddingPx + Math.max(0, (availableWidth - bottomFit.kvW) / 2);
-        const kvY = bottomAreaStart + Math.max(0, (bottomAreaHeight - bottomFit.kvH) / 2);
-        placement = { ...bottomFit, kvX, kvY };
+        placement = bottomFit;
       } else if (topFit) {
-        const kvX = paddingPx + Math.max(0, (availableWidth - topFit.kvW) / 2);
-        const kvY = topAreaStart + Math.max(0, (topAreaHeight - topFit.kvH) / 2);
-        placement = { ...topFit, kvX, kvY };
+        placement = topFit;
       }
 
-      if (!placement) {
-        const fullHeight = Math.max(0, height - paddingPx * 2 - legalReserved);
-        const scale = Math.min(
-          availableWidth / state.kv.width,
-          fullHeight / state.kv.height
-        );
-        if (scale > 0 && Number.isFinite(scale)) {
-          const kvW = state.kv.width * scale;
-          const kvH = state.kv.height * scale;
-          const kvX = paddingPx + Math.max(0, (availableWidth - kvW) / 2);
-          const kvY = paddingPx + Math.max(0, (fullHeight - kvH) / 2);
-          placement = { kvW, kvH, kvScale: scale, kvX, kvY };
-        }
-      }
+      // Если не помещается ни в top, ни в bottom, не размещаем КВ (placement остается null)
+      // КВ будет автоматически скрыт в конце функции, если kvRenderMeta будет null
 
       if (placement) {
         kvPlannedMeta = { ...placement, paddingPx };
@@ -1271,11 +1217,8 @@ const renderToCanvas = (canvas, width, height, state) => {
     const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
     const drawX = effectivePaddingPx;
     
-    // Get the maximum allowed width for legal text (to prevent overlap with age)
-    // Для супер широких форматов legal занимает всю ширину
-    const maxLegalWidth = isSuperWide 
-      ? (width - effectivePaddingPx * 2 - (state.showAge && state.age ? ageTextWidth + ageGapPx : 0))
-      : (legalTextBounds ? legalTextBounds.width : (width - effectivePaddingPx * 2));
+    // Legal всегда занимает всю ширину макета (минус отступы и место для age)
+    const maxLegalWidth = width - effectivePaddingPx * 2 - (state.showAge && state.age && ageTextWidth > 0 ? ageTextWidth + ageGapPx : 0);
     
     // Use clipping to ensure text doesn't go beyond the allowed area
     ctx.save();
@@ -1316,17 +1259,20 @@ const renderToCanvas = (canvas, width, height, state) => {
 
   let kvRenderMeta = null;
   if (kvPlannedMeta) {
-    // Final check for KV intersection with legal text/age for all layout modes
+    // KV всегда должен быть немного выше legal текста
     if (legalTextBounds || legalContentBounds || ageBoundsRect) {
       const kvBottom = kvPlannedMeta.kvY + kvPlannedMeta.kvH;
       const legalTop = legalTextBounds ? legalTextBounds.y : (legalContentBounds ? legalContentBounds.y : height);
       const ageTop = ageBoundsRect ? ageBoundsRect.y : height;
       const minLegalTop = Math.min(legalTop, ageTop);
-      const safeGap = paddingPx * 0.5;
+      // Минимальный отступ между KV и legal (чуть больше, чем просто safeGap)
+      const safeGap = Math.max(paddingPx * 0.5, legalSize * 0.5);
       
-      // If KV overlaps with legal/age, adjust its position
-      if (kvBottom + safeGap > minLegalTop) {
-        const maxAllowedBottom = minLegalTop - safeGap;
+      // Всегда проверяем и корректируем позицию KV, чтобы он был выше legal
+      const maxAllowedBottom = minLegalTop - safeGap;
+      
+      // Если KV находится слишком низко (пересекается или слишком близко к legal), перемещаем его выше
+      if (kvBottom > maxAllowedBottom) {
         if (maxAllowedBottom >= kvPlannedMeta.kvY + kvPlannedMeta.kvH * 0.5) {
           // Move KV up if there's enough space
           kvPlannedMeta.kvY = Math.max(paddingPx, maxAllowedBottom - kvPlannedMeta.kvH);
@@ -1437,6 +1383,35 @@ const renderToCanvas = (canvas, width, height, state) => {
       ctx.fillRect(legalContentBounds.x, legalContentBounds.y, legalContentBounds.width, legalContentBounds.height);
     }
     ctx.globalAlpha = 1.0;
+  }
+
+  // Если KV включен, но места для него нет, автоматически выключаем
+  // Но только если размер KV уменьшился почти до 0 (меньше 10px) из-за изменения кегля текста
+  if (state.showKV && state.kv && !kvRenderMeta) {
+    // Проверяем, что места действительно недостаточно
+    const availableWidth = Math.max(0, width - paddingPx * 2);
+    const availableHeight = Math.max(0, height - paddingPx * 2);
+    const criticalMinSize = 10; // Критически минимальный размер - почти 0
+    
+    // Вычисляем максимально возможный размер KV при текущих условиях
+    const scaleByWidth = availableWidth > 0 ? availableWidth / state.kv.width : 0;
+    const scaleByHeight = availableHeight > 0 ? availableHeight / state.kv.height : 0;
+    const maxScale = Math.min(scaleByWidth, scaleByHeight);
+    const maxKvW = state.kv.width * maxScale;
+    const maxKvH = state.kv.height * maxScale;
+    
+    // Выключаем KV только если максимально возможный размер стал почти 0
+    // Это происходит когда текст занимает почти все место из-за увеличения кегля
+    if (maxKvW < criticalMinSize || maxKvH < criticalMinSize) {
+      // Используем setTimeout, чтобы избежать изменения состояния во время рендеринга
+      setTimeout(() => {
+        const currentState = getState();
+        // Проверяем, что KV все еще включен (чтобы не выключать его многократно)
+        if (currentState.showKV) {
+          setState({ showKV: false });
+        }
+      }, 0);
+    }
   }
 
   return {

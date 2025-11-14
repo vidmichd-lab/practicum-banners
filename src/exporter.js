@@ -90,12 +90,17 @@ const exportSizes = async (format) => {
     };
 
     // Экспортируем все размеры для этой пары
+    const exportScale = state.exportScale || 1;
     for (let sizeIndex = 0; sizeIndex < sizes.length; sizeIndex++) {
       const size = sizes[sizeIndex];
       const canvas = document.createElement('canvas');
+      
+      // Применяем масштаб к размерам canvas
+      const scaledWidth = size.width * exportScale;
+      const scaledHeight = size.height * exportScale;
 
       try {
-        renderToCanvas(canvas, size.width, size.height, exportState);
+        renderToCanvas(canvas, scaledWidth, scaledHeight, exportState);
       } catch (e) {
         console.error(e);
         alert('Ошибка экспорта. Запустите проект через локальный сервер.');
@@ -110,6 +115,7 @@ const exportSizes = async (format) => {
       }
 
       const platform = (size.platform || 'unknown').toString();
+      // В имени файла оставляем оригинальный размер, но фактически экспортируем в масштабе
       const filename = `${folderName}/${platform}/${size.width}x${size.height}.${format === 'jpeg' ? 'jpg' : format}`;
       
       // Добавляем файл в ZIP

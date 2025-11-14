@@ -160,7 +160,7 @@
       padding: 32px;
       overflow-y: auto;
       overflow-x: hidden;
-      background: #0e0f12;
+      background: #000000;
     }
 
     #previewCanvas {
@@ -169,7 +169,7 @@
 
 
     .section {
-      margin-bottom: 20px;
+      margin-bottom: 24px;
       border-radius: 10px;
       overflow: hidden;
       transition: all 0.2s ease;
@@ -295,6 +295,18 @@
       outline: none;
       position: relative;
       z-index: 0;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    
+    /* Только для заголовка, подзаголовка и лигала - фиксированная высота в 3 строки */
+    textarea#title,
+    textarea#subtitle,
+    textarea#legal,
+    textarea[id^="title-"],
+    textarea[id^="subtitle-"] {
+      min-height: calc(14px * 1.5 * 3 + 20px);
+      height: calc(14px * 1.5 * 3 + 20px);
     }
     
     input[type="text"]:focus,
@@ -346,15 +358,31 @@
 
     input[type="color"] {
       width: 100%;
-      height: 52px;
+      height: calc(14px * 1.5 + 20px);
       background: #0e0f12;
       border: none;
-      border-radius: 10px;
+      outline: none;
+      border-radius: 8px;
       cursor: pointer;
-      padding: 6px;
+      padding: 0;
       transition: all 0.2s ease;
       position: relative;
       z-index: 1;
+      flex-shrink: 0;
+    }
+    
+    input[type="color"]::-webkit-color-swatch-wrapper {
+      padding: 0;
+    }
+    
+    input[type="color"]::-webkit-color-swatch {
+      border: none;
+      border-radius: 8px;
+    }
+    
+    input[type="color"]::-moz-color-swatch {
+      border: none;
+      border-radius: 8px;
     }
     
     input[type="color"]:hover {
@@ -389,10 +417,10 @@
 
 
     input[type="checkbox"] {
-      width: 20px;
-      height: 20px;
+      width: 16px;
+      height: 16px;
       cursor: pointer;
-      border-radius: 5px;
+      border-radius: 6px;
       accent-color: #027EF2;
     }
 
@@ -476,6 +504,23 @@
     .toggle-switch[data-options="3"][data-value="bottom"] .toggle-switch-slider {
       /* Для сдвига на две секции (66.666% track) нужен translateX = 200% слайдера + компенсация gap */
       transform: translateX(calc(200% + 8px));
+    }
+
+    /* Для тумблера с 4 опциями (масштаб) */
+    .toggle-switch[data-options="4"] .toggle-switch-slider {
+      width: calc(25% - 3px);
+    }
+
+    .toggle-switch[data-options="4"][data-value="2"] .toggle-switch-slider {
+      transform: translateX(calc(100% + 4px));
+    }
+
+    .toggle-switch[data-options="4"][data-value="3"] .toggle-switch-slider {
+      transform: translateX(calc(200% + 8px));
+    }
+
+    .toggle-switch[data-options="4"][data-value="4"] .toggle-switch-slider {
+      transform: translateX(calc(300% + 12px));
     }
 
     .toggle-switch-option.active {
@@ -701,8 +746,8 @@
 
 
     .platform-group {
-      margin-bottom: 20px;
-      border-radius: 10px;
+      margin-bottom: 12px;
+      border-radius: 8px;
       overflow: hidden;
       transition: all 0.2s ease;
     }
@@ -712,30 +757,32 @@
 
 
     .platform-header {
-      background: #0e0f12;
-      padding: 14px 16px;
+      background: #242733;
+      padding: 10px 16px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      font-weight: 600;
-      font-size: 14px;
+      font-weight: 500;
+      font-size: 13px;
       user-select: none;
       -webkit-user-select: none;
-      color: #b4b8c4;
+      color: #e9ecf1;
       transition: all 0.2s ease;
+      border-radius: 8px;
     }
 
 
     .platform-header:hover {
-      background: #12141a;
+      background: #2a2d3a;
       color: #e9ecf1;
     }
 
 
     .platform-arrow {
       transition: transform 0.2s;
-      color: #8a8f9c;
+      color: #e9ecf1;
+      font-size: 10px;
     }
 
 
@@ -749,7 +796,8 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      background: #15171c;
+      background: #1a1c23;
+      border-radius: 0 0 8px 8px;
     }
 
 
@@ -950,6 +998,19 @@
             align-content: start;
         }
         
+        /* Явно применяем grid для колонок с изображениями */
+        #kvImagesColumn,
+        #logoImagesColumn {
+            background: #15171c;
+            padding: 16px;
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            grid-auto-rows: min-content;
+            gap: 12px;
+            align-content: start;
+            overflow-y: auto;
+        }
+        
         /* Элементы превью в колонках изображений */
         .preview-item {
             position: relative;
@@ -958,15 +1019,22 @@
             border-radius: 6px;
             overflow: hidden;
             transition: all 0.2s ease;
-            aspect-ratio: 1;
+            width: 100%;
+            padding-bottom: 100%; /* Создает квадрат через padding-bottom trick */
+            min-width: 0;
+            background: #1a1c21;
         }
         
         .preview-item:hover {
             border-color: #027EF2;
             transform: scale(1.05);
+            z-index: 1;
         }
         
         .preview-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
             object-fit: contain;
@@ -1133,12 +1201,69 @@
             margin-top: 24px;
         }
         
+        /* Tooltip стили */
+        .tooltip-wrapper {
+            position: relative;
+            display: inline-block;
+            overflow: visible;
+        }
+        
+        #titlePairsContainer {
+            overflow: visible;
+        }
+        
+        .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: fixed;
+            background-color: #1a1c21;
+            color: #e9ecf1;
+            text-align: left;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #242733;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: normal;
+            width: 280px;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+            pointer-events: none;
+        }
+        
+        .tooltip-wrapper:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .tooltip::before {
+            content: '';
+            position: absolute;
+            right: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 6px solid transparent;
+            border-right-color: #242733;
+        }
+        
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            right: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 5px solid transparent;
+            border-right-color: #1a1c21;
+            margin-right: -1px;
+        }
+        
           </style>
 </head>
 <body>
   <div class="app">
     <div class="header">
-      <h1>Генератор макетов</h1>
+      <h1>Генератор макетов Практикума</h1>
     </div>
     <div class="main">
       <!-- Icons Panel -->
@@ -1198,15 +1323,15 @@
               <input type="text" id="bgColorHex" value="#1e1e1e" placeholder="#1e1e1e" onchange="updateColorFromHex('bgColor', this.value)" style="flex: 1;">
             </div>
             <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
-              <button class="btn" onclick="applyPresetBgColor('#027EF2')" style="background: #027EF2; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#027EF2"></button>
-              <button class="btn" onclick="applyPresetBgColor('#98D2FE')" style="background: #98D2FE; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#98D2FE"></button>
-              <button class="btn" onclick="applyPresetBgColor('#07AB4B')" style="background: #07AB4B; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#07AB4B"></button>
-              <button class="btn" onclick="applyPresetBgColor('#E84033')" style="background: #E84033; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#E84033"></button>
-              <button class="btn" onclick="applyPresetBgColor('#FF6C26')" style="background: #FF6C26; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#FF6C26"></button>
-              <button class="btn" onclick="applyPresetBgColor('#FFD20A')" style="background: #FFD20A; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#FFD20A"></button>
-              <button class="btn" onclick="applyPresetBgColor('#726BFF')" style="background: #726BFF; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#726BFF"></button>
-              <button class="btn" onclick="applyPresetBgColor('#1E1E1E')" style="background: #1E1E1E; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#1E1E1E"></button>
-              <button class="btn" onclick="applyPresetBgColor('#FFFFFF')" style="background: #FFFFFF; width: 40px; height: 40px; padding: 0; border-radius: 8px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" onclick="applyPresetBgColor('#027EF2')" style="background: #027EF2; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#027EF2"></button>
+              <button class="btn" onclick="applyPresetBgColor('#98D2FE')" style="background: #98D2FE; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#98D2FE"></button>
+              <button class="btn" onclick="applyPresetBgColor('#07AB4B')" style="background: #07AB4B; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#07AB4B"></button>
+              <button class="btn" onclick="applyPresetBgColor('#E84033')" style="background: #E84033; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#E84033"></button>
+              <button class="btn" onclick="applyPresetBgColor('#FF6C26')" style="background: #FF6C26; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#FF6C26"></button>
+              <button class="btn" onclick="applyPresetBgColor('#FFD20A')" style="background: #FFD20A; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#FFD20A"></button>
+              <button class="btn" onclick="applyPresetBgColor('#726BFF')" style="background: #726BFF; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#726BFF"></button>
+              <button class="btn" onclick="applyPresetBgColor('#1E1E1E')" style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
+              <button class="btn" onclick="applyPresetBgColor('#FFFFFF')" style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
             </div>
           </div>
           <div class="form-group" id="bgPreview" style="display: none;">
@@ -1334,8 +1459,8 @@
               <input type="text" id="titleColorHex" value="#ffffff" placeholder="#ffffff" onchange="updateColorFromHex('titleColor', this.value)" style="flex: 1;">
             </div>
             <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
-              <button class="btn" onclick="updateColorFromPicker('titleColor', '#FFFFFF')" style="background: #FFFFFF; width: 40px; height: 40px; padding: 0; border-radius: 8px; border: none;" title="#FFFFFF"></button>
-              <button class="btn" onclick="updateColorFromPicker('titleColor', '#1E1E1E')" style="background: #1E1E1E; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#1E1E1E"></button>
+              <button class="btn" onclick="updateColorFromPicker('titleColor', '#FFFFFF')" style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" onclick="updateColorFromPicker('titleColor', '#1E1E1E')" style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
             </div>
           </div>
           <div class="form-group">
@@ -1362,11 +1487,11 @@
           </div>
           <div class="form-group">
             <label>Размер шрифта (% от макета)</label>
-            <input type="range" id="titleSize" value="7" min="1" max="12" step="0.1" oninput="updateTitleSize(this.value)">
+            <input type="range" id="titleSize" value="7" min="6" max="10" step="0.1" oninput="updateTitleSize(this.value)">
             <div class="slider-value">
-              <span>1%</span>
+              <span>6%</span>
               <span id="titleSizeValue">7%</span>
-              <span>12%</span>
+              <span>10%</span>
             </div>
             <div class="hint">Процент от минимального размера макета (подзаголовок автоматически масштабируется)</div>
           </div>
@@ -1438,8 +1563,8 @@
               <input type="text" id="subtitleColorHex" value="#e0e0e0" placeholder="#e0e0e0" onchange="updateColorFromHex('subtitleColor', this.value)" style="flex: 1;">
             </div>
             <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
-              <button class="btn" onclick="updateColorFromPicker('subtitleColor', '#FFFFFF')" style="background: #FFFFFF; width: 40px; height: 40px; padding: 0; border-radius: 8px; border: none;" title="#FFFFFF"></button>
-              <button class="btn" onclick="updateColorFromPicker('subtitleColor', '#1E1E1E')" style="background: #1E1E1E; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#1E1E1E"></button>
+              <button class="btn" onclick="updateColorFromPicker('subtitleColor', '#FFFFFF')" style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" onclick="updateColorFromPicker('subtitleColor', '#1E1E1E')" style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
             </div>
           </div>
           <div class="form-group">
@@ -1523,8 +1648,8 @@
               <input type="text" id="legalColorHex" value="#ffffff" placeholder="#ffffff" onchange="updateColorFromHex('legalColor', this.value)" style="flex: 1;">
             </div>
             <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
-              <button class="btn" onclick="updateColorFromPicker('legalColor', '#FFFFFF')" style="background: #FFFFFF; width: 40px; height: 40px; padding: 0; border-radius: 8px; border: none;" title="#FFFFFF"></button>
-              <button class="btn" onclick="updateColorFromPicker('legalColor', '#1E1E1E')" style="background: #1E1E1E; width: 40px; height: 40px; padding: 0; border-radius: 8px;" title="#1E1E1E"></button>
+              <button class="btn" onclick="updateColorFromPicker('legalColor', '#FFFFFF')" style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" onclick="updateColorFromPicker('legalColor', '#1E1E1E')" style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
             </div>
           </div>
           <div class="form-group">
@@ -1710,22 +1835,19 @@
             </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-            <div style="background: #0a0d13; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
-              <div class="label-medium">Узкий</div>
+            <div style="background: #000000; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
-                <canvas id="previewCanvasNarrow" style="max-width: 100%; max-height: 100%; height: auto; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></canvas>
+                <canvas id="previewCanvasNarrow" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
             </div>
-            <div style="background: #0a0d13; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
-              <div class="label-medium">Квадратный</div>
+            <div style="background: #000000; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
-                <canvas id="previewCanvasSquare" style="max-width: 100%; max-height: 100%; height: auto; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></canvas>
+                <canvas id="previewCanvasSquare" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
             </div>
-            <div style="background: #0a0d13; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
-              <div class="label-medium">Широкий</div>
+            <div style="background: #000000; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
-                <canvas id="previewCanvasWide" style="max-width: 100%; max-height: 100%; height: auto; display: block; box-shadow: 0 4px 12px rgba(0,0,0,0.3);"></canvas>
+                <canvas id="previewCanvasWide" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
             </div>
           </div>
@@ -1736,13 +1858,23 @@
       <!-- Right Panel -->
       <div class="panel">
         <div class="form-group">
-          <label>Название архива</label>
+          <label>Название папки</label>
           <input type="text" id="namePrefix" value="layout" oninput="updateState('namePrefix', this.value)">
         </div>
         <div class="form-group">
-          <div style="display: flex; gap: 8px;">
-            <button class="btn primary" onclick="exportAllPNG()" style="flex: 1;">PNG</button>
-            <button class="btn" onclick="exportAllJPG()" style="flex: 1;">JPG</button>
+          <label>Масштаб</label>
+          <div class="toggle-switch" id="exportScaleToggle" data-value="1" data-options="4">
+            <div class="toggle-switch-slider"></div>
+            <div class="toggle-switch-track">
+              <div class="toggle-switch-option active" data-value="1">×1</div>
+              <div class="toggle-switch-option" data-value="2">×2</div>
+              <div class="toggle-switch-option" data-value="3">×3</div>
+              <div class="toggle-switch-option" data-value="4">×4</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <button class="btn primary" onclick="exportAllPNG()" style="flex: 1;">Архив PNG</button>
+            <button class="btn" onclick="exportAllJPG()" style="flex: 1;">Архив JPG</button>
           </div>
         </div>
         <div class="form-group-section">
@@ -1760,12 +1892,12 @@
             <div id="presetSizesList"></div>
             <div class="form-group form-group-section">
               <label>Добавить размер</label>
+              <button class="btn btn-full" onclick="addCustomSizeFromInput()" style="margin-bottom: 12px;">+ Добавить размер</button>
               <div class="gap-sm mb-sm" style="display: flex; align-items: center;">
                 <input type="number" id="customWidth" placeholder="Ширина" min="1" style="flex: 1; background: #0e0f12; border: none; color: #e9ecf1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
                 <span style="color: #8a8f9c; font-size: 16px; padding: 0 4px;">×</span>
                 <input type="number" id="customHeight" placeholder="Высота" min="1" style="flex: 1; background: #0e0f12; border: none; color: #e9ecf1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
               </div>
-              <button class="btn btn-full" onclick="addCustomSizeFromInput()">+ Добавить размер</button>
             </div>
           </div>
         </div>
@@ -1773,14 +1905,9 @@
         <div class="form-group-section">
           <label>Настройки</label>
           <div id="content-settings">
-            <div class="form-group">
-              <button class="btn btn-full" onclick="saveSettings()">Сохранить настройки</button>
-            </div>
-            <div class="form-group">
-              <button class="btn btn-full" onclick="loadSettings()">Загрузить настройки</button>
-            </div>
-            <div class="form-group">
-              <button class="btn btn-full" onclick="resetAll()">Сбросить всё</button>
+            <div class="form-group" style="display: flex; gap: 8px;">
+              <button class="btn btn-full" onclick="saveSettings()" style="flex: 1;">Сохранить</button>
+              <button class="btn btn-full" onclick="loadSettings()" style="flex: 1;">Загрузить</button>
             </div>
             <div class="hint">Настройки сохраняются в состоянии приложения (без изображений)</div>
           </div>
