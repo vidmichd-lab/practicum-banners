@@ -463,3 +463,4 @@ const longFunction = (veryLongParameter1, veryLongParameter2, veryLongParameter3
 
 **Помните:** Код пишется один раз, но читается множество раз. Пишите код так, чтобы его было легко понять и поддерживать.
 
+

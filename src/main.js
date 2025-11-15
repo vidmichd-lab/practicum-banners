@@ -14,6 +14,7 @@ import {
   updateLegalSize,
   updateAgeSize,
   updateKVBorderRadius,
+  updateTextGradientOpacity,
   selectPreloadedLogo,
   selectFontFamily,
   selectTitleFontFamily,
@@ -56,6 +57,7 @@ import {
   handlePresetContainerClick,
   selectAllSizesAction,
   deselectAllSizesAction,
+  showSizesAdmin,
   saveSettings,
   loadSettings,
   resetAll,
@@ -111,10 +113,10 @@ import {
 } from './ui/ui.js';
 import { renderer } from './renderer.js';
 import { clearTextMeasurementCache } from './renderer/text.js';
-import { setKey, getState, ensurePresetSelection, getCheckedSizes } from './state/store.js';
+import { setKey, getState, ensurePresetSelection, getCheckedSizes, updatePresetSizesFromConfig } from './state/store.js';
 import { exportPNG, exportJPG } from './exporter.js';
 import { scanFonts } from './utils/assetScanner.js';
-import { setAvailableFonts } from './constants.js';
+import { setAvailableFonts, initializePresetSizes } from './constants.js';
 
 const initializeEventDelegation = (dom) => {
   dom.presetSizesList.addEventListener('click', handlePresetContainerClick);
@@ -194,6 +196,7 @@ const exposeGlobals = () => {
     updateLegalSize,
     updateAgeSize,
     updateKVBorderRadius,
+    updateTextGradientOpacity,
     selectPreloadedLogo,
     selectPreloadedKV,
     handleLogoUpload,
@@ -230,6 +233,7 @@ const exposeGlobals = () => {
     changePreviewSizeCategory,
     selectAllSizes: selectAllSizesAction,
     deselectAllSizes: deselectAllSizesAction,
+    showSizesAdmin,
     togglePlatform,
     toggleSize,
     toggleCustomSize: toggleCustomSizeAction,
@@ -348,6 +352,13 @@ const loadFonts = async (fonts) => {
 
 const initialize = async () => {
   try {
+    // Загружаем размеры из конфига перед инициализацией
+    await initializePresetSizes();
+    // Обновляем размеры в store
+    updatePresetSizesFromConfig();
+    // Убеждаемся, что есть выбранные размеры
+    ensurePresetSelection();
+    
     // Загружаем шрифты из папки font/
     const fonts = await scanFonts();
     
@@ -431,6 +442,13 @@ const initialize = async () => {
     // Сначала экспортируем функции в глобальную область, чтобы они были доступны в HTML
     exposeGlobals();
     
+    // Проверяем, что showSizesAdmin доступна сразу после exposeGlobals
+    if (typeof window.showSizesAdmin === 'function') {
+      console.log('✓ showSizesAdmin доступна в window после exposeGlobals');
+    } else {
+      console.error('✗ showSizesAdmin НЕ доступна в window после exposeGlobals');
+    }
+    
     renderPresetSizes();
     renderCustomSizes();
     updatePreviewSizeSelect();
@@ -491,6 +509,13 @@ const initialize = async () => {
         renderer.render();
       }, 100);
     });
+    
+    // Проверяем, что showSizesAdmin доступна
+    if (typeof window.showSizesAdmin === 'function') {
+      console.log('showSizesAdmin доступна в window');
+    } else {
+      console.warn('showSizesAdmin не доступна в window');
+    }
   } catch (error) {
     console.error('Ошибка инициализации:', error);
     console.error('Стек ошибки:', error.stack);
@@ -506,10 +531,14 @@ if (document.readyState === 'loading') {
 
 // Переключение темы
 function toggleTheme() {
-  const html = document.documentElement;
-  const currentTheme = html.getAttribute('data-theme') || 'dark';
+  const themeToggle = document.getElementById('themeToggle');
+  if (!themeToggle) return;
+  
+  const currentTheme = themeToggle.getAttribute('data-value') || 'dark';
   const newTheme = currentTheme === 'light' ? 'dark' : 'light';
   
+  // Обновляем тему
+  const html = document.documentElement;
   if (newTheme === 'dark') {
     html.removeAttribute('data-theme');
   } else {
@@ -517,10 +546,34 @@ function toggleTheme() {
   }
   localStorage.setItem('theme', newTheme);
   
-  // Обновляем иконку
-  const themeIcon = document.querySelector('.theme-icon');
-  if (themeIcon) {
-    themeIcon.textContent = newTheme === 'light' ? '🌙' : '☀️';
+  // Обновляем toggle switch
+  updateThemeToggle(newTheme);
+}
+
+function updateThemeToggle(theme) {
+  const themeToggle = document.getElementById('themeToggle');
+  if (!themeToggle) return;
+  
+  themeToggle.setAttribute('data-value', theme);
+  
+  // Обновляем активную опцию
+  const options = themeToggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    if (option.getAttribute('data-value') === theme) {
+      option.classList.add('active');
+    } else {
+      option.classList.remove('active');
+    }
+  });
+  
+  // Обновляем позицию слайдера
+  const slider = themeToggle.querySelector('.toggle-switch-slider');
+  if (slider) {
+    if (theme === 'light') {
+      slider.style.transform = 'translateX(100%)';
+    } else {
+      slider.style.transform = 'translateX(0)';
+    }
   }
 }
 
@@ -535,10 +588,16 @@ function initTheme() {
     html.removeAttribute('data-theme');
   }
   
-  // Устанавливаем иконку
-  const themeIcon = document.querySelector('.theme-icon');
-  if (themeIcon) {
-    themeIcon.textContent = savedTheme === 'light' ? '🌙' : '☀️';
+  // Устанавливаем состояние toggle switch
+  updateThemeToggle(savedTheme);
+  
+  // Добавляем обработчик клика на toggle switch
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    themeToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTheme();
+    });
   }
 }
 

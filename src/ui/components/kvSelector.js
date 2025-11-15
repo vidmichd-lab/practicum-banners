@@ -59,7 +59,7 @@ export const updateKVUI = () => {
   // Обновляем метку активной пары
   const activeIndex = state.activePairIndex || 0;
   if (kvActivePairLabel) {
-    kvActivePairLabel.textContent = `KV для заголовка ${activeIndex + 1}`;
+    kvActivePairLabel.textContent = `KV ${String(activeIndex + 1).padStart(2, '0')}`;
   }
   
   // Обновляем превью KV
@@ -498,13 +498,36 @@ const populateKVColumns = async (forceRefresh = false) => {
  * Обновляет колонки KV (принудительное обновление)
  */
 export const refreshKVColumns = async () => {
-  // Очищаем все кэши KV
-  cachedKV = null;
-  selectedFolder1 = null;
-  selectedFolder2 = null;
+  // Находим кнопку "Обновить" в модальном окне KV
+  const refreshBtn = document.querySelector('[data-function="refreshKVColumns"]');
+  if (!refreshBtn) return;
   
-  // Принудительно обновляем колонки в модальном окне
-  await populateKVColumns(true);
+  const originalHTML = refreshBtn.innerHTML;
+  
+  // Показываем анимацию загрузки
+  refreshBtn.disabled = true;
+  refreshBtn.innerHTML = '<span class="material-icons refresh-spinner">refresh</span> Обновление...';
+  
+  // Принудительно перерисовываем, чтобы браузер увидел изменения
+  refreshBtn.offsetHeight; // trigger reflow
+  
+  // Используем requestAnimationFrame для гарантированного отображения изменений
+  await new Promise(resolve => requestAnimationFrame(resolve));
+  await new Promise(resolve => setTimeout(resolve, 100)); // Небольшая задержка для визуализации
+  
+  try {
+    // Очищаем все кэши KV
+    cachedKV = null;
+    selectedFolder1 = null;
+    selectedFolder2 = null;
+    
+    // Принудительно обновляем колонки в модальном окне
+    await populateKVColumns(true);
+  } finally {
+    // Восстанавливаем исходное состояние кнопки
+    refreshBtn.disabled = false;
+    refreshBtn.innerHTML = originalHTML;
+  }
 };
 
 /**

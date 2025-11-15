@@ -34,25 +34,28 @@ export const calculateSuperWideKV = (state, width, height, paddingPx, logoBounds
   // Проверяем, что KV достаточно большой для отображения
   if ((kvW >= minKvSize || kvH >= minKvSize) && kvScale > 0) {
     const kvX = logoRight + gap;
-    // Центрируем KV по вертикали в доступной области (не заходя на legal)
-    const kvY = paddingPx + (availableHeight - kvH) / 2;
-    
-    // Убеждаемся, что KV не заходит на legal
-    if (kvY + kvH > legalTop - paddingPx * 0.5) {
-      // Если не помещается, уменьшаем размер
-      const maxKvH = Math.max(minKvSize, legalTop - paddingPx * 0.5 - paddingPx);
-      if (maxKvH < kvH) {
-        kvScale = maxKvH / state.kv.height;
-        kvH = maxKvH;
-        kvW = state.kv.width * kvScale;
-        // Если ширина стала слишком большой, пересчитываем
-        if (kvW > maxKvWidth) {
-          kvScale = maxKvWidth / state.kv.width;
-          kvW = maxKvWidth;
-          kvH = state.kv.height * kvScale;
+    // Для широких форматов размещаем KV вплотную к лигалу (без отступа)
+    // Используем всю доступную высоту до самого лигала
+    const maxKvH = Math.max(minKvSize, legalTop - paddingPx);
+    if (kvH > maxKvH) {
+      kvScale = maxKvH / state.kv.height;
+      kvH = maxKvH;
+      kvW = state.kv.width * kvScale;
+      // Если ширина стала слишком большой, пересчитываем
+      if (kvW > maxKvWidth) {
+        kvScale = maxKvWidth / state.kv.width;
+        kvW = maxKvWidth;
+        kvH = state.kv.height * kvScale;
+        // Пересчитываем высоту с учетом ограничения по ширине
+        if (kvH > maxKvH) {
+          kvScale = maxKvH / state.kv.height;
+          kvH = maxKvH;
+          kvW = state.kv.width * kvScale;
         }
       }
     }
+    // Размещаем KV вплотную к лигалу (без отступа)
+    const kvY = legalTop - kvH;
     
     return { kvX, kvY, kvW, kvH, kvScale, paddingPx };
   }
@@ -88,25 +91,28 @@ export const calculateUltraWideKV = (state, width, height, paddingPx, legalBlock
   // Проверяем, что KV достаточно большой для отображения
   if ((kvW >= minKvSize || kvH >= minKvSize) && kvScale > 0) {
     const kvX = width / 2 - kvW / 2;
-    // Центрируем KV по вертикали в доступной области (не заходя на legal)
-    const kvY = paddingPx + (availableHeight - kvH) / 2;
-    
-    // Убеждаемся, что KV не заходит на legal
-    if (kvY + kvH > legalTop - paddingPx * 0.5) {
-      // Если не помещается, уменьшаем размер
-      const maxKvH = Math.max(minKvSize, legalTop - paddingPx * 0.5 - paddingPx);
-      if (maxKvH < kvH) {
-        kvScale = maxKvH / state.kv.height;
-        kvH = maxKvH;
-        kvW = state.kv.width * kvScale;
-        // Если ширина стала слишком большой, пересчитываем
-        if (kvW > maxKvWidth) {
-          kvScale = maxKvWidth / state.kv.width;
-          kvW = maxKvWidth;
-          kvH = state.kv.height * kvScale;
+    // Для широких форматов размещаем KV вплотную к лигалу (без отступа)
+    // Используем всю доступную высоту до самого лигала
+    const maxKvH = Math.max(minKvSize, legalTop - paddingPx);
+    if (kvH > maxKvH) {
+      kvScale = maxKvH / state.kv.height;
+      kvH = maxKvH;
+      kvW = state.kv.width * kvScale;
+      // Если ширина стала слишком большой, пересчитываем
+      if (kvW > maxKvWidth) {
+        kvScale = maxKvWidth / state.kv.width;
+        kvW = maxKvWidth;
+        kvH = state.kv.height * kvScale;
+        // Пересчитываем высоту с учетом ограничения по ширине
+        if (kvH > maxKvH) {
+          kvScale = maxKvH / state.kv.height;
+          kvH = maxKvH;
+          kvW = state.kv.width * kvScale;
         }
       }
     }
+    // Размещаем KV вплотную к лигалу (без отступа)
+    const kvY = legalTop - kvH;
     
     return { kvX, kvY, kvW, kvH, kvScale, paddingPx };
   }

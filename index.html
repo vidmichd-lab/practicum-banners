@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="dns-prefetch" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <script>
     // Инициализация темы до загрузки страницы (избегаем мерцания)
     (function() {
@@ -26,9 +27,17 @@
       <h1>Генератор макетов Практикума</h1>
       <div class="header-actions">
         <div class="theme-toggle">
-          <button class="theme-toggle-btn" id="themeToggle" data-function="toggleTheme" title="Переключить тему">
-            <span class="theme-icon">🌙</span>
-          </button>
+          <div class="toggle-switch" id="themeToggle" data-value="dark" data-options="2" title="Переключить тему">
+            <div class="toggle-switch-slider"></div>
+            <div class="toggle-switch-track">
+              <div class="toggle-switch-option active" data-value="dark">
+                <span class="material-icons">dark_mode</span>
+              </div>
+              <div class="toggle-switch-option" data-value="light">
+                <span class="material-icons">light_mode</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -101,8 +110,8 @@
           </div>
           <div class="form-group" id="bgActions" style="display: none;">
             <div class="input-group">
-              <button class="btn" data-action="trigger-file-input" data-input-id="bgUpload">Заменить</button>
-              <button class="btn" data-function="clearBg">Очистить</button>
+              <button class="btn" data-action="trigger-file-input" data-input-id="bgUpload" title="Заменить"><span class="material-icons">swap_horiz</span></button>
+              <button class="btn" data-function="clearBg" title="Очистить"><span class="material-icons">clear</span></button>
             </div>
           </div>
           <div class="form-group" id="bgImageOptions" style="display: none;">
@@ -119,6 +128,11 @@
               <div class="chip" data-group="bg-position" data-value="bottom">Низ</div>
               <div class="chip" data-group="bg-position" data-value="left">Слева</div>
               <div class="chip" data-group="bg-position" data-value="right">Справа</div>
+            </div>
+            <label style="margin-top: 16px;">Прозрачность подложки под текстом</label>
+            <input type="range" id="textGradientOpacity" value="40" min="0" max="100" step="1" data-state-key="textGradientOpacity" data-update-handler="updateTextGradientOpacity">
+            <div class="slider-value">
+              <span id="textGradientOpacityValue">40%</span>
             </div>
           </div>
         </div>
@@ -151,8 +165,8 @@
                 <div class="modal-header">
                   <span class="modal-title">Выбрать логотип</span>
                   <div class="modal-actions">
-                    <button class="btn" data-function="refreshLogoColumns" data-action="stop-propagation">Обновить</button>
-                    <button class="btn" data-function="closeLogoSelectModal" data-action="stop-propagation">✕</button>
+                    <button class="btn" data-function="refreshLogoColumns" data-action="stop-propagation" title="Обновить"><span class="material-icons">refresh</span></button>
+                    <button class="btn" data-function="closeLogoSelectModal" data-action="stop-propagation" title="Закрыть"><span class="material-icons">close</span></button>
                   </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 150px 150px 150px 1fr; height: calc(70vh - 50px); max-height: 550px;">
@@ -176,8 +190,8 @@
               <option value="" selected>— Нет —</option>
             </select>
             <div style="display: flex; gap: 8px; width: 100%;">
-              <button class="btn" data-action="trigger-file-input" data-input-id="logoUpload" style="flex: 1;">Загрузить</button>
-              <button class="btn btn-danger" id="logoRemoveBtn" data-function="clearLogo" style="flex: 1;" disabled>Удалить</button>
+              <button class="btn" data-action="trigger-file-input" data-input-id="logoUpload" style="flex: 1;" title="Загрузить"><span class="material-icons">download</span></button>
+              <button class="btn btn-danger" id="logoRemoveBtn" data-function="clearLogo" style="flex: 1;" disabled title="Удалить"><span class="material-icons">delete</span></button>
               <input type="file" id="logoUpload" accept="image/*,.svg" style="display: none;" data-handler="handleLogoUpload">
             </div>
           </div>
@@ -208,13 +222,13 @@
               <span id="partnerLogoPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
             </div>
             <div style="display: flex; gap: 8px; width: 100%;">
-              <button class="btn" data-action="trigger-file-input" data-input-id="partnerLogoUpload" style="flex: 1;">Заменить</button>
-              <button class="btn btn-danger" id="partnerLogoRemoveBtn" data-function="clearPartnerLogo" style="flex: 1;">Удалить</button>
+              <button class="btn" data-action="trigger-file-input" data-input-id="partnerLogoUpload" style="flex: 1;" title="Заменить"><span class="material-icons">swap_horiz</span></button>
+              <button class="btn btn-danger" id="partnerLogoRemoveBtn" data-function="clearPartnerLogo" style="flex: 1;" title="Удалить"><span class="material-icons">delete</span></button>
               <input type="file" id="partnerLogoUpload" accept="image/*,.svg" style="display: none;" data-handler="handlePartnerLogoUpload">
             </div>
           </div>
           <div class="form-group">
-            <button class="btn btn-full" id="addPartnerLogoBtn" data-function="showPartnerLogoSection">+ Добавить логотип</button>
+            <button class="btn btn-full" id="addPartnerLogoBtn" data-function="showPartnerLogoSection"><span class="material-icons" style="margin-right: 6px;">add</span>Добавить логотип</button>
           </div>
         </div>
         <!-- End Logo Section -->
@@ -232,9 +246,9 @@
                 <div class="toggle-switch" id="titleTransformToggle" data-value="none" data-options="3">
                   <div class="toggle-switch-slider"></div>
                   <div class="toggle-switch-track">
-                    <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                    <div class="toggle-switch-option active" data-value="none">—</div>
+                    <div class="toggle-switch-option" data-value="uppercase">ААА</div>
                     <div class="toggle-switch-option" data-value="lowercase">ааа</div>
-                    <div class="toggle-switch-option" data-value="none">—</div>
                   </div>
                 </div>
               </div>
@@ -244,9 +258,9 @@
             <div class="toggle-switch" id="titleTransformToggleMain" data-value="none" data-options="3">
               <div class="toggle-switch-slider"></div>
               <div class="toggle-switch-track">
-                <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                <div class="toggle-switch-option active" data-value="none">—</div>
+                <div class="toggle-switch-option" data-value="uppercase">ААА</div>
                 <div class="toggle-switch-option" data-value="lowercase">ааа</div>
-                <div class="toggle-switch-option" data-value="none">—</div>
               </div>
             </div>
           </div>
@@ -266,9 +280,9 @@
             <div class="toggle-switch" id="titleAlignToggle" data-value="left" data-options="3">
               <div class="toggle-switch-slider"></div>
               <div class="toggle-switch-track">
-                <div class="toggle-switch-option active" data-value="left">Слева</div>
-                <div class="toggle-switch-option" data-value="center">Центр</div>
-                <div class="toggle-switch-option" data-value="right">Справа</div>
+                <div class="toggle-switch-option active" data-value="left" title="Слева"><span class="material-icons" style="font-size: 18px;">format_align_left</span></div>
+                <div class="toggle-switch-option" data-value="center" title="Центр"><span class="material-icons" style="font-size: 18px;">format_align_center</span></div>
+                <div class="toggle-switch-option" data-value="right" title="Справа"><span class="material-icons" style="font-size: 18px;">format_align_right</span></div>
               </div>
             </div>
           </div>
@@ -277,9 +291,9 @@
             <div class="toggle-switch" id="titleVPosToggle" data-value="top" data-options="3">
               <div class="toggle-switch-slider"></div>
               <div class="toggle-switch-track">
-                <div class="toggle-switch-option active" data-value="top">Сверху</div>
-                <div class="toggle-switch-option" data-value="center">Середина</div>
-                <div class="toggle-switch-option" data-value="bottom">Снизу</div>
+                <div class="toggle-switch-option active" data-value="top" title="Сверху"><span class="material-icons" style="font-size: 18px;">vertical_align_top</span></div>
+                <div class="toggle-switch-option" data-value="center" title="Середина"><span class="material-icons" style="font-size: 18px;">vertical_align_center</span></div>
+                <div class="toggle-switch-option" data-value="bottom" title="Снизу"><span class="material-icons" style="font-size: 18px;">vertical_align_bottom</span></div>
               </div>
             </div>
           </div>
@@ -303,12 +317,12 @@
                 </div>
                 <div class="custom-select-dropdown" id="titleFontFamilyDropdown"></div>
               </div>
-              <button class="btn" data-action="trigger-file-input" data-input-id="titleFontUpload" style="flex: 0 0 auto;">Загрузить</button>
+              <button class="btn" data-action="trigger-file-input" data-input-id="titleFontUpload" style="flex: 0 0 auto;" title="Загрузить"><span class="material-icons">download</span></button>
               <input type="file" id="titleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" data-handler="handleTitleFontUpload">
             </div>
             <div id="titleCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="titleCustomFontName"></span>
-              <button class="btn btn-small" data-function="clearTitleCustomFont" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+              <button class="btn btn-small" data-function="clearTitleCustomFont" style="margin-left: 8px; padding: 2px 8px;" title="Удалить"><span class="material-icons" style="font-size: 16px;">delete</span></button>
             </div>
           </div>
           <div class="form-group">
@@ -368,9 +382,9 @@
                 <div class="toggle-switch" id="subtitleTransformToggle" data-value="none" data-options="3">
                   <div class="toggle-switch-slider"></div>
                   <div class="toggle-switch-track">
-                    <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                    <div class="toggle-switch-option active" data-value="none">—</div>
+                    <div class="toggle-switch-option" data-value="uppercase">ААА</div>
                     <div class="toggle-switch-option" data-value="lowercase">ааа</div>
-                    <div class="toggle-switch-option" data-value="none">—</div>
                   </div>
                 </div>
               </div>
@@ -380,9 +394,9 @@
             <div class="toggle-switch" id="subtitleTransformToggleMain" data-value="none" data-options="3">
               <div class="toggle-switch-slider"></div>
               <div class="toggle-switch-track">
-                <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                <div class="toggle-switch-option active" data-value="none">—</div>
+                <div class="toggle-switch-option" data-value="uppercase">ААА</div>
                 <div class="toggle-switch-option" data-value="lowercase">ааа</div>
-                <div class="toggle-switch-option" data-value="none">—</div>
               </div>
             </div>
           </div>
@@ -426,12 +440,12 @@
                 </div>
                 <div class="custom-select-dropdown" id="subtitleFontFamilyDropdown"></div>
               </div>
-              <button class="btn" data-action="trigger-file-input" data-input-id="subtitleFontUpload" style="flex: 0 0 auto;">Загрузить</button>
+              <button class="btn" data-action="trigger-file-input" data-input-id="subtitleFontUpload" style="flex: 0 0 auto;" title="Загрузить"><span class="material-icons">download</span></button>
               <input type="file" id="subtitleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" data-handler="handleSubtitleFontUpload">
             </div>
             <div id="subtitleCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="subtitleCustomFontName"></span>
-              <button class="btn btn-small" data-function="clearSubtitleCustomFont" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+              <button class="btn btn-small" data-function="clearSubtitleCustomFont" style="margin-left: 8px; padding: 2px 8px;" title="Удалить"><span class="material-icons" style="font-size: 16px;">delete</span></button>
             </div>
           </div>
           <div class="form-group">
@@ -485,9 +499,9 @@
               <div class="toggle-switch" id="legalTransformToggle" data-value="none" data-options="3">
                 <div class="toggle-switch-slider"></div>
                 <div class="toggle-switch-track">
-                  <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                  <div class="toggle-switch-option active" data-value="none">—</div>
+                  <div class="toggle-switch-option" data-value="uppercase">ААА</div>
                   <div class="toggle-switch-option" data-value="lowercase">ааа</div>
-                  <div class="toggle-switch-option" data-value="none">—</div>
                 </div>
               </div>
             </div>
@@ -531,12 +545,12 @@
                 </div>
                 <div class="custom-select-dropdown" id="legalFontFamilyDropdown"></div>
               </div>
-              <button class="btn" data-action="trigger-file-input" data-input-id="legalFontUpload" style="flex: 0 0 auto;">Загрузить</button>
+              <button class="btn" data-action="trigger-file-input" data-input-id="legalFontUpload" style="flex: 0 0 auto;" title="Загрузить"><span class="material-icons">download</span></button>
               <input type="file" id="legalFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" data-handler="handleLegalFontUpload">
             </div>
             <div id="legalCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="legalCustomFontName"></span>
-              <button class="btn btn-small" data-function="clearLegalCustomFont" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+              <button class="btn btn-small" data-function="clearLegalCustomFont" style="margin-left: 8px; padding: 2px 8px;" title="Удалить"><span class="material-icons" style="font-size: 16px;">delete</span></button>
             </div>
           </div>
           <div class="form-group">
@@ -599,12 +613,12 @@
                   </div>
                   <div class="custom-select-dropdown" id="ageFontFamilyDropdown"></div>
                 </div>
-                <button class="btn" data-action="trigger-file-input" data-input-id="ageFontUpload" style="flex: 0 0 auto;">Загрузить</button>
+                <button class="btn" data-action="trigger-file-input" data-input-id="ageFontUpload" style="flex: 0 0 auto;" title="Загрузить"><span class="material-icons">download</span></button>
                 <input type="file" id="ageFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" data-handler="handleAgeFontUpload">
               </div>
               <div id="ageCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
                 <span id="ageCustomFontName"></span>
-                <button class="btn btn-small" data-function="clearAgeCustomFont" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+                <button class="btn btn-small" data-function="clearAgeCustomFont" style="margin-left: 8px; padding: 2px 8px;" title="Удалить"><span class="material-icons" style="font-size: 16px;">delete</span></button>
               </div>
             </div>
             <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
@@ -635,7 +649,7 @@
           </div>
           <div class="form-group-section">
             <div class="form-group form-item">
-              <label id="kvActivePairLabel" class="form-label mb-sm" style="display: block;">KV для заголовка 1</label>
+              <label id="kvActivePairLabel" class="form-label mb-sm" style="display: block;">KV 01</label>
               <div id="kvPreviewContainer" class="preview-container">
                 <img id="kvPreviewImg" src="" class="preview-img" style="display: none;">
                 <span id="kvPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
@@ -645,8 +659,8 @@
                   <div class="modal-header">
                     <span class="modal-title">Выбрать KV</span>
                     <div class="modal-actions">
-                      <button class="btn" data-function="refreshKVColumns" data-action="stop-propagation">Обновить</button>
-                      <button class="btn" data-function="closeKVSelectModal" data-action="stop-propagation">✕</button>
+                      <button class="btn" data-function="refreshKVColumns" data-action="stop-propagation" title="Обновить"><span class="material-icons">refresh</span></button>
+                      <button class="btn" data-function="closeKVSelectModal" data-action="stop-propagation" title="Закрыть"><span class="material-icons">close</span></button>
                     </div>
                   </div>
                   <div style="display: grid; grid-template-columns: 150px 150px 1fr; height: calc(70vh - 50px); max-height: 550px;">
@@ -667,8 +681,8 @@
                 <option value="" selected>— Нет —</option>
               </select>
               <div style="display: flex; gap: 8px; width: 100%;">
-                <button class="btn" data-action="trigger-file-input" data-input-id="kvUpload" style="flex: 1;">Загрузить</button>
-                <button class="btn btn-danger" id="kvRemoveBtn" data-function="clearKV" style="flex: 1;" disabled>Удалить</button>
+                <button class="btn" data-action="trigger-file-input" data-input-id="kvUpload" style="flex: 1; min-width: 0;" title="Загрузить"><span class="material-icons">download</span></button>
+                <button class="btn btn-danger" id="kvRemoveBtn" data-function="clearKV" style="flex: 1; min-width: 0;" disabled title="Удалить"><span class="material-icons">delete</span></button>
                 <input type="file" id="kvUpload" accept="image/*" style="display: none;" data-handler="handleKVUpload">
               </div>
             </div>
@@ -683,11 +697,10 @@
       
       <!-- Center Canvas Preview -->
       <div class="canvas-area" id="canvasArea">
-        <div style="max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
-          <div class="theme-bg-secondary" style="padding: 12px; border-radius: 8px;">
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+        <div style="max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;">
+          <div class="theme-bg-secondary" style="padding: 8px; border-radius: 12px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
               <div>
-                <label class="label-small">Узкий формат</label>
                 <div class="custom-select-wrapper">
                   <div class="custom-select-button" id="previewSizeSelectNarrowBtn">
                     <span id="previewSizeSelectNarrowText">Выберите...</span>
@@ -697,7 +710,6 @@
                 </div>
               </div>
               <div>
-                <label class="label-small">Квадратный формат</label>
                 <div class="custom-select-wrapper">
                   <div class="custom-select-button" id="previewSizeSelectSquareBtn">
                     <span id="previewSizeSelectSquareText">Выберите...</span>
@@ -707,7 +719,6 @@
                 </div>
               </div>
               <div>
-                <label class="label-small">Широкий формат</label>
                 <div class="custom-select-wrapper">
                   <div class="custom-select-button" id="previewSizeSelectWideBtn">
                     <span id="previewSizeSelectWideText">Выберите...</span>
@@ -719,17 +730,17 @@
             </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-            <div class="theme-bg-canvas" style="border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
                 <canvas id="previewCanvasNarrow" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
             </div>
-            <div class="theme-bg-canvas" style="border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
                 <canvas id="previewCanvasSquare" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
             </div>
-            <div class="theme-bg-canvas" style="border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
                 <canvas id="previewCanvasWide" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
@@ -765,11 +776,11 @@
           
           <div class="form-group">
             <div class="gap-sm mb-sm" style="display: flex; align-items: center;">
-                <input type="number" id="customWidth" class="theme-input" placeholder="Ширина" min="1" data-action="update-add-size-button" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+                <input type="number" id="customWidth" class="theme-input" placeholder="Ш" min="1" data-action="update-add-size-button" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
                 <span class="theme-text-muted" style="font-size: 16px; padding: 0 4px;">×</span>
-                <input type="number" id="customHeight" class="theme-input" placeholder="Высота" min="1" data-action="update-add-size-button" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+                <input type="number" id="customHeight" class="theme-input" placeholder="В" min="1" data-action="update-add-size-button" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
             </div>
-            <button class="btn btn-full" id="addSizeButton" data-function="addCustomSizeFromInput" disabled>+ Добавить размер</button>
+            <button class="btn btn-full" id="addSizeButton" data-function="addCustomSizeFromInput" disabled><span class="material-icons" style="margin-right: 6px;">add</span>Добавить размер</button>
           </div>
           <div class="form-group-section" id="customSizesSection" style="display: none;">
             <label>Пользовательские</label>
@@ -780,8 +791,9 @@
             <div id="content-preset-sizes">
               <div class="form-group">
                 <div class="gap-sm mb-md" style="display: flex;">
-                  <button class="btn btn-full" data-function="selectAllSizes">Выбрать все</button>
-                  <button class="btn btn-full" data-function="deselectAllSizes">Снять выбор</button>
+                  <button class="btn btn-full" data-function="selectAllSizes" title="Выбрать все"><span class="material-icons">select_all</span></button>
+                  <button class="btn btn-full" data-function="deselectAllSizes" title="Снять выбор"><span class="material-icons">deselect</span></button>
+                  <button class="btn btn-full" data-function="showSizesAdmin" title="Админка размеров"><span class="material-icons">settings</span></button>
                 </div>
               </div>
               <div class="form-group">
@@ -796,8 +808,8 @@
           <label>Настройки</label>
           <div id="content-settings">
             <div class="form-group" style="display: flex; gap: 8px;">
-              <button class="btn btn-full" data-function="saveSettings" style="flex: 1;">Сохранить</button>
-              <button class="btn btn-full" data-function="loadSettings" style="flex: 1;">Загрузить</button>
+              <button class="btn btn-full" data-function="saveSettings" style="flex: 1;" title="Сохранить"><span class="material-icons">save</span></button>
+              <button class="btn btn-full" data-function="loadSettings" style="flex: 1;" title="Загрузить"><span class="material-icons">download</span></button>
             </div>
             <div class="hint">Настройки сохраняются в состоянии приложения (без изображений)</div>
           </div>

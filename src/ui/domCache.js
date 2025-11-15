@@ -64,6 +64,8 @@ const ELEMENT_IDS = [
   'bgActions',
   'bgThumb',
   'bgUpload',
+  'textGradientOpacity',
+  'textGradientOpacityValue',
   'fontFamily',
   'previewCanvas',
   'previewSizeSelect',

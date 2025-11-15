@@ -1,4 +1,5 @@
-import { PRESET_SIZES, FONT_NAME_TO_WEIGHT, FONT_WEIGHT_TO_NAME } from '../constants.js';
+import { PRESET_SIZES, FONT_NAME_TO_WEIGHT, FONT_WEIGHT_TO_NAME, getPRESET_SIZES } from '../constants.js';
+import { getPresetSizes } from '../utils/sizesConfig.js';
 
 const TITLE_SUBTITLE_RATIO = 1 / 2;
 
@@ -11,92 +12,100 @@ const createTitleSubtitlePair = (index = 0) => ({
   kvSelected: index === 0 ? 'assets/3d/sign/01.png' : '', // KV для этой пары
 });
 
-const createInitialState = () => ({
-  paddingPercent: 5,
-  // Массивы заголовков и подзаголовков
-  titleSubtitlePairs: [createTitleSubtitlePair(0)],
-  activePairIndex: 0, // Индекс активной пары для отображения на превью
-  // Общие настройки для всех заголовков
-  titleColor: '#ffffff',
-  titleAlign: 'left',
-  titleVPos: 'top',
-  titleSize: 8,
-  titleWeight: 'Regular', // Используем название начертания вместо цифр
-  titleLetterSpacing: 0,
-  titleLineHeight: 1.1,
-  titleFontFamily: 'YS Text',
-  titleFontFamilyFile: null,
-  titleCustomFont: null, // URL blob для загруженного шрифта
-  titleCustomFontName: null, // Имя загруженного файла
-  // Общие настройки для всех подзаголовков
-  subtitleColor: '#e0e0e0',
-  subtitleOpacity: 90,
-  subtitleAlign: 'left',
-  subtitleSize: 4,
-  subtitleWeight: 'Regular', // Используем название начертания вместо цифр
-  subtitleLetterSpacing: 0,
-  subtitleLineHeight: 1.2,
-  subtitleGap: -1.5,
-  subtitleFontFamily: 'YS Text',
-  subtitleFontFamilyFile: null,
-  subtitleCustomFont: null,
-  subtitleCustomFontName: null,
-  // Обратная совместимость (используются для рендеринга активной пары)
-  title: 'Курс «Frontend-разработчик» от Практикума',
-  subtitle: 'Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев',
-  legal: 'Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/',
-  legalColor: '#ffffff',
-  legalOpacity: 60,
-  legalAlign: 'left',
-  legalSize: 2,
-  legalWeight: 'Regular', // Используем название начертания вместо цифр
-  legalLetterSpacing: 0,
-  legalLineHeight: 1.4,
-  age: '18+',
-  ageGapPercent: 1,
-  ageSize: 4,
-  ageWeight: 'Regular', // Используем название начертания вместо цифр
-  showLogo: true,
-  showSubtitle: true,
-  hideSubtitleOnWide: false,
-  showLegal: true,
-  showAge: true,
-  showKV: true,
-  showBlocks: false,
-  showGuides: false,
-  layoutMode: 'auto',
-  logo: null,
-  logoSelected: 'logo/white/ru/main.svg',
-  logoSize: 40,
-  logoLanguage: 'ru', // ru или kz
-  partnerLogo: null,
-  partnerLogoFile: null,
-  kv: null,
-  kvSelected: 'assets/3d/sign/01.png',
-  kvBorderRadius: 0,
-  bgColor: '#1e1e1e',
-  bgImage: null,
-  bgSize: 'cover',
-  bgPosition: 'center',
-  logoPos: 'left',
-  fontFamily: 'YS Text', // Общая гарнитура (для обратной совместимости)
-  fontFamilyFile: null,
-  customFont: null,
-  legalFontFamily: 'YS Text',
-  legalFontFamilyFile: null,
-  legalCustomFont: null,
-  legalCustomFontName: null,
-  ageFontFamily: 'YS Text',
-  ageFontFamilyFile: null,
-  ageCustomFont: null,
-  ageCustomFontName: null,
-  presetSizes: cloneDeep(PRESET_SIZES),
-  customSizes: [], // Кастомные размеры: [{ width, height, checked, id }]
-  namePrefix: 'layout',
-  kvCanvasWidth: null,
-  kvCanvasHeight: null,
-  exportScale: 1 // Масштаб экспорта: 1, 2, 3 или 4
-});
+const createInitialState = () => {
+  // Получаем размеры из конфига (или дефолтные, если еще не загружены)
+  const sizes = getPresetSizes();
+  return {
+    paddingPercent: 5,
+    // Массивы заголовков и подзаголовков
+    titleSubtitlePairs: [createTitleSubtitlePair(0)],
+    activePairIndex: 0, // Индекс активной пары для отображения на превью
+    // Общие настройки для всех заголовков
+    titleColor: '#ffffff',
+    titleAlign: 'left',
+    titleVPos: 'top',
+    titleSize: 8,
+    titleWeight: 'Regular', // Используем название начертания вместо цифр
+    titleLetterSpacing: 0,
+    titleLineHeight: 1.1,
+    titleFontFamily: 'YS Text',
+    titleFontFamilyFile: null,
+    titleCustomFont: null, // URL blob для загруженного шрифта
+    titleCustomFontName: null, // Имя загруженного файла
+    titleTransform: 'none', // Преобразование регистра заголовка
+    // Общие настройки для всех подзаголовков
+    subtitleColor: '#e0e0e0',
+    subtitleOpacity: 90,
+    subtitleAlign: 'left',
+    subtitleSize: 4,
+    subtitleWeight: 'Regular', // Используем название начертания вместо цифр
+    subtitleLetterSpacing: 0,
+    subtitleLineHeight: 1.2,
+    subtitleGap: -1.5,
+    subtitleFontFamily: 'YS Text',
+    subtitleFontFamilyFile: null,
+    subtitleCustomFont: null,
+    subtitleCustomFontName: null,
+    subtitleTransform: 'none', // Преобразование регистра подзаголовка
+    // Обратная совместимость (используются для рендеринга активной пары)
+    title: 'Курс «Frontend-разработчик» от Практикума',
+    subtitle: 'Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев',
+    legal: 'Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/',
+    legalColor: '#ffffff',
+    legalOpacity: 60,
+    legalAlign: 'left',
+    legalSize: 2,
+    legalTransform: 'none', // Преобразование регистра юридического текста
+    legalWeight: 'Regular', // Используем название начертания вместо цифр
+    legalLetterSpacing: 0,
+    legalLineHeight: 1.4,
+    age: '18+',
+    ageGapPercent: 1,
+    ageSize: 4,
+    ageWeight: 'Regular', // Используем название начертания вместо цифр
+    showLogo: true,
+    showSubtitle: true,
+    hideSubtitleOnWide: false,
+    showLegal: true,
+    showAge: true,
+    showKV: true,
+    showBlocks: false,
+    showGuides: false,
+    layoutMode: 'auto',
+    logo: null,
+    logoSelected: 'logo/white/ru/main.svg',
+    logoSize: 40,
+    logoLanguage: 'ru', // ru или kz
+    partnerLogo: null,
+    partnerLogoFile: null,
+    kv: null,
+    kvSelected: 'assets/3d/sign/01.png',
+    kvBorderRadius: 0,
+    bgColor: '#1e1e1e',
+    bgImage: null,
+    bgSize: 'cover',
+    bgPosition: 'center',
+    textGradientOpacity: 40, // Прозрачность градиентной подложки под текстом (0-100)
+    logoPos: 'left',
+    fontFamily: 'YS Text', // Общая гарнитура (для обратной совместимости)
+    fontFamilyFile: null,
+    customFont: null,
+    legalFontFamily: 'YS Text',
+    legalFontFamilyFile: null,
+    legalCustomFont: null,
+    legalCustomFontName: null,
+    ageFontFamily: 'YS Text',
+    ageFontFamilyFile: null,
+    ageCustomFont: null,
+    ageCustomFontName: null,
+    presetSizes: cloneDeep(sizes),
+    customSizes: [], // Кастомные размеры: [{ width, height, checked, id }]
+    namePrefix: 'layout',
+    kvCanvasWidth: null,
+    kvCanvasHeight: null,
+    exportScale: 1 // Масштаб экспорта: 1, 2, 3 или 4
+  };
+};
 
 class Store {
   constructor(initialState) {
@@ -207,9 +216,15 @@ export const updateNestedPreset = (platform, index, updater) => {
 };
 
 export const resetPresetSizes = (checked) => {
-  const presets = cloneDeep(PRESET_SIZES);
+  const presets = cloneDeep(getPresetSizes());
   Object.values(presets).forEach((sizes) => sizes.forEach((size) => (size.checked = checked)));
   setKey('presetSizes', presets);
+};
+
+// Функция для обновления размеров из конфига
+export const updatePresetSizesFromConfig = () => {
+  const sizes = getPresetSizes();
+  setKey('presetSizes', cloneDeep(sizes));
 };
 
 // Функции для управления парами заголовок/подзаголовок
@@ -346,11 +361,12 @@ export const ensurePresetSelection = () => {
   if (hasCheckedSize(presetSizes)) {
     return;
   }
-  const defaults = cloneDeep(PRESET_SIZES);
+  const defaults = cloneDeep(getPresetSizes());
   store.setKey('presetSizes', defaults);
 };
 
-ensurePresetSelection();
+// Не вызываем ensurePresetSelection() сразу, так как размеры могут быть еще не загружены
+// Это будет вызвано после загрузки размеров в main.js
 
 export const saveSettingsSnapshot = () => {
   const snapshot = createStateSnapshot();

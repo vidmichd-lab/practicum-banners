@@ -7,6 +7,7 @@ import { getLayoutType, calculateSizeMultipliers, calculateTextArea, calculateLo
 import { drawBackground } from './renderer/background.js';
 import { calculateSuperWideKV, calculateUltraWideKV, calculateHorizontalKV, calculateVerticalKV, drawKV } from './renderer/kv.js';
 import { canvasManager, getSortedSizes, categorizeSizes } from './renderer/canvas.js';
+import { drawTextGradient } from './renderer/textGradient.js';
 
 // Функция для конвертации названия начертания в вес
 const getFontWeight = (weightName) => {
@@ -14,6 +15,13 @@ const getFontWeight = (weightName) => {
     return weightName; // Для обратной совместимости
   }
   return FONT_NAME_TO_WEIGHT[weightName] || '400';
+};
+
+// Функция для формирования строки font с fallback на системный sans-serif
+const getFontString = (weight, size, fontFamily) => {
+  // Добавляем fallback на системный sans-serif перед загрузкой кастомного шрифта
+  const fontFamilyWithFallback = fontFamily ? `${fontFamily}, sans-serif` : 'sans-serif';
+  return `${weight} ${size}px ${fontFamilyWithFallback}`;
 };
 
 // Функция для применения преобразования регистра к тексту
@@ -132,7 +140,7 @@ const renderToCanvas = (canvas, width, height, state) => {
   if (state.showAge && state.age) {
     ageSizePx = (state.ageSize / 100) * minDimension * ageMultiplier;
     const ageWeight = getFontWeight(state.ageWeight || state.legalWeight);
-    ctx.font = `${ageWeight} ${ageSizePx}px ${state.ageFontFamily || state.fontFamily}`;
+    ctx.font = getFontString(ageWeight, ageSizePx, state.ageFontFamily || state.fontFamily);
     ageTextWidth = measureLineWidth(ctx, state.age || '');
   }
 
@@ -151,7 +159,7 @@ const renderToCanvas = (canvas, width, height, state) => {
   if (state.showLegal && state.legal) {
     legalSize = (state.legalSize / 100) * minDimension * legalMultiplier;
     const legalWeight = getFontWeight(state.legalWeight);
-    ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
+    ctx.font = getFontString(legalWeight, legalSize, state.legalFontFamily || state.fontFamily);
     // Legal всегда занимает всю ширину макета (минус отступы и место для age)
     const availableWidth = width - paddingPx * 2;
     const legalMaxWidth = Math.max(50, availableWidth - ageReservedWidth);
@@ -229,21 +237,15 @@ const renderToCanvas = (canvas, width, height, state) => {
     // Legal всегда занимает всю ширину макета (минус отступы и место для age)
     // Для широких форматов age будет справа от legal, поэтому не вычитаем его ширину
     const ageWidth = (state.showAge && state.age && ageTextWidth > 0) ? ageTextWidth + ageGapPx : 0;
-    
-    // Определяем, является ли формат широким с большой высотой (типа 1920x1080)
-    const aspectRatio = width / height;
-    const isWideWithLargeHeight = (isHorizontalLayout || isUltraWide) && height >= 800 && aspectRatio >= 1.5 && aspectRatio <= 2.5;
-    
     // Legal занимает всю ширину макета по нижнему краю на любом макете
     let fullLegalWidth = width - effectivePaddingPx * 2;
-    if (!(isHorizontalLayout || isUltraWide || isSuperWide) || isWideWithLargeHeight) {
-      // Для вертикальных форматов и форматов типа 1920x1080 вычитаем место для age
+    if (!(isHorizontalLayout || isUltraWide || isSuperWide)) {
+      // Для вертикальных форматов вычитаем место для age
       fullLegalWidth -= ageWidth;
     }
     
     // Для широких форматов учитываем KV, чтобы legal не заходил на него
-    // Исключение: для форматов типа 1920x1080 legal занимает всю ширину, не ограничиваясь KV
-    if (kvPlannedMeta && (isHorizontalLayout || isUltraWide) && !isSuperWide && !isWideWithLargeHeight) {
+    if (kvPlannedMeta && (isHorizontalLayout || isUltraWide) && !isSuperWide) {
       const kvLeft = kvPlannedMeta.kvX;
       const gap = Math.max(paddingPx * 0.5, width * 0.01);
       const maxLegalWidthWithKV = Math.max(0, kvLeft - effectivePaddingPx - gap - ageWidth);
@@ -285,19 +287,11 @@ const renderToCanvas = (canvas, width, height, state) => {
       const ageBaseline = commonBaselineY;
       const ageY = ageBaseline - ageSizePx;
       
-      // Определяем, является ли формат широким с большой высотой (типа 1920x1080)
-      const aspectRatio = width / height;
-      const isWideWithLargeHeight = (isHorizontalLayout || isUltraWide) && height >= 800 && aspectRatio >= 1.5 && aspectRatio <= 2.5;
-      
       // Для широких форматов age размещается справа от legal, а не в правом нижнем углу
       // Для супер-широких форматов age в правом углу, как у остальных
-      // Для форматов типа 1920x1080 age в правом углу, так как legal занимает всю ширину
       let ageX;
       if (isSuperWide) {
         // Для супер-широких форматов age в правом нижнем углу
-        ageX = width - effectivePaddingPx - ageTextWidth;
-      } else if (isWideWithLargeHeight) {
-        // Для форматов типа 1920x1080, когда legal занимает всю ширину, age в правом нижнем углу
         ageX = width - effectivePaddingPx - ageTextWidth;
       } else if (isHorizontalLayout || isUltraWide) {
         // Age справа от legal
@@ -305,7 +299,7 @@ const renderToCanvas = (canvas, width, height, state) => {
         let actualLegalWidth = 0;
         if (legalLines.length > 0 && legalTextBounds) {
           const legalWeight = getFontWeight(state.legalWeight);
-          ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
+          ctx.font = getFontString(legalWeight, legalSize, state.legalFontFamily || state.fontFamily);
           legalLines.forEach(line => {
             const lineWidth = measureLineWidth(ctx, line);
             if (lineWidth > actualLegalWidth) {
@@ -407,7 +401,7 @@ const renderToCanvas = (canvas, width, height, state) => {
   const titleWeight = getFontWeight(state.titleWeight);
   const subtitleWeight = getFontWeight(state.subtitleWeight);
   
-  ctx.font = `${titleWeight} ${titleSize}px ${state.titleFontFamily || state.fontFamily}`;
+  ctx.font = getFontString(titleWeight, titleSize, state.titleFontFamily || state.fontFamily);
   const titleText = applyTextTransform(state.title, state.titleTransform);
   const titleLines = wrapText(ctx, titleText, maxTextWidth, titleSize, titleWeight, state.titleLineHeight);
   const titleBlockHeight = titleLines.length * titleSize * state.titleLineHeight;
@@ -415,7 +409,7 @@ const renderToCanvas = (canvas, width, height, state) => {
   let subtitleBlockHeight = 0;
   let subtitleLines = [];
   if (shouldShowSubtitle) {
-    ctx.font = `${subtitleWeight} ${subtitleSize}px ${state.subtitleFontFamily || state.fontFamily}`;
+    ctx.font = getFontString(subtitleWeight, subtitleSize, state.subtitleFontFamily || state.fontFamily);
     // Учитываем letter spacing при обертке текста - уменьшаем maxWidth
     let effectiveMaxWidth = maxTextWidth;
     if (state.subtitleLetterSpacing) {
@@ -442,16 +436,36 @@ const renderToCanvas = (canvas, width, height, state) => {
   let startY;
 
   if (isSuperWide) {
-    // Для супер широких форматов: центрируем заголовок с подзаголовком по высоте,
-    // но учитываем, что legal занимает всю нижнюю часть
-    const legalAreaHeight = legalBlockHeight > 0 ? legalBlockHeight + effectivePaddingPx * 0.5 : 0;
-    const availableHeightForText = Math.max(0, height - effectivePaddingPx - legalAreaHeight);
-    const textCenterY = effectivePaddingPx + availableHeightForText / 2;
-    startY = textCenterY - totalTextHeight / 2 + titleSize;
+    // Для супер широких форматов позиция текста не меняется в зависимости от titleVPos
+    // Текст всегда остается вверху
+    startY = effectivePaddingPx + titleSize;
+    if (state.showLogo && state.logo && logoBounds) {
+      const logoBottom = logoBounds.y + logoBounds.height;
+      const logoStart = logoBottom + effectivePaddingPx + titleSize;
+      startY = Math.max(startY, logoStart);
+    }
+    if (legalBlockHeight > 0) {
+      const bottomPadding = effectivePaddingPx + legalBlockHeight + effectivePaddingPx * 0.5;
+      startY = Math.min(startY, height - bottomPadding - totalTextHeight + titleSize);
+    }
+    startY = Math.max(effectivePaddingPx + titleSize, startY);
   } else if (isUltraWide) {
-    const availableHeight = Math.max(0, height - effectivePaddingPx * 2);
-    startY = effectivePaddingPx + (availableHeight - totalTextHeight) / 2 + titleSize;
+    // Для ультра широких форматов позиция текста не меняется в зависимости от titleVPos
+    // Текст всегда остается вверху
+    startY = effectivePaddingPx + titleSize;
+    if (state.showLogo && state.logo && logoBounds) {
+      const logoBottom = logoBounds.y + logoBounds.height;
+      const logoStart = logoBottom + effectivePaddingPx + titleSize;
+      startY = Math.max(startY, logoStart);
+    }
+    if (legalBlockHeight > 0) {
+      const bottomPadding = effectivePaddingPx + legalBlockHeight + effectivePaddingPx * 0.5;
+      startY = Math.min(startY, height - bottomPadding - totalTextHeight + titleSize);
+    }
+    startY = Math.max(effectivePaddingPx + titleSize, startY);
   } else if (isHorizontalLayout) {
+    // Для горизонтальных форматов позиция текста не меняется в зависимости от titleVPos
+    // Текст всегда остается вверху
     startY = paddingPx + titleSize;
     if (legalBlockHeight > 0) {
       const bottomPadding = paddingPx + legalBlockHeight + paddingPx * 0.5;
@@ -473,8 +487,28 @@ const renderToCanvas = (canvas, width, height, state) => {
       const minStart = (state.showLogo && logoBounds) ? logoBounds.y + logoBounds.height + titleSize : paddingPx + titleSize;
       startY = Math.max(minStart, startY);
     } else if (state.titleVPos === 'center') {
-      const availableHeight = height - legalBlockHeight - paddingPx * 2;
-      startY = (availableHeight - totalTextHeight) / 2 + paddingPx + titleSize;
+      // При центрировании текста логотип остается вверху, центрируем только текст
+      // Учитываем логотип при вычислении доступной высоты для текста
+      const logoBottom = (state.showLogo && state.logo && logoBounds) 
+        ? logoBounds.y + logoBounds.height 
+        : paddingPx;
+      const topArea = Math.max(paddingPx, logoBottom + paddingPx);
+      const bottomArea = height - paddingPx - legalBlockHeight;
+      const availableHeight = Math.max(0, bottomArea - topArea);
+      if (availableHeight > 0 && totalTextHeight > 0) {
+        const centerY = topArea + availableHeight / 2;
+        startY = centerY - totalTextHeight / 2 + titleSize;
+        // Убеждаемся, что startY не меньше минимального значения (после логотипа)
+        const minStart = topArea + titleSize;
+        startY = Math.max(minStart, startY);
+      } else {
+        // Fallback: размещаем текст сразу после логотипа
+        startY = topArea + titleSize;
+      }
+      // Убеждаемся, что startY валиден
+      if (!isFinite(startY) || startY < paddingPx + titleSize) {
+        startY = Math.max(paddingPx + titleSize, topArea + titleSize);
+      }
     } else {
       const legalTop = height - paddingPx - legalBlockHeight;
       // For ultra-wide formats, reduce gap (closer to title)
@@ -491,10 +525,20 @@ const renderToCanvas = (canvas, width, height, state) => {
     }
   }
 
-  const effectiveTitleAlign = state.titleAlign || 'left';
-  const titleX = getAlignedXWithinArea(effectiveTitleAlign, textArea);
+  // Для широких форматов текст всегда выравнивается слева и прибит к левому краю макета
+  let effectiveTitleAlign = (isHorizontalLayout || isUltraWide || isSuperWide) 
+    ? 'left' 
+    : (state.titleAlign || 'left');
+  
+  // Для широких форматов прибиваем текст к левому краю макета (с учетом padding)
+  let titleX;
+  if (isHorizontalLayout || isUltraWide || isSuperWide) {
+    titleX = paddingPx; // Прибиваем к левому краю макета
+  } else {
+    titleX = getAlignedXWithinArea(effectiveTitleAlign, textArea);
+  }
   // titleWeight уже определен выше
-  ctx.font = `${titleWeight} ${titleSize}px ${state.titleFontFamily || state.fontFamily}`;
+  ctx.font = getFontString(titleWeight, titleSize, state.titleFontFamily || state.fontFamily);
   ctx.fillStyle = state.titleColor;
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = effectiveTitleAlign;
@@ -538,10 +582,10 @@ const renderToCanvas = (canvas, width, height, state) => {
 
   let { titleBounds, subtitleBounds, subtitleY } = computeTextBounds(startY);
 
-    if (!isHorizontalLayout && legalBlockHeight > 0) {
+    // Для широких форматов не корректируем позицию текста - она уже установлена выше
+    if (!isHorizontalLayout && !isUltraWide && !isSuperWide && legalBlockHeight > 0) {
       const legalTop = height - paddingPx - legalBlockHeight;
-      // For ultra-wide formats, reduce gap (closer to title)
-      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - LAYOUT_CONSTANTS.SUBTITLE_GAP_REDUCTION_ULTRA_WIDE : state.subtitleGap;
+      const effectiveSubtitleGap = state.subtitleGap;
       const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
       const desiredGap = Math.max(
         paddingPx * 0.5,
@@ -560,6 +604,10 @@ const renderToCanvas = (canvas, width, height, state) => {
         ({ titleBounds, subtitleBounds, subtitleY } = computeTextBounds(startY));
       }
     }
+
+  // Рисуем градиентную подложку под текстом (если есть фоновое изображение)
+  // Вызываем перед отрисовкой текста, чтобы градиент был под текстом
+  drawTextGradient(ctx, width, height, state, logoBounds, titleBounds, subtitleBounds, null, null, null, paddingPx, state.titleVPos, isHorizontalLayout, isUltraWide, isSuperWide);
 
   // Проверяем, что есть текст для отрисовки
   if (titleLines.length === 0) {
@@ -600,10 +648,13 @@ const renderToCanvas = (canvas, width, height, state) => {
       actualSubtitleY = startY + titleBlockHeight + subtitleGapPx;
     }
     
-    const subtitleX = getAlignedXWithinArea(effectiveTitleAlign, textArea);
+    // Для широких форматов подзаголовок тоже прибит к левому краю
+    const subtitleX = (isHorizontalLayout || isUltraWide || isSuperWide) 
+      ? paddingPx 
+      : getAlignedXWithinArea(effectiveTitleAlign, textArea);
     const effectiveSubtitleAlign = effectiveTitleAlign;
     // subtitleWeight уже определен выше
-    ctx.font = `${subtitleWeight} ${subtitleSize}px ${state.subtitleFontFamily || state.fontFamily}`;
+    ctx.font = getFontString(subtitleWeight, subtitleSize, state.subtitleFontFamily || state.fontFamily);
     const { r, g, b } = hexToRgb(state.subtitleColor);
     const opacity = Math.max(0, Math.min(100, state.subtitleOpacity || 100)) / 100;
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
@@ -678,6 +729,11 @@ const renderToCanvas = (canvas, width, height, state) => {
   // Используем проверку валидности KV
   if (state.showKV && isKVValid && !kvPlannedMeta) {
     if (!isUltraWide && !isHorizontalLayout) {
+      // Определяем, является ли формат узким или квадратным
+      const isVertical = height >= width * LAYOUT_CONSTANTS.VERTICAL_THRESHOLD;
+      const isSquare = height < width * LAYOUT_CONSTANTS.VERTICAL_THRESHOLD && 
+                       width < height * LAYOUT_CONSTANTS.HORIZONTAL_THRESHOLD;
+      
       const safeGapY = paddingPx * 0.5;
       const availableWidth = Math.max(0, width - paddingPx * 2);
       const textTop = titleBounds ? titleBounds.y : paddingPx;
@@ -690,7 +746,8 @@ const renderToCanvas = (canvas, width, height, state) => {
       const bottomAreaStart = textBlockBottom + safeGapY;
       // Учитываем отступ для legal (safeGap для KV должен быть выше legal)
       const legalTop = height - paddingPx - legalReserved;
-      const safeGapForLegal = Math.max(paddingPx * 0.5, legalSize * 0.5);
+      // Для узких и квадратных форматов убираем отступ между KV и лигалом
+      const safeGapForLegal = (isVertical || isSquare) ? 0 : Math.max(paddingPx * 0.5, legalSize * 0.5);
       const bottomAreaEnd = Math.max(bottomAreaStart, legalTop - safeGapForLegal);
       const bottomAreaHeight = Math.max(0, bottomAreaEnd - bottomAreaStart);
 
@@ -745,7 +802,7 @@ const renderToCanvas = (canvas, width, height, state) => {
 
   if (state.showLegal && legalLines.length > 0) {
     const legalWeight = getFontWeight(state.legalWeight);
-    ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
+    ctx.font = getFontString(legalWeight, legalSize, state.legalFontFamily || state.fontFamily);
     const { r, g, b } = hexToRgb(state.legalColor);
     const opacity = Math.max(0, Math.min(100, state.legalOpacity || 100)) / 100;
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
@@ -755,17 +812,12 @@ const renderToCanvas = (canvas, width, height, state) => {
     const commonBaselineY = height - effectivePaddingPx;
     const drawX = effectivePaddingPx;
     
-    // Определяем, является ли формат широким с большой высотой (типа 1920x1080)
-    const aspectRatioForLegal = width / height;
-    const isWideWithLargeHeightForLegal = (isHorizontalLayout || isUltraWide) && height >= 800 && aspectRatioForLegal >= 1.5 && aspectRatioForLegal <= 2.5;
-    
     // Для широких форматов учитываем KV, чтобы legal не залезал на него
     // Для широких форматов age будет справа от legal, поэтому не вычитаем его ширину из maxLegalWidth
     // Для очень широких форматов (супер-широких) legal и age занимают всю ширину, как у остальных
-    // Для форматов типа 1920x1080 legal занимает всю ширину
     let maxLegalWidth = width - effectivePaddingPx * 2;
-    if (!(isHorizontalLayout || isUltraWide || isSuperWide) || isWideWithLargeHeightForLegal) {
-      // Для вертикальных форматов и форматов типа 1920x1080 age в правом углу, вычитаем его ширину
+    if (!(isHorizontalLayout || isUltraWide || isSuperWide)) {
+      // Для вертикальных форматов age в правом углу, вычитаем его ширину
       maxLegalWidth -= (state.showAge && state.age && ageTextWidth > 0 ? ageTextWidth + ageGapPx : 0);
     } else if (isSuperWide) {
       // Для супер-широких форматов age в правом углу, вычитаем его ширину
@@ -773,8 +825,7 @@ const renderToCanvas = (canvas, width, height, state) => {
     }
     
     // Если есть KV справа (для широких и ультра-широких форматов), ограничиваем ширину legal
-    // Исключение: для форматов типа 1920x1080 legal занимает всю ширину, не ограничиваясь KV
-    if (kvPlannedMeta && (isHorizontalLayout || isUltraWide) && !isSuperWide && !isWideWithLargeHeightForLegal) {
+    if (kvPlannedMeta && (isHorizontalLayout || isUltraWide) && !isSuperWide) {
       // KV находится справа, legal должен быть слева и не заходить на KV
       // Учитываем место для age справа от legal
       const ageWidth = (state.showAge && state.age && ageTextWidth > 0) ? ageTextWidth + ageGapPx : 0;
@@ -817,7 +868,7 @@ const renderToCanvas = (canvas, width, height, state) => {
         let actualLegalWidth = 0;
         if (legalLines.length > 0) {
           const legalWeight = getFontWeight(state.legalWeight);
-          ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
+          ctx.font = getFontString(legalWeight, legalSize, state.legalFontFamily || state.fontFamily);
           legalLines.forEach(line => {
             const lineWidth = measureLineWidth(ctx, line);
             if (lineWidth > actualLegalWidth) {
@@ -856,6 +907,9 @@ const renderToCanvas = (canvas, width, height, state) => {
     
     const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
     
+    // Рисуем градиентную подложку под legal текстом (если есть фоновое изображение)
+    drawTextGradient(ctx, width, height, state, null, null, null, legalTextBounds, legalContentBounds, ageBoundsRect, effectivePaddingPx, state.titleVPos, isHorizontalLayout, isUltraWide, isSuperWide);
+    
     // Use clipping to ensure text doesn't go beyond the allowed area
     ctx.save();
     ctx.beginPath();
@@ -883,7 +937,7 @@ const renderToCanvas = (canvas, width, height, state) => {
 
   if (state.showAge && state.age && ageBoundsRect) {
     const ageWeight = getFontWeight(state.ageWeight || state.legalWeight);
-    ctx.font = `${ageWeight} ${ageSizePx}px ${state.ageFontFamily || state.fontFamily}`;
+    ctx.font = getFontString(ageWeight, ageSizePx, state.ageFontFamily || state.fontFamily);
     const { r, g, b } = hexToRgb(state.legalColor);
     const opacity = Math.max(0, Math.min(100, state.legalOpacity || 100)) / 100;
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
@@ -901,8 +955,13 @@ const renderToCanvas = (canvas, width, height, state) => {
       const legalTop = legalTextBounds ? legalTextBounds.y : (legalContentBounds ? legalContentBounds.y : height);
       const ageTop = ageBoundsRect ? ageBoundsRect.y : height;
       const minLegalTop = Math.min(legalTop, ageTop);
-      // Минимальный отступ между KV и legal (чуть больше, чем просто safeGap)
-      const safeGap = Math.max(paddingPx * 0.5, legalSize * 0.5);
+      // Для узких и широких форматов убираем отступ между KV и legal
+      const isVertical = height >= width * LAYOUT_CONSTANTS.VERTICAL_THRESHOLD;
+      const isSquare = height < width * LAYOUT_CONSTANTS.VERTICAL_THRESHOLD && 
+                       width < height * LAYOUT_CONSTANTS.HORIZONTAL_THRESHOLD;
+      const safeGap = (isVertical || isSquare || isUltraWide || isSuperWide) 
+        ? 0 
+        : Math.max(paddingPx * 0.5, legalSize * 0.5);
       
       // Всегда проверяем и корректируем позицию KV, чтобы он был выше legal
       const maxAllowedBottom = minLegalTop - safeGap;

@@ -90,7 +90,7 @@ export const renderCustomSizes = () => {
             size.checked ? 'checked' : ''
           } onchange="toggleCustomSizeAction('${size.id}')">
           <label for="${id}" style="flex: 1;">${size.width} × ${size.height}</label>
-          <button onclick="removeCustomSizeAction('${size.id}')" class="btn-small btn-danger" style="border: none; cursor: pointer; font-size: 16px; line-height: 1; opacity: 0.7; transition: opacity 0.2s; padding: 4px 8px;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" title="Удалить">×</button>
+          <button onclick="removeCustomSizeAction('${size.id}')" class="btn-small btn-danger" style="border: none; cursor: pointer; font-size: 16px; line-height: 1; opacity: 0.7; transition: opacity 0.2s; padding: 4px 8px;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" title="Удалить"><span class="material-icons" style="font-size: 16px;">close</span></button>
         </div>
       `;
     });
@@ -107,7 +107,7 @@ export const renderCustomSizes = () => {
  */
 export const updatePreviewSizeSelect = () => {
   const categorized = renderer.getCategorizedSizes();
-  const indices = renderer.getCategoryIndices();
+  let indices = renderer.getCategoryIndices();
   
   // Обновляем категорию "Узкие"
   const narrowBtn = document.getElementById('previewSizeSelectNarrowBtn');
@@ -119,9 +119,38 @@ export const updatePreviewSizeSelect = () => {
       narrowText.textContent = 'Нет размеров';
       narrowDropdown.innerHTML = '';
     } else {
-      const selectedIndex = (indices.narrow >= 0 && indices.narrow < categorized.narrow.length) 
-        ? indices.narrow 
-        : 0;
+      // Ищем размер 1080x1920 из категории "Общие" по умолчанию
+      const defaultIndex = categorized.narrow.findIndex(size => 
+        size.width === 1080 && size.height === 1920 && size.platform === 'Общие'
+      );
+      
+      // Получаем текущий выбранный размер
+      const currentIndex = indices.narrow;
+      const currentSize = currentIndex >= 0 && currentIndex < categorized.narrow.length 
+        ? categorized.narrow[currentIndex] 
+        : null;
+      
+      // Если индекс равен 0 (начальное значение) и размер из "Общие" найден, устанавливаем его
+      // Также устанавливаем, если текущий размер не из "Общие" и индекс 0
+      if (defaultIndex >= 0 && currentIndex === 0) {
+        renderer.setCategoryIndex('narrow', defaultIndex, false);
+        indices = renderer.getCategoryIndices(); // Получаем обновленные индексы
+      }
+      
+      // Используем текущий выбранный индекс (не перезаписываем, если он уже установлен)
+      let selectedIndex = indices.narrow;
+      
+      // Если индекс равен 0 (начальное значение) и размер из "Общие" найден, устанавливаем его
+      // Но только если индекс действительно равен 0 (не был установлен пользователем)
+      if (defaultIndex >= 0 && selectedIndex === 0) {
+        selectedIndex = defaultIndex;
+      }
+      
+      // Проверяем валидность индекса
+      if (selectedIndex < 0 || selectedIndex >= categorized.narrow.length) {
+        selectedIndex = defaultIndex >= 0 ? defaultIndex : 0;
+      }
+      
       const selectedSize = categorized.narrow[selectedIndex];
       narrowText.textContent = `${selectedSize.width} × ${selectedSize.height} (${selectedSize.platform})`;
       
@@ -134,6 +163,9 @@ export const updatePreviewSizeSelect = () => {
         }
         option.textContent = `${size.width} × ${size.height} (${size.platform})`;
         option.onclick = () => {
+          narrowText.textContent = option.textContent;
+          narrowDropdown.style.display = 'none';
+          closeAllPreviewDropdowns();
           changePreviewSizeCategory('narrow', index.toString());
         };
         narrowDropdown.appendChild(option);
@@ -151,10 +183,41 @@ export const updatePreviewSizeSelect = () => {
       wideText.textContent = 'Нет размеров';
       wideDropdown.innerHTML = '';
     } else {
-      const defaultIndex = categorized.wide.findIndex(size => size.width === 1600 && size.height === 1200);
-      const selectedIndex = (indices.wide >= 0 && indices.wide < categorized.wide.length) 
-        ? indices.wide 
-        : (defaultIndex >= 0 ? defaultIndex : 0);
+      // Ищем размер 1920x720 из категории "Общие" по умолчанию, иначе 1600x1200
+      let defaultIndex = categorized.wide.findIndex(size => 
+        size.width === 1920 && size.height === 720 && size.platform === 'Общие'
+      );
+      if (defaultIndex < 0) {
+        defaultIndex = categorized.wide.findIndex(size => size.width === 1600 && size.height === 1200);
+      }
+      
+      // Получаем текущий выбранный размер
+      const currentIndex = indices.wide;
+      const currentSize = currentIndex >= 0 && currentIndex < categorized.wide.length 
+        ? categorized.wide[currentIndex] 
+        : null;
+      
+      // Если индекс равен 0 (начальное значение) и размер из "Общие" найден, устанавливаем его
+      // Также устанавливаем, если текущий размер не из "Общие" и индекс 0
+      if (defaultIndex >= 0 && currentIndex === 0) {
+        renderer.setCategoryIndex('wide', defaultIndex, false);
+        indices = renderer.getCategoryIndices(); // Получаем обновленные индексы
+      }
+      
+      // Используем текущий выбранный индекс (не перезаписываем, если он уже установлен)
+      let selectedIndex = indices.wide;
+      
+      // Если индекс равен 0 (начальное значение) и размер из "Общие" найден, устанавливаем его
+      // Но только если индекс действительно равен 0 (не был установлен пользователем)
+      if (defaultIndex >= 0 && selectedIndex === 0) {
+        selectedIndex = defaultIndex;
+      }
+      
+      // Проверяем валидность индекса
+      if (selectedIndex < 0 || selectedIndex >= categorized.wide.length) {
+        selectedIndex = defaultIndex >= 0 ? defaultIndex : 0;
+      }
+      
       const selectedSize = categorized.wide[selectedIndex];
       wideText.textContent = `${selectedSize.width} × ${selectedSize.height} (${selectedSize.platform})`;
       
@@ -167,6 +230,9 @@ export const updatePreviewSizeSelect = () => {
         }
         option.textContent = `${size.width} × ${size.height} (${size.platform})`;
         option.onclick = () => {
+          wideText.textContent = option.textContent;
+          wideDropdown.style.display = 'none';
+          closeAllPreviewDropdowns();
           changePreviewSizeCategory('wide', index.toString());
         };
         wideDropdown.appendChild(option);
@@ -184,9 +250,38 @@ export const updatePreviewSizeSelect = () => {
       squareText.textContent = 'Нет размеров';
       squareDropdown.innerHTML = '';
     } else {
-      const selectedIndex = (indices.square >= 0 && indices.square < categorized.square.length) 
-        ? indices.square 
-        : 0;
+      // Ищем размер 1080x1080 из категории "Общие" по умолчанию
+      const defaultIndex = categorized.square.findIndex(size => 
+        size.width === 1080 && size.height === 1080 && size.platform === 'Общие'
+      );
+      
+      // Получаем текущий выбранный размер
+      const currentIndex = indices.square;
+      const currentSize = currentIndex >= 0 && currentIndex < categorized.square.length 
+        ? categorized.square[currentIndex] 
+        : null;
+      
+      // Если индекс равен 0 (начальное значение) и размер из "Общие" найден, устанавливаем его
+      // Также устанавливаем, если текущий размер не из "Общие" и индекс 0
+      if (defaultIndex >= 0 && currentIndex === 0) {
+        renderer.setCategoryIndex('square', defaultIndex, false);
+        indices = renderer.getCategoryIndices(); // Получаем обновленные индексы
+      }
+      
+      // Используем текущий выбранный индекс (не перезаписываем, если он уже установлен)
+      let selectedIndex = indices.square;
+      
+      // Если индекс равен 0 (начальное значение) и размер из "Общие" найден, устанавливаем его
+      // Но только если индекс действительно равен 0 (не был установлен пользователем)
+      if (defaultIndex >= 0 && selectedIndex === 0) {
+        selectedIndex = defaultIndex;
+      }
+      
+      // Проверяем валидность индекса
+      if (selectedIndex < 0 || selectedIndex >= categorized.square.length) {
+        selectedIndex = defaultIndex >= 0 ? defaultIndex : 0;
+      }
+      
       const selectedSize = categorized.square[selectedIndex];
       squareText.textContent = `${selectedSize.width} × ${selectedSize.height} (${selectedSize.platform})`;
       
@@ -199,6 +294,9 @@ export const updatePreviewSizeSelect = () => {
         }
         option.textContent = `${size.width} × ${size.height} (${size.platform})`;
         option.onclick = () => {
+          squareText.textContent = option.textContent;
+          squareDropdown.style.display = 'none';
+          closeAllPreviewDropdowns();
           changePreviewSizeCategory('square', index.toString());
         };
         squareDropdown.appendChild(option);
@@ -244,11 +342,61 @@ export const changePreviewSizeCategory = (category, index) => {
     }
     
     // Устанавливаем индекс для категории и запускаем рендеринг
+    console.log('changePreviewSizeCategory:', { category, index: idx, sizes: sizes.length });
     renderer.setCategoryIndex(category, idx, true);
     
-    // Обновляем UI селектора после небольшой задержки
+    // Обновляем только дропдаун (текст кнопки уже обновлен выше)
+    // Не вызываем updatePreviewSizeSelect(), чтобы не перезаписать выбранный индекс
     setTimeout(() => {
-      updatePreviewSizeSelect();
+      // Обновляем только список опций в дропдауне, не меняя выбранный текст
+      const categorized = renderer.getCategorizedSizes();
+      const sizes = categorized[category] || [];
+      const dropdown = category === 'narrow' 
+        ? document.getElementById('previewSizeSelectNarrowDropdown')
+        : category === 'wide'
+        ? document.getElementById('previewSizeSelectWideDropdown')
+        : document.getElementById('previewSizeSelectSquareDropdown');
+      
+      if (dropdown && sizes.length > 0) {
+        dropdown.innerHTML = '';
+        sizes.forEach((size, index) => {
+          const option = document.createElement('div');
+          option.className = 'custom-select-option';
+          if (index === idx) {
+            option.classList.add('selected');
+          }
+          option.textContent = `${size.width} × ${size.height} (${size.platform})`;
+          option.onclick = () => {
+            // Обновляем текст кнопки
+            if (category === 'narrow') {
+              const narrowText = document.getElementById('previewSizeSelectNarrowText');
+              if (narrowText) narrowText.textContent = option.textContent;
+              dropdown.style.display = 'none';
+            } else if (category === 'wide') {
+              const wideText = document.getElementById('previewSizeSelectWideText');
+              if (wideText) wideText.textContent = option.textContent;
+              dropdown.style.display = 'none';
+            } else if (category === 'square') {
+              const squareText = document.getElementById('previewSizeSelectSquareText');
+              if (squareText) squareText.textContent = option.textContent;
+              dropdown.style.display = 'none';
+            }
+            // Закрываем все дроплисты
+            const closeAllPreviewDropdowns = () => {
+              [
+                document.getElementById('previewSizeSelectNarrowDropdown'),
+                document.getElementById('previewSizeSelectWideDropdown'),
+                document.getElementById('previewSizeSelectSquareDropdown')
+              ].forEach(d => {
+                if (d) d.style.display = 'none';
+              });
+            };
+            closeAllPreviewDropdowns();
+            changePreviewSizeCategory(category, index.toString());
+          };
+          dropdown.appendChild(option);
+        });
+      }
     }, 50);
     
     // Прокручиваем к области превью канваса после завершения рендеринга
@@ -429,11 +577,88 @@ export const togglePlatformSizes = (platform) => {
   }
 };
 
+// Флаг для отслеживания первой инициализации размеров по умолчанию
+let defaultSizesInitialized = false;
+
 /**
  * Инициализирует UI для работы с размерами
  */
 export const initializeSizeManager = () => {
   renderPresetSizes();
+  
+  // Устанавливаем размеры из категории "Общие" по умолчанию при первой инициализации
+  if (!defaultSizesInitialized) {
+    // Небольшая задержка, чтобы убедиться, что размеры загружены и категоризированы
+    setTimeout(() => {
+      const categorized = renderer.getCategorizedSizes();
+      const indices = renderer.getCategoryIndices();
+      let needsUpdate = false;
+      
+      // Устанавливаем 1080x1920 для узких форматов
+      if (categorized.narrow.length > 0) {
+        const defaultNarrowIndex = categorized.narrow.findIndex(size => 
+          size.width === 1080 && size.height === 1920 && size.platform === 'Общие'
+        );
+        if (defaultNarrowIndex >= 0) {
+          const currentSize = indices.narrow >= 0 && indices.narrow < categorized.narrow.length
+            ? categorized.narrow[indices.narrow]
+            : null;
+          // Устанавливаем, если индекс 0 или текущий размер не из "Общие"
+          if (indices.narrow === 0 || !currentSize || currentSize.platform !== 'Общие') {
+            renderer.setCategoryIndex('narrow', defaultNarrowIndex, false);
+            needsUpdate = true;
+          }
+        }
+      }
+      
+      // Устанавливаем 1920x720 для широких форматов
+      if (categorized.wide.length > 0) {
+        let defaultWideIndex = categorized.wide.findIndex(size => 
+          size.width === 1920 && size.height === 720 && size.platform === 'Общие'
+        );
+        if (defaultWideIndex < 0) {
+          defaultWideIndex = categorized.wide.findIndex(size => size.width === 1600 && size.height === 1200);
+        }
+        if (defaultWideIndex >= 0) {
+          const currentSize = indices.wide >= 0 && indices.wide < categorized.wide.length
+            ? categorized.wide[indices.wide]
+            : null;
+          // Устанавливаем, если индекс 0 или текущий размер не из "Общие"
+          if (indices.wide === 0 || !currentSize || currentSize.platform !== 'Общие') {
+            renderer.setCategoryIndex('wide', defaultWideIndex, false);
+            needsUpdate = true;
+          }
+        }
+      }
+      
+      // Устанавливаем 1080x1080 для квадратных форматов
+      if (categorized.square.length > 0) {
+        const defaultSquareIndex = categorized.square.findIndex(size => 
+          size.width === 1080 && size.height === 1080 && size.platform === 'Общие'
+        );
+        if (defaultSquareIndex >= 0) {
+          const currentSize = indices.square >= 0 && indices.square < categorized.square.length
+            ? categorized.square[indices.square]
+            : null;
+          // Устанавливаем, если индекс 0 или текущий размер не из "Общие"
+          if (indices.square === 0 || !currentSize || currentSize.platform !== 'Общие') {
+            renderer.setCategoryIndex('square', defaultSquareIndex, false);
+            needsUpdate = true;
+          }
+        }
+      }
+      
+      // Обновляем UI после установки индексов
+      if (needsUpdate) {
+        updatePreviewSizeSelect();
+        // Запускаем рендеринг после установки размеров по умолчанию
+        renderer.render();
+      }
+      
+      defaultSizesInitialized = true;
+    }, 100);
+  }
+  
   updatePreviewSizeSelect();
   updateSizesSummary();
   

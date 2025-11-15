@@ -32,6 +32,16 @@ export const categorizeSizes = (sizes) => {
     }
   });
   
+  // Сортируем каждую категорию для стабильности (по высоте, затем по ширине)
+  const sortSizes = (a, b) => {
+    if (a.height !== b.height) return a.height - b.height;
+    return a.width - b.width;
+  };
+  
+  narrow.sort(sortSizes);
+  wide.sort(sortSizes);
+  square.sort(sortSizes);
+  
   return { narrow, wide, square };
 };
 
@@ -79,7 +89,7 @@ class CanvasManager {
   /**
    * Выполняет рендеринг всех canvas
    */
-  async doRender(getState, setKey) {
+  doRender(getState, setKey) {
     try {
       const sizes = getSortedSizes();
       if (!sizes || !sizes.length) {
@@ -114,10 +124,12 @@ class CanvasManager {
     const getSizeForCategory = (categorySizes, index) => {
       if (categorySizes.length > 0) {
         // Используем сохраненный индекс, если он валиден
-        const validIndex = (index !== undefined && index >= 0 && index < categorySizes.length) 
-          ? index 
-          : 0;
-        return categorySizes[validIndex];
+        // Важно: проверяем, что index не undefined и не null
+        if (index !== undefined && index !== null && index >= 0 && index < categorySizes.length) {
+          return categorySizes[index];
+        }
+        // Если индекс невалиден, используем 0
+        return categorySizes[0];
       }
       // Если в категории нет размеров, используем первый доступный размер из любых других категорий
       if (categorized.narrow.length > 0) return categorized.narrow[0];
@@ -130,6 +142,7 @@ class CanvasManager {
     // Рендерим узкий формат
     if (this.previewCanvasNarrow) {
       const narrowSize = getSizeForCategory(categorized.narrow, this.currentNarrowIndex);
+      console.log('Рендеринг narrow:', { index: this.currentNarrowIndex, size: narrowSize, total: categorized.narrow.length });
       if (narrowSize) {
         try {
           this.renderToCanvasFn(this.previewCanvasNarrow, narrowSize.width, narrowSize.height, state);
@@ -165,6 +178,7 @@ class CanvasManager {
     // Рендерим широкий формат
     if (this.previewCanvasWide) {
       const wideSize = getSizeForCategory(categorized.wide, this.currentWideIndex);
+      console.log('Рендеринг wide:', { index: this.currentWideIndex, size: wideSize, total: categorized.wide.length });
       if (wideSize) {
         try {
           this.lastRenderMeta = this.renderToCanvasFn(this.previewCanvasWide, wideSize.width, wideSize.height, state);
@@ -188,6 +202,7 @@ class CanvasManager {
     // Рендерим квадратный формат
     if (this.previewCanvasSquare) {
       const squareSize = getSizeForCategory(categorized.square, this.currentSquareIndex);
+      console.log('Рендеринг square:', { index: this.currentSquareIndex, size: squareSize, total: categorized.square.length });
       if (squareSize) {
         try {
           this.renderToCanvasFn(this.previewCanvasSquare, squareSize.width, squareSize.height, state);
@@ -281,8 +296,21 @@ class CanvasManager {
     } else if (category === 'square') {
       this.currentSquareIndex = idx;
     }
+    
+    console.log('setCategoryIndex:', { category, index: idx, shouldRender, hasGetState: !!getState, hasSetKey: !!setKey, indices: {
+      narrow: this.currentNarrowIndex,
+      wide: this.currentWideIndex,
+      square: this.currentSquareIndex
+    }});
+    
     if (shouldRender) {
-      this.render(getState, setKey);
+      if (getState && setKey) {
+        // Используем renderSync для немедленного обновления при выборе размера
+        console.log('Вызываем renderSync для категории:', category);
+        this.renderSync(getState, setKey);
+      } else {
+        console.warn('getState или setKey не переданы в setCategoryIndex');
+      }
     }
   }
 

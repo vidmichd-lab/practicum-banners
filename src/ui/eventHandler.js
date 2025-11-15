@@ -408,6 +408,12 @@ export const initEventDelegation = () => {
       const funcName = target.dataset.function;
       if (!funcName) return;
 
+      // Останавливаем всплытие, если у элемента есть data-action="stop-propagation"
+      // Делаем это ПОСЛЕ получения функции, чтобы функция успела выполниться
+      if (target.hasAttribute('data-action') && target.getAttribute('data-action') === 'stop-propagation') {
+        e.stopPropagation();
+      }
+
       let params = [];
       if (target.dataset.params) {
         try {
@@ -420,6 +426,7 @@ export const initEventDelegation = () => {
 
       if (typeof window[funcName] === 'function') {
         try {
+          console.log('Вызываем функцию:', funcName, 'с параметрами:', params);
           window[funcName](...params);
         } catch (error) {
           console.error('Ошибка выполнения функции:', funcName, error);
@@ -427,7 +434,7 @@ export const initEventDelegation = () => {
           console.error('Стек ошибки:', error.stack);
         }
       } else {
-        console.warn('Функция не найдена:', funcName);
+        console.warn('Функция не найдена:', funcName, 'Доступные функции:', Object.keys(window).filter(k => typeof window[k] === 'function' && k.includes('Size')));
       }
     } catch (error) {
       console.error('Ошибка в обработчике data-function:', error);
@@ -471,10 +478,13 @@ export const initEventDelegation = () => {
     }
   });
 
-  // Обработка stop-propagation
+  // Обработка stop-propagation (дополнительная защита от всплытия)
+  // Этот обработчик срабатывает после data-function, чтобы остановить всплытие к overlay
   document.addEventListener('click', (e) => {
     const target = e.target.closest('[data-action="stop-propagation"]');
-    if (target) {
+    if (target && !target.hasAttribute('data-function')) {
+      // Останавливаем всплытие только для элементов без data-function
+      // (элементы с data-function уже обработаны выше)
       e.stopPropagation();
     }
   });

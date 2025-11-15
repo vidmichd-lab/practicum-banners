@@ -101,6 +101,7 @@ import {
   togglePlatformSizes,
   initializeSizeManager
 } from './components/sizeManager.js';
+import { showSizesAdmin } from './components/sizesAdmin.js';
 let savedSettings = null;
 
 // Переменные для работы с KV (используются в функциях для пар)
@@ -364,6 +365,15 @@ export const syncFormFields = () => {
 
   dom.bgColor.value = state.bgColor;
   if (dom.bgColorHex) dom.bgColorHex.value = state.bgColor;
+  
+  const textGradientOpacity = state.textGradientOpacity ?? 40;
+  if (dom.textGradientOpacity) {
+    dom.textGradientOpacity.value = textGradientOpacity;
+  }
+  if (dom.textGradientOpacityValue) {
+    const textGradientOpacityNum = typeof textGradientOpacity === 'number' && !isNaN(textGradientOpacity) ? textGradientOpacity : 40;
+    dom.textGradientOpacityValue.textContent = `${textGradientOpacityNum}%`;
+  }
 
   dom.namePrefix.value = state.namePrefix;
   
@@ -1104,6 +1114,20 @@ export const updateSubtitleSize = (value) => {
   renderer.render();
 };
 
+export const updateTextGradientOpacity = (value) => {
+  const numeric = parseInt(value, 10);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для textGradientOpacity:', value);
+    return;
+  }
+  setKey('textGradientOpacity', numeric);
+  const dom = getDom();
+  if (dom.textGradientOpacityValue) {
+    dom.textGradientOpacityValue.textContent = `${numeric}%`;
+  }
+  renderer.render();
+};
+
 export const updateLegalSize = (value) => {
   const numeric = parseFloat(value);
   if (isNaN(numeric)) {
@@ -1408,6 +1432,7 @@ export {
   deselectAllSizesAction,
   togglePlatformSizes
 } from './components/sizeManager.js';
+export { showSizesAdmin } from './components/sizesAdmin.js';
 
 export const togglePlatform = (platform) => {
   togglePlatformSizes(platform);
@@ -1966,14 +1991,14 @@ const updateSingleTitleTransformToggle = (toggle, transformType) => {
   });
   
   // Обновляем позицию слайдера
+  // Порядок кнопок в HTML: none (0), uppercase (1), lowercase (2)
   const slider = toggle.querySelector('.toggle-switch-slider');
   if (slider && toggle.getAttribute('data-options') === '3') {
-    const index = ['uppercase', 'lowercase', 'none'].indexOf(transformType);
-    if (index === 0) {
+    if (transformType === 'none') {
       slider.style.transform = 'translateX(0)';
-    } else if (index === 1) {
+    } else if (transformType === 'uppercase') {
       slider.style.transform = 'translateX(calc(100% + 4px))';
-    } else if (index === 2) {
+    } else if (transformType === 'lowercase') {
       slider.style.transform = 'translateX(calc(200% + 8px))';
     }
   }
@@ -2003,14 +2028,14 @@ const updateSingleSubtitleTransformToggle = (toggle, transformType) => {
   });
   
   // Обновляем позицию слайдера
+  // Порядок кнопок в HTML: none (0), uppercase (1), lowercase (2)
   const slider = toggle.querySelector('.toggle-switch-slider');
   if (slider && toggle.getAttribute('data-options') === '3') {
-    const index = ['uppercase', 'lowercase', 'none'].indexOf(transformType);
-    if (index === 0) {
+    if (transformType === 'none') {
       slider.style.transform = 'translateX(0)';
-    } else if (index === 1) {
+    } else if (transformType === 'uppercase') {
       slider.style.transform = 'translateX(calc(100% + 4px))';
-    } else if (index === 2) {
+    } else if (transformType === 'lowercase') {
       slider.style.transform = 'translateX(calc(200% + 8px))';
     }
   }
@@ -2039,14 +2064,14 @@ export const updateLegalTransformToggle = (transformType) => {
   });
   
   // Обновляем позицию слайдера
+  // Порядок кнопок в HTML: none (0), uppercase (1), lowercase (2)
   const slider = toggle.querySelector('.toggle-switch-slider');
   if (slider && toggle.getAttribute('data-options') === '3') {
-    const index = ['uppercase', 'lowercase', 'none'].indexOf(transformType);
-    if (index === 0) {
+    if (transformType === 'none') {
       slider.style.transform = 'translateX(0)';
-    } else if (index === 1) {
+    } else if (transformType === 'uppercase') {
       slider.style.transform = 'translateX(calc(100% + 4px))';
-    } else if (index === 2) {
+    } else if (transformType === 'lowercase') {
       slider.style.transform = 'translateX(calc(200% + 8px))';
     }
   }
@@ -2359,7 +2384,7 @@ const renderKVPairs = () => {
     const kvLabel = document.createElement('label');
     kvLabel.className = `form-label mb-sm ${isActive ? 'active' : ''}`;
     kvLabel.style.display = 'block';
-    kvLabel.textContent = `KV для заголовка ${index + 1}${isActive ? ' (активен)' : ''}`;
+    kvLabel.textContent = `KV ${String(index + 1).padStart(2, '0')}${isActive ? ' (активен)' : ''}`;
     
     // Создаем кнопку для выбора KV (как для обычного KV - открывает модальное окно)
     const kvSelectBtn = document.createElement('button');
@@ -2417,7 +2442,8 @@ const renderKVPairs = () => {
     const loadBtn = document.createElement('button');
     loadBtn.className = 'btn';
     loadBtn.style.cssText = 'flex: 1;';
-    loadBtn.textContent = 'Загрузить';
+    loadBtn.title = 'Загрузить';
+    loadBtn.innerHTML = '<span class="material-icons">download</span>';
     loadBtn.onclick = (e) => {
       e.stopPropagation();
       // Создаем временный input для загрузки файла
@@ -2441,7 +2467,8 @@ const renderKVPairs = () => {
     removeBtn.className = 'btn btn-danger';
     removeBtn.setAttribute('data-action', 'remove');
     removeBtn.style.cssText = 'flex: 1;';
-    removeBtn.textContent = 'Удалить';
+    removeBtn.title = 'Удалить';
+    removeBtn.innerHTML = '<span class="material-icons">delete</span>';
     removeBtn.disabled = !pair.kvSelected;
     removeBtn.onclick = async (e) => {
       e.stopPropagation();
@@ -2512,7 +2539,8 @@ const renderTitleSubtitlePairs = () => {
       const removeBtn = document.createElement('button');
       removeBtn.className = 'btn btn-small btn-danger';
       removeBtn.style.cssText = 'min-width: 32px;';
-      removeBtn.textContent = '−';
+      removeBtn.title = 'Удалить';
+      removeBtn.innerHTML = '<span class="material-icons" style="font-size: 18px;">remove</span>';
       removeBtn.onclick = (e) => {
         e.stopPropagation();
         removeTitleSubtitlePairAction(index);
@@ -2561,7 +2589,8 @@ const renderTitleSubtitlePairs = () => {
       const removeBtn = document.createElement('button');
       removeBtn.className = 'btn btn-small btn-danger';
       removeBtn.style.cssText = 'min-width: 32px;';
-      removeBtn.textContent = '−';
+      removeBtn.title = 'Удалить';
+      removeBtn.innerHTML = '<span class="material-icons" style="font-size: 18px;">remove</span>';
       removeBtn.onclick = (e) => {
         e.stopPropagation();
         removeTitleSubtitlePairAction(index);
@@ -2609,7 +2638,7 @@ const renderTitleSubtitlePairs = () => {
         
         const addBtn = document.createElement('button');
         addBtn.className = 'btn btn-tiny';
-        addBtn.textContent = '+ Добавить';
+        addBtn.innerHTML = '<span class="material-icons" style="font-size: 16px; margin-right: 4px;">add</span>Добавить';
         addBtn.onclick = (e) => {
           e.stopPropagation();
           addTitleSubtitlePairAction();

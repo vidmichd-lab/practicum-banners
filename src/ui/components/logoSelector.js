@@ -700,7 +700,30 @@ const populateLogoColumns = async (forceRefresh = false) => {
  * Обновляет колонки логотипов (принудительное обновление)
  */
 export const refreshLogoColumns = async () => {
-  await populateLogoColumns(true);
+  // Находим кнопку "Обновить" в модальном окне логотипа
+  const refreshBtn = document.querySelector('[data-function="refreshLogoColumns"]');
+  if (!refreshBtn) return;
+  
+  const originalHTML = refreshBtn.innerHTML;
+  
+  // Показываем анимацию загрузки
+  refreshBtn.disabled = true;
+  refreshBtn.innerHTML = '<span class="material-icons refresh-spinner">refresh</span> Обновление...';
+  
+  // Принудительно перерисовываем, чтобы браузер увидел изменения
+  refreshBtn.offsetHeight; // trigger reflow
+  
+  // Используем requestAnimationFrame для гарантированного отображения изменений
+  await new Promise(resolve => requestAnimationFrame(resolve));
+  await new Promise(resolve => setTimeout(resolve, 100)); // Небольшая задержка для визуализации
+  
+  try {
+    await populateLogoColumns(true);
+  } finally {
+    // Восстанавливаем исходное состояние кнопки
+    refreshBtn.disabled = false;
+    refreshBtn.innerHTML = originalHTML;
+  }
 };
 
 /**

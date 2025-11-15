@@ -7,7 +7,7 @@ import { getState, setKey, setState } from '../../state/store.js';
 import { PRESET_BACKGROUND_COLORS } from '../../constants.js';
 import { renderer } from '../../renderer.js';
 import { getDom } from '../domCache.js';
-import { autoSelectLogoByTextColor } from '../ui.js';
+import { autoSelectLogoByTextColor, syncFormFields } from '../ui.js';
 
 /**
  * Загружает изображение из файла или URL
@@ -93,8 +93,20 @@ export const handleBgImageUpload = (event) => {
     try {
       const dataURL = await readFileAsDataURL(file);
       const img = await loadImage(dataURL);
+      // При загрузке фонового изображения автоматически выключаем KV
+      // Используем setKey для немедленного обновления состояния
       setKey('bgImage', img);
+      setKey('showKV', false);
+      
+      // Обновляем чекбокс "Показывать KV" сразу
+      const dom = getDom();
+      if (dom.showKV) {
+        dom.showKV.checked = false;
+      }
+      
       updateBgUI();
+      // Синхронизируем остальные поля UI (после обновления чекбокса)
+      syncFormFields();
       renderer.render();
     } catch (error) {
       console.error(error);
