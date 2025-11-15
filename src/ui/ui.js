@@ -103,6 +103,80 @@ const updateWeightDropdown = (selectElement, fontFamily, currentWeight) => {
   }
 };
 
+// Функция для обновления кастомного дропдауна начертаний
+const updateCustomWeightDropdown = (dropdownElement, textElement, fontFamily, currentWeight, updateCallback) => {
+  if (!dropdownElement || !textElement) return;
+  
+  const availableWeights = getAvailableWeightsForFamily(fontFamily);
+  const currentValue = currentWeight || 'Regular';
+  const shouldKeepCurrent = availableWeights.includes(currentValue);
+  const selectedValue = shouldKeepCurrent ? currentValue : (availableWeights.includes('Regular') ? 'Regular' : availableWeights[0]);
+  
+  const weightLabels = {
+    'Thin': 'Thin — Тонкий',
+    'ExtraLight': 'ExtraLight — Экстра-светлый',
+    'Light': 'Light — Светлый',
+    'Regular': 'Regular — Обычный',
+    'Medium': 'Medium — Средний',
+    'SemiBold': 'SemiBold — Полужирный',
+    'Bold': 'Bold — Жирный',
+    'Heavy': 'Heavy — Экстра-жирный',
+    'Black': 'Black — Чёрный'
+  };
+  
+  // Если в дропдауне уже есть опции (статические из HTML), обновляем их
+  const existingOptions = dropdownElement.querySelectorAll('.custom-select-option');
+  if (existingOptions.length > 0) {
+    // Обновляем существующие опции
+    existingOptions.forEach(option => {
+      const value = option.dataset.value;
+      if (availableWeights.includes(value)) {
+        option.style.display = '';
+        // Обновляем класс selected
+        if (value === selectedValue) {
+          option.classList.add('selected');
+          textElement.textContent = option.textContent;
+        } else {
+          option.classList.remove('selected');
+        }
+      } else {
+        // Скрываем недоступные опции
+        option.style.display = 'none';
+        option.classList.remove('selected');
+      }
+    });
+  } else {
+    // Если опций нет, создаем их
+    dropdownElement.innerHTML = '';
+    
+    availableWeights.forEach((weightName) => {
+      const option = document.createElement('div');
+      option.className = 'custom-select-option';
+      if (weightName === selectedValue) {
+        option.classList.add('selected');
+        textElement.textContent = weightLabels[weightName] || weightName;
+      }
+      option.dataset.value = weightName;
+      option.textContent = weightLabels[weightName] || weightName;
+      option.onclick = () => {
+        textElement.textContent = option.textContent;
+        dropdownElement.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
+        option.classList.add('selected');
+        dropdownElement.style.display = 'none';
+        closeAllFontDropdowns();
+        if (updateCallback) updateCallback(weightName);
+      };
+      dropdownElement.appendChild(option);
+    });
+  }
+  
+  // Обновляем выбранное значение в тексте кнопки
+  const selectedOption = dropdownElement.querySelector(`[data-value="${selectedValue}"]`);
+  if (selectedOption) {
+    textElement.textContent = selectedOption.textContent;
+  }
+};
+
 const updateChipGroup = (group, value) => {
   document.querySelectorAll(`[data-group="${group}"]`).forEach((chip) => {
     chip.classList.toggle('active', chip.dataset.value === value);
@@ -127,7 +201,7 @@ export const syncFormFields = () => {
   if (!dom.paddingPercent) return;
 
   dom.paddingPercent.value = state.paddingPercent;
-  dom.paddingValue.textContent = `${state.paddingPercent}%`;
+  if (dom.paddingValue) dom.paddingValue.textContent = `${state.paddingPercent}%`;
   
   // Синхронизируем активную пару
   if (state.titleSubtitlePairs && state.titleSubtitlePairs.length > 0) {
@@ -148,6 +222,27 @@ export const syncFormFields = () => {
   const titleWeight = typeof state.titleWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
     : (state.titleWeight || 'Regular');
+  // Обновляем кастомные дропдауны для заголовка
+  const titleFontFamilyText = document.getElementById('titleFontFamilyText');
+  const titleFontFamilyDropdown = document.getElementById('titleFontFamilyDropdown');
+  if (titleFontFamilyText && titleFontFamilyDropdown) {
+    const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
+    titleFontFamilyText.textContent = titleFontFamily === 'system-ui' ? 'System Default' : titleFontFamily;
+    updateCustomFontDropdown(titleFontFamilyDropdown, titleFontFamilyText, titleFontFamily, (value) => {
+      selectTitleFontFamily(value);
+    });
+  }
+  
+  const titleWeightText = document.getElementById('titleWeightText');
+  const titleWeightDropdown = document.getElementById('titleWeightDropdown');
+  if (titleWeightText && titleWeightDropdown) {
+    const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
+    updateCustomWeightDropdown(titleWeightDropdown, titleWeightText, titleFontFamily, titleWeight, (value) => {
+      updateState('titleWeight', value);
+    });
+  }
+  
+  // Обратная совместимость со старыми select элементами
   if (dom.titleFontFamily) {
     dom.titleFontFamily.value = state.titleFontFamily || state.fontFamily || 'YS Text';
     // Обновляем селект начертаний на основе выбранной гарнитуры
@@ -172,6 +267,27 @@ export const syncFormFields = () => {
   const subtitleWeight = typeof state.subtitleWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
     : (state.subtitleWeight || 'Regular');
+  // Обновляем кастомные дропдауны для подзаголовка
+  const subtitleFontFamilyText = document.getElementById('subtitleFontFamilyText');
+  const subtitleFontFamilyDropdown = document.getElementById('subtitleFontFamilyDropdown');
+  if (subtitleFontFamilyText && subtitleFontFamilyDropdown) {
+    const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
+    subtitleFontFamilyText.textContent = subtitleFontFamily === 'system-ui' ? 'System Default' : subtitleFontFamily;
+    updateCustomFontDropdown(subtitleFontFamilyDropdown, subtitleFontFamilyText, subtitleFontFamily, (value) => {
+      selectSubtitleFontFamily(value);
+    });
+  }
+  
+  const subtitleWeightText = document.getElementById('subtitleWeightText');
+  const subtitleWeightDropdown = document.getElementById('subtitleWeightDropdown');
+  if (subtitleWeightText && subtitleWeightDropdown) {
+    const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
+    updateCustomWeightDropdown(subtitleWeightDropdown, subtitleWeightText, subtitleFontFamily, subtitleWeight, (value) => {
+      updateState('subtitleWeight', value);
+    });
+  }
+  
+  // Обратная совместимость со старыми select элементами
   if (dom.subtitleFontFamily) {
     dom.subtitleFontFamily.value = state.subtitleFontFamily || state.fontFamily || 'YS Text';
     // Обновляем селект начертаний на основе выбранной гарнитуры
@@ -190,13 +306,34 @@ export const syncFormFields = () => {
   dom.legalColor.value = state.legalColor;
   if (dom.legalColorHex) dom.legalColorHex.value = state.legalColor;
   dom.legalOpacity.value = state.legalOpacity;
-  dom.legalOpacityValue.textContent = `${state.legalOpacity}%`;
+  if (dom.legalOpacityValue) dom.legalOpacityValue.textContent = `${state.legalOpacity}%`;
   dom.legalSize.value = state.legalSize;
   if (dom.legalSizeValue) dom.legalSizeValue.textContent = `${state.legalSize}%`;
   // Конвертируем вес из числа в название для обратной совместимости
   const legalWeight = typeof state.legalWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
     : (state.legalWeight || 'Regular');
+  // Обновляем кастомные дропдауны для юридического текста
+  const legalFontFamilyText = document.getElementById('legalFontFamilyText');
+  const legalFontFamilyDropdown = document.getElementById('legalFontFamilyDropdown');
+  if (legalFontFamilyText && legalFontFamilyDropdown) {
+    const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
+    legalFontFamilyText.textContent = legalFontFamily === 'system-ui' ? 'System Default' : legalFontFamily;
+    updateCustomFontDropdown(legalFontFamilyDropdown, legalFontFamilyText, legalFontFamily, (value) => {
+      selectLegalFontFamily(value);
+    });
+  }
+  
+  const legalWeightText = document.getElementById('legalWeightText');
+  const legalWeightDropdown = document.getElementById('legalWeightDropdown');
+  if (legalWeightText && legalWeightDropdown) {
+    const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
+    updateCustomWeightDropdown(legalWeightDropdown, legalWeightText, legalFontFamily, legalWeight, (value) => {
+      updateState('legalWeight', value);
+    });
+  }
+  
+  // Обратная совместимость со старыми select элементами
   if (dom.legalFontFamily) {
     dom.legalFontFamily.value = state.legalFontFamily || state.fontFamily || 'YS Text';
     // Обновляем селект начертаний на основе выбранной гарнитуры
@@ -213,6 +350,17 @@ export const syncFormFields = () => {
   dom.age.value = state.age;
   dom.ageSize.value = state.ageSize;
   if (dom.ageSizeValue) dom.ageSizeValue.textContent = `${state.ageSize}%`;
+  // Обновляем кастомный дропдаун для возраста
+  const ageFontFamilyText = document.getElementById('ageFontFamilyText');
+  const ageFontFamilyDropdown = document.getElementById('ageFontFamilyDropdown');
+  if (ageFontFamilyText && ageFontFamilyDropdown) {
+    const ageFontFamily = state.ageFontFamily || state.fontFamily || 'YS Text';
+    ageFontFamilyText.textContent = ageFontFamily === 'system-ui' ? 'System Default' : ageFontFamily;
+    updateCustomFontDropdown(ageFontFamilyDropdown, ageFontFamilyText, ageFontFamily, (value) => {
+      selectAgeFontFamily(value);
+    });
+  }
+  // Обратная совместимость со старыми select элементами
   if (dom.ageFontFamily) dom.ageFontFamily.value = state.ageFontFamily || state.fontFamily || 'YS Text';
   if (state.ageCustomFontName) {
     updateCustomFontInfo('age', state.ageCustomFontName);
@@ -230,7 +378,7 @@ export const syncFormFields = () => {
   if (dom.logoSelect) dom.logoSelect.value = state.logoSelected || '';
   updateLogoTriggerText(state.logoSelected || '');
   dom.logoSize.value = state.logoSize;
-  dom.logoSizeValue.textContent = `${state.logoSize}%`;
+  if (dom.logoSizeValue) dom.logoSizeValue.textContent = `${state.logoSize}%`;
 
   if (dom.kvSelect) {
     dom.kvSelect.value = state.kvSelected || '';
@@ -267,53 +415,146 @@ export const updatePreviewSizeSelect = () => {
   const categorized = renderer.getCategorizedSizes();
   let needsRender = false;
 
-  // Обновляем дроплист для узких форматов
-  if (dom.previewSizeSelectNarrow) {
+  // Обновляем кастомный дропдаун для узких форматов
+  const narrowBtn = document.getElementById('previewSizeSelectNarrowBtn');
+  const narrowText = document.getElementById('previewSizeSelectNarrowText');
+  const narrowDropdown = document.getElementById('previewSizeSelectNarrowDropdown');
+  
+  if (narrowBtn && narrowText && narrowDropdown) {
+    narrowDropdown.innerHTML = '';
+    
     if (!categorized.narrow.length) {
-      dom.previewSizeSelectNarrow.innerHTML = '<option value="-1">Нет узких форматов</option>';
+      narrowText.textContent = 'Нет узких форматов';
+      const emptyOption = document.createElement('div');
+      emptyOption.className = 'custom-select-option';
+      emptyOption.textContent = 'Нет узких форматов';
+      emptyOption.style.opacity = '0.5';
+      emptyOption.style.cursor = 'not-allowed';
+      narrowDropdown.appendChild(emptyOption);
     } else {
-      const options = categorized.narrow
-        .map((size, index) => `<option value="${index}">${size.width} × ${size.height} (${size.platform})</option>`)
-        .join('');
-      dom.previewSizeSelectNarrow.innerHTML = options;
-      // Выбираем первый по умолчанию
-      dom.previewSizeSelectNarrow.value = '0';
-      renderer.setCategoryIndex('narrow', 0, false); // не вызывать render
-      needsRender = true;
+      categorized.narrow.forEach((size, index) => {
+        const option = document.createElement('div');
+        option.className = 'custom-select-option';
+        option.dataset.value = index;
+        option.textContent = `${size.width} × ${size.height} (${size.platform})`;
+        option.onclick = () => {
+          narrowText.textContent = option.textContent;
+          narrowDropdown.style.display = 'none';
+          closeAllPreviewDropdowns();
+          changePreviewSizeCategory('narrow', index.toString());
+        };
+        narrowDropdown.appendChild(option);
+      });
+      
+      if (categorized.narrow.length > 0) {
+        narrowText.textContent = `${categorized.narrow[0].width} × ${categorized.narrow[0].height} (${categorized.narrow[0].platform})`;
+        renderer.setCategoryIndex('narrow', 0, false);
+        needsRender = true;
+      }
+    }
+    
+    if (!narrowBtn.onclick) {
+      narrowBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllPreviewDropdowns();
+        narrowDropdown.style.display = narrowDropdown.style.display === 'none' ? 'block' : 'none';
+      };
     }
   }
 
-  // Обновляем дроплист для широких форматов
-  if (dom.previewSizeSelectWide) {
+  // Обновляем кастомный дропдаун для широких форматов
+  const wideBtn = document.getElementById('previewSizeSelectWideBtn');
+  const wideText = document.getElementById('previewSizeSelectWideText');
+  const wideDropdown = document.getElementById('previewSizeSelectWideDropdown');
+  
+  if (wideBtn && wideText && wideDropdown) {
+    wideDropdown.innerHTML = '';
+    
     if (!categorized.wide.length) {
-      dom.previewSizeSelectWide.innerHTML = '<option value="-1">Нет широких форматов</option>';
+      wideText.textContent = 'Нет широких форматов';
+      const emptyOption = document.createElement('div');
+      emptyOption.className = 'custom-select-option';
+      emptyOption.textContent = 'Нет широких форматов';
+      emptyOption.style.opacity = '0.5';
+      emptyOption.style.cursor = 'not-allowed';
+      wideDropdown.appendChild(emptyOption);
     } else {
-      // Ищем 1600x1200 в широких форматах
       const defaultIndex = categorized.wide.findIndex(size => size.width === 1600 && size.height === 1200);
       const selectedIndex = defaultIndex >= 0 ? defaultIndex : 0;
       
-      const options = categorized.wide
-        .map((size, index) => `<option value="${index}" ${index === selectedIndex ? 'selected' : ''}>${size.width} × ${size.height} (${size.platform})</option>`)
-        .join('');
-      dom.previewSizeSelectWide.innerHTML = options;
-      renderer.setCategoryIndex('wide', selectedIndex, false); // не вызывать render
+      categorized.wide.forEach((size, index) => {
+        const option = document.createElement('div');
+        option.className = 'custom-select-option';
+        if (index === selectedIndex) option.classList.add('selected');
+        option.dataset.value = index;
+        option.textContent = `${size.width} × ${size.height} (${size.platform})`;
+        option.onclick = () => {
+          wideText.textContent = option.textContent;
+          wideDropdown.style.display = 'none';
+          closeAllPreviewDropdowns();
+          changePreviewSizeCategory('wide', index.toString());
+        };
+        wideDropdown.appendChild(option);
+      });
+      
+      wideText.textContent = `${categorized.wide[selectedIndex].width} × ${categorized.wide[selectedIndex].height} (${categorized.wide[selectedIndex].platform})`;
+      renderer.setCategoryIndex('wide', selectedIndex, false);
       needsRender = true;
+    }
+    
+    if (!wideBtn.onclick) {
+      wideBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllPreviewDropdowns();
+        wideDropdown.style.display = wideDropdown.style.display === 'none' ? 'block' : 'none';
+      };
     }
   }
 
-  // Обновляем дроплист для квадратных форматов
-  if (dom.previewSizeSelectSquare) {
+  // Обновляем кастомный дропдаун для квадратных форматов
+  const squareBtn = document.getElementById('previewSizeSelectSquareBtn');
+  const squareText = document.getElementById('previewSizeSelectSquareText');
+  const squareDropdown = document.getElementById('previewSizeSelectSquareDropdown');
+  
+  if (squareBtn && squareText && squareDropdown) {
+    squareDropdown.innerHTML = '';
+    
     if (!categorized.square.length) {
-      dom.previewSizeSelectSquare.innerHTML = '<option value="-1">Нет квадратных форматов</option>';
+      squareText.textContent = 'Нет квадратных форматов';
+      const emptyOption = document.createElement('div');
+      emptyOption.className = 'custom-select-option';
+      emptyOption.textContent = 'Нет квадратных форматов';
+      emptyOption.style.opacity = '0.5';
+      emptyOption.style.cursor = 'not-allowed';
+      squareDropdown.appendChild(emptyOption);
     } else {
-      const options = categorized.square
-        .map((size, index) => `<option value="${index}">${size.width} × ${size.height} (${size.platform})</option>`)
-        .join('');
-      dom.previewSizeSelectSquare.innerHTML = options;
-      // Выбираем первый по умолчанию
-      dom.previewSizeSelectSquare.value = '0';
-      renderer.setCategoryIndex('square', 0, false); // не вызывать render
-      needsRender = true;
+      categorized.square.forEach((size, index) => {
+        const option = document.createElement('div');
+        option.className = 'custom-select-option';
+        option.dataset.value = index;
+        option.textContent = `${size.width} × ${size.height} (${size.platform})`;
+        option.onclick = () => {
+          squareText.textContent = option.textContent;
+          squareDropdown.style.display = 'none';
+          closeAllPreviewDropdowns();
+          changePreviewSizeCategory('square', index.toString());
+        };
+        squareDropdown.appendChild(option);
+      });
+      
+      if (categorized.square.length > 0) {
+        squareText.textContent = `${categorized.square[0].width} × ${categorized.square[0].height} (${categorized.square[0].platform})`;
+        renderer.setCategoryIndex('square', 0, false);
+        needsRender = true;
+      }
+    }
+    
+    if (!squareBtn.onclick) {
+      squareBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllPreviewDropdowns();
+        squareDropdown.style.display = squareDropdown.style.display === 'none' ? 'block' : 'none';
+      };
     }
   }
 
@@ -321,8 +562,33 @@ export const updatePreviewSizeSelect = () => {
   if (needsRender) {
     renderer.render();
   }
+};
 
-  // Обратная совместимость со старым дроплистом
+// Функция для закрытия всех дропдаунов превью
+const closeAllPreviewDropdowns = () => {
+  const dropdowns = [
+    document.getElementById('previewSizeSelectNarrowDropdown'),
+    document.getElementById('previewSizeSelectWideDropdown'),
+    document.getElementById('previewSizeSelectSquareDropdown')
+  ];
+  dropdowns.forEach(dropdown => {
+    if (dropdown) dropdown.style.display = 'none';
+  });
+};
+
+// Закрываем дропдауны при клике вне их
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.custom-select-wrapper')) {
+      closeAllPreviewDropdowns();
+      closeAllFontDropdowns();
+    }
+  });
+}
+
+// Обратная совместимость со старым дроплистом
+export const updatePreviewSizeSelectOld = () => {
+  const dom = getDom();
   if (dom.previewSizeSelect) {
     const sortedSizes = renderer.getSortedSizes();
     if (!sortedSizes.length) {
@@ -510,6 +776,7 @@ export const refreshMediaPreviews = () => {
 
 export const updateSizesSummary = () => {
   const dom = getDom();
+  if (!dom.sizesSummary) return;
   const sizes = getCheckedSizes();
   dom.sizesSummary.textContent = `Выбрано: ${sizes.length} размеров`;
 };
@@ -547,17 +814,25 @@ export const renderPresetSizes = () => {
     `;
   });
 
-  // Добавляем кастомные размеры
-  if (state.customSizes && state.customSizes.length > 0) {
-    html += `
-      <div class="platform-group">
-        <div class="platform-header" data-platform="Custom">
-          <span>Кастомные</span>
-          <span class="platform-arrow collapsed" id="arrow-Custom">▶</span>
-        </div>
-        <div class="platform-sizes collapsed" id="sizes-Custom">
-    `;
+  dom.presetSizesList.innerHTML = html;
+  updateSizesSummary();
+  
+  // Рендерим пользовательские размеры в отдельном контейнере
+  renderCustomSizes();
+};
 
+export const renderCustomSizes = () => {
+  const state = getState();
+  const customSizesSection = document.getElementById('customSizesSection');
+  const customSizesList = document.getElementById('customSizesList');
+  
+  if (!customSizesSection || !customSizesList) return;
+  
+  // Показываем секцию только если есть пользовательские размеры
+  if (state.customSizes && state.customSizes.length > 0) {
+    customSizesSection.style.display = 'block';
+    let html = '';
+    
     state.customSizes.forEach((size) => {
       const id = `custom-size-${size.id}`;
       html += `
@@ -566,19 +841,17 @@ export const renderPresetSizes = () => {
             size.checked ? 'checked' : ''
           }>
           <label for="${id}" style="flex: 1;">${size.width} × ${size.height}</label>
-          <button onclick="removeCustomSizeAction('${size.id}')" class="btn-small" style="background: transparent; border: none; color: #ff6b6b; cursor: pointer; font-size: 16px; line-height: 1; opacity: 0.7; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" title="Удалить">×</button>
+          <button onclick="removeCustomSizeAction('${size.id}')" class="btn-small btn-danger" style="border: none; cursor: pointer; font-size: 16px; line-height: 1; opacity: 0.7; transition: opacity 0.2s; padding: 4px 8px;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" title="Удалить">×</button>
         </div>
       `;
     });
-
-    html += `
-        </div>
-      </div>
-    `;
+    
+    customSizesList.innerHTML = html;
+    updateSizesSummary();
+  } else {
+    customSizesSection.style.display = 'none';
+    customSizesList.innerHTML = '';
   }
-
-  dom.presetSizesList.innerHTML = html;
-  updateSizesSummary();
 };
 
 const readFileAsDataURL = (file) =>
@@ -992,9 +1265,25 @@ export const selectTitleFontFamily = (fontFamily) => {
     updateCustomFontInfo('title', null);
   }
   
+  // Обновляем текст в кастомной кнопке
+  const titleFontFamilyText = document.getElementById('titleFontFamilyText');
+  if (titleFontFamilyText) {
+    titleFontFamilyText.textContent = fontFamily === 'system-ui' ? 'System Default' : fontFamily;
+  }
+  
   // Обновляем селект начертаний для выбранной гарнитуры
   const dom = getDom();
-  if (dom.titleWeight) {
+  const titleWeightText = document.getElementById('titleWeightText');
+  const titleWeightDropdown = document.getElementById('titleWeightDropdown');
+  
+  if (titleWeightText && titleWeightDropdown) {
+    const currentWeight = typeof state.titleWeight === 'number' 
+      ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
+      : (state.titleWeight || 'Regular');
+    updateCustomWeightDropdown(titleWeightDropdown, titleWeightText, fontFamily, currentWeight, (value) => {
+      updateState('titleWeight', value);
+    });
+  } else if (dom.titleWeight) {
     updateWeightDropdown(dom.titleWeight, fontFamily, state.titleWeight);
     // Обновляем состояние, если текущее начертание недоступно
     const availableWeights = getAvailableWeightsForFamily(fontFamily);
@@ -1027,9 +1316,25 @@ export const selectSubtitleFontFamily = (fontFamily) => {
     updateCustomFontInfo('subtitle', null);
   }
   
+  // Обновляем текст в кастомной кнопке
+  const subtitleFontFamilyText = document.getElementById('subtitleFontFamilyText');
+  if (subtitleFontFamilyText) {
+    subtitleFontFamilyText.textContent = fontFamily === 'system-ui' ? 'System Default' : fontFamily;
+  }
+  
   // Обновляем селект начертаний для выбранной гарнитуры
   const dom = getDom();
-  if (dom.subtitleWeight) {
+  const subtitleWeightText = document.getElementById('subtitleWeightText');
+  const subtitleWeightDropdown = document.getElementById('subtitleWeightDropdown');
+  
+  if (subtitleWeightText && subtitleWeightDropdown) {
+    const currentWeight = typeof state.subtitleWeight === 'number' 
+      ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
+      : (state.subtitleWeight || 'Regular');
+    updateCustomWeightDropdown(subtitleWeightDropdown, subtitleWeightText, fontFamily, currentWeight, (value) => {
+      updateState('subtitleWeight', value);
+    });
+  } else if (dom.subtitleWeight) {
     updateWeightDropdown(dom.subtitleWeight, fontFamily, state.subtitleWeight);
     // Обновляем состояние, если текущее начертание недоступно
     const availableWeights = getAvailableWeightsForFamily(fontFamily);
@@ -1062,9 +1367,25 @@ export const selectLegalFontFamily = (fontFamily) => {
     updateCustomFontInfo('legal', null);
   }
   
+  // Обновляем текст в кастомной кнопке
+  const legalFontFamilyText = document.getElementById('legalFontFamilyText');
+  if (legalFontFamilyText) {
+    legalFontFamilyText.textContent = fontFamily === 'system-ui' ? 'System Default' : fontFamily;
+  }
+  
   // Обновляем селект начертаний для выбранной гарнитуры
   const dom = getDom();
-  if (dom.legalWeight) {
+  const legalWeightText = document.getElementById('legalWeightText');
+  const legalWeightDropdown = document.getElementById('legalWeightDropdown');
+  
+  if (legalWeightText && legalWeightDropdown) {
+    const currentWeight = typeof state.legalWeight === 'number' 
+      ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
+      : (state.legalWeight || 'Regular');
+    updateCustomWeightDropdown(legalWeightDropdown, legalWeightText, fontFamily, currentWeight, (value) => {
+      updateState('legalWeight', value);
+    });
+  } else if (dom.legalWeight) {
     updateWeightDropdown(dom.legalWeight, fontFamily, state.legalWeight);
     // Обновляем состояние, если текущее начертание недоступно
     const availableWeights = getAvailableWeightsForFamily(fontFamily);
@@ -1097,17 +1418,15 @@ export const selectAgeFontFamily = (fontFamily) => {
     updateCustomFontInfo('age', null);
   }
   
+  // Обновляем текст в кастомной кнопке
+  const ageFontFamilyText = document.getElementById('ageFontFamilyText');
+  if (ageFontFamilyText) {
+    ageFontFamilyText.textContent = fontFamily === 'system-ui' ? 'System Default' : fontFamily;
+  }
+  
   // Обновляем селект начертаний для выбранной гарнитуры (если есть)
   const dom = getDom();
-  if (dom.ageWeight) {
-    updateWeightDropdown(dom.ageWeight, fontFamily, state.ageWeight);
-    // Обновляем состояние, если текущее начертание недоступно
-    const availableWeights = getAvailableWeightsForFamily(fontFamily);
-    if (!availableWeights.includes(state.ageWeight)) {
-      const newWeight = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
-      setState({ ageWeight: newWeight });
-    }
-  }
+  // Для age нет weight дропдауна, только для title, subtitle, legal
   
   clearTextMeasurementCache();
   renderer.render();
@@ -1401,7 +1720,7 @@ export const updatePadding = (value) => {
   const numeric = parseInt(value, 10);
   setKey('paddingPercent', numeric);
   const dom = getDom();
-  dom.paddingValue.textContent = `${numeric}%`;
+  if (dom.paddingValue) dom.paddingValue.textContent = `${numeric}%`;
   renderer.render();
 };
 
@@ -1409,7 +1728,7 @@ export const updateLogoSize = (value) => {
   const numeric = parseInt(value, 10);
   setKey('logoSize', numeric);
   const dom = getDom();
-  dom.logoSizeValue.textContent = `${numeric}%`;
+  if (dom.logoSizeValue) dom.logoSizeValue.textContent = `${numeric}%`;
   renderer.render();
 };
 
@@ -1436,9 +1755,10 @@ export const updateSubtitleSize = (value) => {
 export const updateLegalSize = (value) => {
   const numeric = parseFloat(value);
   setKey('legalSize', numeric);
+  clearTextMeasurementCache();
   const dom = getDom();
   if (dom.legalSizeValue) {
-    dom.legalSizeValue.textContent = `${numeric}%`;
+    dom.legalSizeValue.textContent = `${numeric.toFixed(1)}%`;
   }
   renderer.render();
 };
@@ -1467,7 +1787,7 @@ export const updateLegalOpacity = (value) => {
   const numeric = parseInt(value, 10);
   setKey('legalOpacity', numeric);
   const dom = getDom();
-  dom.legalOpacityValue.textContent = `${numeric}%`;
+  if (dom.legalOpacityValue) dom.legalOpacityValue.textContent = `${numeric}%`;
   renderer.render();
 };
 
@@ -1732,7 +2052,7 @@ export const toggleCustomSizeAction = (id) => {
 
 export const removeCustomSizeAction = (id) => {
   removeCustomSize(id);
-  renderPresetSizes();
+  renderCustomSizes();
   updatePreviewSizeSelect();
   updateSizesSummary();
   renderer.render();
@@ -1744,10 +2064,37 @@ export const addCustomSizeAction = (width, height) => {
     return;
   }
   addCustomSize(width, height);
-  renderPresetSizes();
+  renderCustomSizes();
   updatePreviewSizeSelect();
   updateSizesSummary();
   renderer.render();
+};
+
+export const updateAddSizeButtonState = () => {
+  const widthInput = document.getElementById('customWidth');
+  const heightInput = document.getElementById('customHeight');
+  const addButton = document.getElementById('addSizeButton');
+  
+  if (!widthInput || !heightInput || !addButton) return;
+  
+  const widthValue = widthInput.value.trim();
+  const heightValue = heightInput.value.trim();
+  
+  // Проверяем, что оба поля заполнены
+  if (!widthValue || !heightValue) {
+    addButton.disabled = true;
+    return;
+  }
+  
+  const width = parseInt(widthValue, 10);
+  const height = parseInt(heightValue, 10);
+  
+  // Активируем кнопку только если оба значения корректны и больше 0
+  if (!isNaN(width) && !isNaN(height) && width > 0 && height > 0) {
+    addButton.disabled = false;
+  } else {
+    addButton.disabled = true;
+  }
 };
 
 export const addCustomSizeFromInput = () => {
@@ -1769,6 +2116,9 @@ export const addCustomSizeFromInput = () => {
   // Очищаем поля ввода
   widthInput.value = '';
   heightInput.value = '';
+  
+  // Деактивируем кнопку после добавления
+  updateAddSizeButtonState();
 };
 
 export const handlePresetContainerClick = (event) => {
@@ -1975,7 +2325,6 @@ const renderLogoColumn2 = (allLogos) => {
         renderLogoColumn4(filteredImages);
       }
       
-      console.log('renderLogoColumn2 - folder2Data:', folder2Data, 'isArray:', Array.isArray(folder2Data));
     });
     
     column2.appendChild(item);
@@ -2323,10 +2672,6 @@ const populateLogoColumns = async (forceRefresh = false) => {
   cachedLogosStructure = logoStructure;
   logosScanning = false;
   
-  // Отладочная информация
-  console.log('Final logo structure:', logoStructure);
-  console.log('Final structure keys:', Object.keys(logoStructure));
-  
   // Сбрасываем выбранные папки перед рендерингом
   selectedLogoFolder1 = null;
   selectedLogoFolder2 = null;
@@ -2627,6 +2972,81 @@ const updateFontDropdown = (selectElement, currentValue) => {
   }
 };
 
+// Функция для обновления кастомного дропдауна шрифтов
+const updateCustomFontDropdown = (dropdownElement, textElement, currentValue, selectCallback) => {
+  if (!dropdownElement || !textElement) return;
+  
+  dropdownElement.innerHTML = '';
+  
+  // Группируем шрифты по семействам
+  const fontFamilies = new Set();
+  AVAILABLE_FONTS.forEach((font) => {
+    if (font.family && font.family !== 'system-ui') {
+      fontFamilies.add(font.family);
+    }
+  });
+  
+  // Добавляем опцию "System Default" первой
+  const systemOption = document.createElement('div');
+  systemOption.className = 'custom-select-option';
+  if (currentValue === 'system-ui') {
+    systemOption.classList.add('selected');
+    textElement.textContent = 'System Default';
+  }
+  systemOption.dataset.value = 'system-ui';
+  systemOption.textContent = 'System Default';
+  systemOption.onclick = () => {
+    textElement.textContent = 'System Default';
+    dropdownElement.style.display = 'none';
+    closeAllFontDropdowns();
+    if (selectCallback) selectCallback('system-ui');
+  };
+  dropdownElement.appendChild(systemOption);
+  
+  // Добавляем опции для каждого семейства
+  const sortedFamilies = Array.from(fontFamilies).sort();
+  sortedFamilies.forEach((family) => {
+    const option = document.createElement('div');
+    option.className = 'custom-select-option';
+    if (currentValue === family) {
+      option.classList.add('selected');
+      textElement.textContent = family;
+    }
+    option.dataset.value = family;
+    option.textContent = family;
+    option.onclick = () => {
+      textElement.textContent = family;
+      dropdownElement.style.display = 'none';
+      closeAllFontDropdowns();
+      if (selectCallback) selectCallback(family);
+    };
+    dropdownElement.appendChild(option);
+  });
+  
+  // Если текущее значение не установлено, используем первое доступное
+  if (!currentValue || (!sortedFamilies.includes(currentValue) && currentValue !== 'system-ui')) {
+    const defaultFont = sortedFamilies.includes('YS Text') ? 'YS Text' : sortedFamilies[0];
+    textElement.textContent = defaultFont;
+    dropdownElement.querySelector(`[data-value="${defaultFont}"]`)?.classList.add('selected');
+  }
+};
+
+// Функция для закрытия всех дропдаунов шрифтов
+const closeAllFontDropdowns = () => {
+  const dropdowns = [
+    document.getElementById('titleFontFamilyDropdown'),
+    document.getElementById('titleWeightDropdown'),
+    document.getElementById('subtitleFontFamilyDropdown'),
+    document.getElementById('subtitleWeightDropdown'),
+    document.getElementById('legalFontFamilyDropdown'),
+    document.getElementById('legalWeightDropdown'),
+    document.getElementById('ageFontFamilyDropdown')
+  ];
+  dropdowns.forEach(dropdown => {
+    if (dropdown) dropdown.style.display = 'none';
+  });
+};
+
 export const initializeFontDropdown = () => {
   const dom = getDom();
   if (!dom.fontFamily) return;
@@ -2639,11 +3059,204 @@ export const initializeFontDropdowns = () => {
   const dom = getDom();
   const state = getState();
   
-  // Обновляем dropdown для заголовка
+  // Обновляем кастомный dropdown для заголовка
+  const titleFontFamilyBtn = document.getElementById('titleFontFamilyBtn');
+  const titleFontFamilyText = document.getElementById('titleFontFamilyText');
+  const titleFontFamilyDropdown = document.getElementById('titleFontFamilyDropdown');
+  const titleWeightBtn = document.getElementById('titleWeightBtn');
+  const titleWeightText = document.getElementById('titleWeightText');
+  const titleWeightDropdown = document.getElementById('titleWeightDropdown');
+  
+  if (titleFontFamilyBtn && titleFontFamilyText && titleFontFamilyDropdown) {
+    const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
+    updateCustomFontDropdown(titleFontFamilyDropdown, titleFontFamilyText, titleFontFamily, (value) => {
+      selectTitleFontFamily(value);
+    });
+    
+    if (!titleFontFamilyBtn.onclick) {
+      titleFontFamilyBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllFontDropdowns();
+        titleFontFamilyDropdown.style.display = titleFontFamilyDropdown.style.display === 'none' ? 'block' : 'none';
+      };
+    }
+  }
+  
+  if (titleWeightBtn && titleWeightText && titleWeightDropdown) {
+    const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
+    const titleWeight = typeof state.titleWeight === 'number' 
+      ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
+      : (state.titleWeight || 'Regular');
+    
+    // Обновляем опции дропдауна
+    updateCustomWeightDropdown(titleWeightDropdown, titleWeightText, titleFontFamily, titleWeight, (value) => {
+      updateState('titleWeight', value);
+    });
+    
+    // Добавляем обработчики для всех опций в дропдауне (включая статические из HTML)
+    const updateTitleWeightOptions = () => {
+      titleWeightDropdown.querySelectorAll('.custom-select-option').forEach(option => {
+        option.onclick = () => {
+          titleWeightText.textContent = option.textContent;
+          titleWeightDropdown.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
+          option.classList.add('selected');
+          titleWeightDropdown.style.display = 'none';
+          closeAllFontDropdowns();
+          updateState('titleWeight', option.dataset.value);
+        };
+      });
+    };
+    updateTitleWeightOptions();
+    
+    if (!titleWeightBtn.onclick) {
+      titleWeightBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllFontDropdowns();
+        titleWeightDropdown.style.display = titleWeightDropdown.style.display === 'none' ? 'block' : 'none';
+      };
+    }
+  }
+  
+  // Обновляем кастомный dropdown для подзаголовка
+  const subtitleFontFamilyBtn = document.getElementById('subtitleFontFamilyBtn');
+  const subtitleFontFamilyText = document.getElementById('subtitleFontFamilyText');
+  const subtitleFontFamilyDropdown = document.getElementById('subtitleFontFamilyDropdown');
+  const subtitleWeightBtn = document.getElementById('subtitleWeightBtn');
+  const subtitleWeightText = document.getElementById('subtitleWeightText');
+  const subtitleWeightDropdown = document.getElementById('subtitleWeightDropdown');
+  
+  if (subtitleFontFamilyBtn && subtitleFontFamilyText && subtitleFontFamilyDropdown) {
+    const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
+    updateCustomFontDropdown(subtitleFontFamilyDropdown, subtitleFontFamilyText, subtitleFontFamily, (value) => {
+      selectSubtitleFontFamily(value);
+    });
+    
+    if (!subtitleFontFamilyBtn.onclick) {
+      subtitleFontFamilyBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllFontDropdowns();
+        subtitleFontFamilyDropdown.style.display = subtitleFontFamilyDropdown.style.display === 'none' ? 'block' : 'none';
+      };
+    }
+  }
+  
+  if (subtitleWeightBtn && subtitleWeightText && subtitleWeightDropdown) {
+    const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
+    const subtitleWeight = typeof state.subtitleWeight === 'number' 
+      ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
+      : (state.subtitleWeight || 'Regular');
+    
+    // Обновляем опции дропдауна
+    updateCustomWeightDropdown(subtitleWeightDropdown, subtitleWeightText, subtitleFontFamily, subtitleWeight, (value) => {
+      updateState('subtitleWeight', value);
+    });
+    
+    // Добавляем обработчики для всех опций в дропдауне (включая статические из HTML)
+    const updateSubtitleWeightOptions = () => {
+      subtitleWeightDropdown.querySelectorAll('.custom-select-option').forEach(option => {
+        option.onclick = () => {
+          subtitleWeightText.textContent = option.textContent;
+          subtitleWeightDropdown.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
+          option.classList.add('selected');
+          subtitleWeightDropdown.style.display = 'none';
+          closeAllFontDropdowns();
+          updateState('subtitleWeight', option.dataset.value);
+        };
+      });
+    };
+    updateSubtitleWeightOptions();
+    
+    if (!subtitleWeightBtn.onclick) {
+      subtitleWeightBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllFontDropdowns();
+        subtitleWeightDropdown.style.display = subtitleWeightDropdown.style.display === 'none' ? 'block' : 'none';
+      };
+    }
+  }
+  
+  // Обновляем кастомный dropdown для юридического текста
+  const legalFontFamilyBtn = document.getElementById('legalFontFamilyBtn');
+  const legalFontFamilyText = document.getElementById('legalFontFamilyText');
+  const legalFontFamilyDropdown = document.getElementById('legalFontFamilyDropdown');
+  const legalWeightBtn = document.getElementById('legalWeightBtn');
+  const legalWeightText = document.getElementById('legalWeightText');
+  const legalWeightDropdown = document.getElementById('legalWeightDropdown');
+  
+  if (legalFontFamilyBtn && legalFontFamilyText && legalFontFamilyDropdown) {
+    const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
+    updateCustomFontDropdown(legalFontFamilyDropdown, legalFontFamilyText, legalFontFamily, (value) => {
+      selectLegalFontFamily(value);
+    });
+    
+    if (!legalFontFamilyBtn.onclick) {
+      legalFontFamilyBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllFontDropdowns();
+        legalFontFamilyDropdown.style.display = legalFontFamilyDropdown.style.display === 'none' ? 'block' : 'none';
+      };
+    }
+  }
+  
+  if (legalWeightBtn && legalWeightText && legalWeightDropdown) {
+    const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
+    const legalWeight = typeof state.legalWeight === 'number' 
+      ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
+      : (state.legalWeight || 'Regular');
+    
+    // Обновляем опции дропдауна
+    updateCustomWeightDropdown(legalWeightDropdown, legalWeightText, legalFontFamily, legalWeight, (value) => {
+      updateState('legalWeight', value);
+    });
+    
+    // Добавляем обработчики для всех опций в дропдауне (включая статические из HTML)
+    const updateLegalWeightOptions = () => {
+      legalWeightDropdown.querySelectorAll('.custom-select-option').forEach(option => {
+        option.onclick = () => {
+          legalWeightText.textContent = option.textContent;
+          legalWeightDropdown.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
+          option.classList.add('selected');
+          legalWeightDropdown.style.display = 'none';
+          closeAllFontDropdowns();
+          updateState('legalWeight', option.dataset.value);
+        };
+      });
+    };
+    updateLegalWeightOptions();
+    
+    if (!legalWeightBtn.onclick) {
+      legalWeightBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllFontDropdowns();
+        legalWeightDropdown.style.display = legalWeightDropdown.style.display === 'none' ? 'block' : 'none';
+      };
+    }
+  }
+  
+  // Обновляем кастомный dropdown для возраста
+  const ageFontFamilyBtn = document.getElementById('ageFontFamilyBtn');
+  const ageFontFamilyText = document.getElementById('ageFontFamilyText');
+  const ageFontFamilyDropdown = document.getElementById('ageFontFamilyDropdown');
+  
+  if (ageFontFamilyBtn && ageFontFamilyText && ageFontFamilyDropdown) {
+    const ageFontFamily = state.ageFontFamily || state.fontFamily || 'YS Text';
+    updateCustomFontDropdown(ageFontFamilyDropdown, ageFontFamilyText, ageFontFamily, (value) => {
+      selectAgeFontFamily(value);
+    });
+    
+    if (!ageFontFamilyBtn.onclick) {
+      ageFontFamilyBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeAllFontDropdowns();
+        ageFontFamilyDropdown.style.display = ageFontFamilyDropdown.style.display === 'none' ? 'block' : 'none';
+      };
+    }
+  }
+  
+  // Обратная совместимость со старыми select элементами
   if (dom.titleFontFamily) {
     const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
     updateFontDropdown(dom.titleFontFamily, titleFontFamily);
-    // Инициализируем селект начертаний
     if (dom.titleWeight) {
       const titleWeight = typeof state.titleWeight === 'number' 
         ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
@@ -2652,11 +3265,9 @@ export const initializeFontDropdowns = () => {
     }
   }
   
-  // Обновляем dropdown для подзаголовка
   if (dom.subtitleFontFamily) {
     const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
     updateFontDropdown(dom.subtitleFontFamily, subtitleFontFamily);
-    // Инициализируем селект начертаний
     if (dom.subtitleWeight) {
       const subtitleWeight = typeof state.subtitleWeight === 'number' 
         ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
@@ -2665,11 +3276,9 @@ export const initializeFontDropdowns = () => {
     }
   }
   
-  // Обновляем dropdown для юридического текста
   if (dom.legalFontFamily) {
     const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
     updateFontDropdown(dom.legalFontFamily, legalFontFamily);
-    // Инициализируем селект начертаний
     if (dom.legalWeight) {
       const legalWeight = typeof state.legalWeight === 'number' 
         ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
@@ -2678,11 +3287,9 @@ export const initializeFontDropdowns = () => {
     }
   }
   
-  // Обновляем dropdown для возраста
   if (dom.ageFontFamily) {
     const ageFontFamily = state.ageFontFamily || state.fontFamily || 'YS Text';
     updateFontDropdown(dom.ageFontFamily, ageFontFamily);
-    // Инициализируем селект начертаний (если есть)
     if (dom.ageWeight) {
       const ageWeight = typeof state.ageWeight === 'number' 
         ? FONT_WEIGHT_TO_NAME[state.ageWeight.toString()] || 'Regular' 
@@ -3114,6 +3721,207 @@ export const updateActivePairSubtitle = (subtitle) => {
   renderer.render();
 };
 
+// Функции для преобразования текста в верхний/нижний регистр
+export const selectTitleTransform = (transformType) => {
+  // Сохраняем выбор в состояние (текст в textarea не меняем)
+  setKey('titleTransform', transformType);
+  updateTitleTransformToggle(transformType);
+  renderer.render();
+};
+
+export const selectSubtitleTransform = (transformType) => {
+  // Сохраняем выбор в состояние (текст в textarea не меняем)
+  setKey('subtitleTransform', transformType);
+  updateSubtitleTransformToggle(transformType);
+  renderer.render();
+};
+
+export const selectLegalTransform = (transformType) => {
+  // Сохраняем выбор в состояние (текст в textarea не меняем)
+  setKey('legalTransform', transformType);
+  updateLegalTransformToggle(transformType);
+  renderer.render();
+};
+
+// Функция для обновления отдельного toggle-switch
+const updateSingleTitleTransformToggle = (toggle, transformType) => {
+  if (!toggle) return;
+  
+  toggle.setAttribute('data-value', transformType);
+  
+  const options = toggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    if (option.dataset.value === transformType) {
+      option.classList.add('active');
+    } else {
+      option.classList.remove('active');
+    }
+  });
+  
+  // Обновляем позицию слайдера
+  const slider = toggle.querySelector('.toggle-switch-slider');
+  if (slider && toggle.getAttribute('data-options') === '3') {
+    const index = ['uppercase', 'lowercase', 'none'].indexOf(transformType);
+    if (index === 0) {
+      slider.style.transform = 'translateX(0)';
+    } else if (index === 1) {
+      slider.style.transform = 'translateX(calc(100% + 4px))';
+    } else if (index === 2) {
+      slider.style.transform = 'translateX(calc(200% + 8px))';
+    }
+  }
+};
+
+// Функции для обновления состояния toggle-switch
+export const updateTitleTransformToggle = (transformType) => {
+  const toggle = document.getElementById('titleTransformToggle');
+  const toggleMain = document.getElementById('titleTransformToggleMain');
+  updateSingleTitleTransformToggle(toggle, transformType);
+  updateSingleTitleTransformToggle(toggleMain, transformType);
+};
+
+// Функция для обновления отдельного toggle-switch подзаголовка
+const updateSingleSubtitleTransformToggle = (toggle, transformType) => {
+  if (!toggle) return;
+  
+  toggle.setAttribute('data-value', transformType);
+  
+  const options = toggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    if (option.dataset.value === transformType) {
+      option.classList.add('active');
+    } else {
+      option.classList.remove('active');
+    }
+  });
+  
+  // Обновляем позицию слайдера
+  const slider = toggle.querySelector('.toggle-switch-slider');
+  if (slider && toggle.getAttribute('data-options') === '3') {
+    const index = ['uppercase', 'lowercase', 'none'].indexOf(transformType);
+    if (index === 0) {
+      slider.style.transform = 'translateX(0)';
+    } else if (index === 1) {
+      slider.style.transform = 'translateX(calc(100% + 4px))';
+    } else if (index === 2) {
+      slider.style.transform = 'translateX(calc(200% + 8px))';
+    }
+  }
+};
+
+export const updateSubtitleTransformToggle = (transformType) => {
+  const toggle = document.getElementById('subtitleTransformToggle');
+  const toggleMain = document.getElementById('subtitleTransformToggleMain');
+  updateSingleSubtitleTransformToggle(toggle, transformType);
+  updateSingleSubtitleTransformToggle(toggleMain, transformType);
+};
+
+export const updateLegalTransformToggle = (transformType) => {
+  const toggle = document.getElementById('legalTransformToggle');
+  if (!toggle) return;
+  
+  toggle.setAttribute('data-value', transformType);
+  
+  const options = toggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    if (option.dataset.value === transformType) {
+      option.classList.add('active');
+    } else {
+      option.classList.remove('active');
+    }
+  });
+  
+  // Обновляем позицию слайдера
+  const slider = toggle.querySelector('.toggle-switch-slider');
+  if (slider && toggle.getAttribute('data-options') === '3') {
+    const index = ['uppercase', 'lowercase', 'none'].indexOf(transformType);
+    if (index === 0) {
+      slider.style.transform = 'translateX(0)';
+    } else if (index === 1) {
+      slider.style.transform = 'translateX(calc(100% + 4px))';
+    } else if (index === 2) {
+      slider.style.transform = 'translateX(calc(200% + 8px))';
+    }
+  }
+};
+
+// Инициализация toggle-switch для преобразования текста
+const initializeSingleTitleTransformToggle = (toggleId) => {
+  const toggle = document.getElementById(toggleId);
+  if (!toggle) return;
+  
+  // Добавляем обработчики клика на опции
+  const options = toggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const value = option.dataset.value;
+      selectTitleTransform(value);
+    });
+  });
+};
+
+export const initializeTitleTransformToggle = () => {
+  initializeSingleTitleTransformToggle('titleTransformToggle');
+  initializeSingleTitleTransformToggle('titleTransformToggleMain');
+  
+  // Инициализируем состояние
+  const state = getState();
+  const transformType = state.titleTransform || 'none';
+  updateTitleTransformToggle(transformType);
+};
+
+// Инициализация toggle-switch для преобразования текста подзаголовка
+const initializeSingleSubtitleTransformToggle = (toggleId) => {
+  const toggle = document.getElementById(toggleId);
+  if (!toggle) return;
+  
+  // Добавляем обработчики клика на опции
+  const options = toggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const value = option.dataset.value;
+      selectSubtitleTransform(value);
+    });
+  });
+};
+
+export const initializeSubtitleTransformToggle = () => {
+  initializeSingleSubtitleTransformToggle('subtitleTransformToggle');
+  initializeSingleSubtitleTransformToggle('subtitleTransformToggleMain');
+  
+  // Инициализируем состояние
+  const state = getState();
+  const transformType = state.subtitleTransform || 'none';
+  updateSubtitleTransformToggle(transformType);
+};
+
+export const initializeLegalTransformToggle = () => {
+  const toggle = document.getElementById('legalTransformToggle');
+  if (!toggle) return;
+  
+  // Добавляем обработчики клика на опции
+  const options = toggle.querySelectorAll('.toggle-switch-option');
+  options.forEach(option => {
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const value = option.dataset.value;
+      selectLegalTransform(value);
+    });
+  });
+  
+  // Инициализируем состояние
+  const state = getState();
+  const transformType = state.legalTransform || 'none';
+  updateLegalTransformToggle(transformType);
+};
+
+// Обратная совместимость с старыми функциями
+export const transformTitleText = selectTitleTransform;
+export const transformSubtitleText = selectSubtitleTransform;
+export const transformLegalText = selectLegalTransform;
+
 export const updatePairTitleDirect = (index, title) => {
   // Обновляем состояние - структура пар не изменится, только текст
   // поэтому renderTitleSubtitlePairs не будет вызван
@@ -3423,15 +4231,11 @@ const renderKVPairs = () => {
     
     // Кнопка "Удалить" (всегда видна, но может быть неактивна)
     const removeBtn = document.createElement('button');
-    removeBtn.className = 'btn';
+    removeBtn.className = 'btn btn-danger';
     removeBtn.setAttribute('data-action', 'remove');
-    removeBtn.style.cssText = 'flex: 1; background: #2a1f1f; color: #ff6b6b; border-color: #ff6b6b;';
+    removeBtn.style.cssText = 'flex: 1;';
     removeBtn.textContent = 'Удалить';
     removeBtn.disabled = !pair.kvSelected;
-    if (!pair.kvSelected) {
-      removeBtn.style.opacity = '0.5';
-      removeBtn.style.cursor = 'not-allowed';
-    }
     removeBtn.onclick = async (e) => {
       e.stopPropagation();
       if (pair.kvSelected) {
@@ -3499,8 +4303,8 @@ const renderTitleSubtitlePairs = () => {
     
     if (pairs.length > 1) {
       const removeBtn = document.createElement('button');
-      removeBtn.className = 'btn btn-small';
-      removeBtn.style.cssText = 'background: #2a1f1f; color: #ff6b6b; border-color: #ff6b6b; min-width: 32px;';
+      removeBtn.className = 'btn btn-small btn-danger';
+      removeBtn.style.cssText = 'min-width: 32px;';
       removeBtn.textContent = '−';
       removeBtn.onclick = (e) => {
         e.stopPropagation();
@@ -3548,8 +4352,8 @@ const renderTitleSubtitlePairs = () => {
     
     if (pairs.length > 1) {
       const removeBtn = document.createElement('button');
-      removeBtn.className = 'btn btn-small';
-      removeBtn.style.cssText = 'background: #2a1f1f; color: #ff6b6b; border-color: #ff6b6b; min-width: 32px;';
+      removeBtn.className = 'btn btn-small btn-danger';
+      removeBtn.style.cssText = 'min-width: 32px;';
       removeBtn.textContent = '−';
       removeBtn.onclick = (e) => {
         e.stopPropagation();

@@ -8,1262 +8,28 @@
       <!-- Performance optimizations -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="dns-prefetch" href="https://fonts.googleapis.com">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0e0f12;
-      color: #e9ecf1;
-      overflow: hidden;
-      height: 100vh;
-    }
-
-
-    .app {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-
-
-    .header {
-      background: #15171c;
-      padding: 20px 32px;
-      border-bottom: 1px solid #242733;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-
-    .header h1 {
-      font-size: 20px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
-      color: #e9ecf1;
-    }
-
-
-    .header-actions {
-      display: flex;
-      gap: 12px;
-    }
-
-
-    .main {
-      display: flex;
-      flex-direction: row;
-      flex: 1;
-      overflow-x: auto;
-      overflow-y: hidden;
-    }
-
-
-    .tabs-panel {
-      background: #0e0f12;
-      width: 140px;
-      flex: 0 0 140px;
-      overflow-y: auto;
-      border-right: 1px solid #242733;
-      display: flex;
-      flex-direction: column;
-      padding: 0;
-    }
-    
-    .tab {
-      width: 100%;
-      padding: 12px 14px;
-      background: transparent;
-      color: #8a8f9c;
-      font-size: 13px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      transition: all 0.2s ease;
-      user-select: none;
-      -webkit-user-select: none;
-      border: none;
-      border-left: 3px solid transparent;
-      font-weight: 500;
-      letter-spacing: -0.1px;
-    }
-    
-    .tab:hover {
-      background: #1a1c21;
-      color: #e9ecf1;
-    }
-    
-    .tab.active {
-      background: #12141a;
-      color: #027EF2;
-      border-left-color: #027EF2;
-    }
-    
-    .tab.active:hover {
-      background: #12141a;
-      color: #027EF2;
-    }
-    
-    .tab-icon {
-      font-size: 16px;
-      flex-shrink: 0;
-    }
-
-    .panel {
-      background: #15171c;
-      width: 300px;
-      flex: 0 0 300px; /* fixed width sidebars */
-      overflow-y: auto;
-      padding: 24px;
-      border-right: 1px solid #242733;
-    }
-    
-    .panel-section {
-      display: none;
-      animation: fadeIn 0.2s ease;
-    }
-    
-    .panel-section.active {
-      display: block;
-    }
-    
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(4px);
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Инициализация темы до загрузки страницы (избегаем мерцания)
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      if (savedTheme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
       }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-
-    .panel:last-child {
-      border-right: none;
-      border-left: 1px solid #242733;
-      width: 300px;
-      flex: 0 0 300px;
-    }
-
-
-    .canvas-area {
-      flex: 1 1 0; /* grow and shrink, prefer shrinking before side panels */
-      min-width: 0; /* allow center to shrink so right panel stays visible */
-      padding: 32px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      background: #000000;
-    }
-
-    #previewCanvas {
-      border-radius: 4px;
-    }
-
-
-    .section {
-      margin-bottom: 24px;
-      border-radius: 10px;
-      overflow: hidden;
-      transition: all 0.2s ease;
-    }
-    
-    .section:hover {
-    }
-
-
-    .section-header {
-      background: #0e0f12;
-      padding: 8px 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-weight: 600;
-      font-size: 12px;
-      text-transform: uppercase;
-      color: #8a8f9c;
-      letter-spacing: 0.5px;
-      user-select: none;
-    }
-
-
-    .section-header:hover {
-      background: #12141a;
-    }
-
-
-    .section-arrow {
-      transition: transform 0.2s;
-      color: #8a8f9c;
-      font-size: 10px;
-    }
-
-
-    .section-arrow.collapsed {
-      transform: rotate(-90deg);
-    }
-    
-    .section-content.collapsed {
-      display: none !important;
-    }
-
-
-    .section-content {
-      padding: 20px;
-    }
-
-
-    .section-content.collapsed {
-      display: none;
-    }
-    
-    .section-content:not(.collapsed) {
-      display: block;
-    }
-
-
-    .section-title {
-      font-size: 13px;
-      font-weight: 600;
-      text-transform: uppercase;
-      color: #8a8f9c;
-      margin-bottom: 12px;
-      letter-spacing: 0.5px;
-    }
-
-
-    .form-group {
-      margin-bottom: 24px;
-    }
-    
-    .form-group:last-child {
-      margin-bottom: 0;
-    }
-
-    #titlePairEditor {
-      margin-bottom: 24px !important;
-    }
-
-    #titlePairEditor + .form-group {
-      margin-top: 24px;
-    }
-
-    #subtitlePairEditor {
-      margin-bottom: 24px !important;
-    }
-
-    #subtitlePairEditor + .form-group {
-      margin-top: 24px;
-    }
-
-    .form-group-section {
-      margin-top: 24px;
-      padding-top: 24px;
-    }
-
-
-    label {
-      display: block;
-      font-size: 13px;
-      color: #b4b8c4;
-      margin-bottom: 8px;
-      font-weight: 500;
-      letter-spacing: -0.1px;
-    }
-
-
-    input[type="text"],
-    input[type="number"],
-    textarea {
-      width: 100%;
-      background: #0e0f12;
-      border: none;
-      color: #e9ecf1;
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: inherit;
-      transition: all 0.2s ease;
-      outline: none;
-      position: relative;
-      z-index: 0;
-      line-height: 1.5;
-      resize: vertical;
-    }
-    
-    /* Только для заголовка, подзаголовка и лигала - фиксированная высота в 3 строки */
-    textarea#title,
-    textarea#subtitle,
-    textarea#legal,
-    textarea[id^="title-"],
-    textarea[id^="subtitle-"] {
-      min-height: calc(14px * 1.5 * 3 + 20px);
-      height: calc(14px * 1.5 * 3 + 20px);
-    }
-    
-    input[type="text"]:focus,
-    input[type="number"]:focus,
-    textarea:focus {
-      background: #12141a;
-      box-shadow: 0 0 0 3px rgba(2, 126, 242, 0.1);
-    }
-
-    select {
-      width: 100%;
-      background: #242733;
-      border: none;
-      color: #e9ecf1;
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      font-family: inherit;
-      transition: all 0.2s ease;
-      outline: none;
-      cursor: pointer;
-      letter-spacing: -0.1px;
-      appearance: none;
-      -webkit-appearance: none;
-      -moz-appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23e9ecf1' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 12px center;
-      padding-right: 36px;
-    }
-    
-    select:hover {
-      background-color: #2a2d3a;
-    }
-    
-    select:focus {
-      background-color: #2a2d3a;
-      box-shadow: 0 0 0 3px rgba(2, 126, 242, 0.1);
-    }
-
-
-    textarea {
-      resize: vertical;
-      min-height: 80px;
-      line-height: 1.5;
-    }
-
-
-    input[type="color"] {
-      width: 100%;
-      height: calc(14px * 1.5 + 20px);
-      background: #0e0f12;
-      border: none;
-      outline: none;
-      border-radius: 8px;
-      cursor: pointer;
-      padding: 0;
-      transition: all 0.2s ease;
-      position: relative;
-      z-index: 1;
-      flex-shrink: 0;
-    }
-    
-    input[type="color"]::-webkit-color-swatch-wrapper {
-      padding: 0;
-    }
-    
-    input[type="color"]::-webkit-color-swatch {
-      border: none;
-      border-radius: 8px;
-    }
-    
-    input[type="color"]::-moz-color-swatch {
-      border: none;
-      border-radius: 8px;
-    }
-    
-    input[type="color"]:hover {
-      transform: scale(1.02);
-      z-index: 2;
-    }
-
-
-    input[type="file"] {
-      width: 100%;
-      padding: 8px;
-      background: #0e0f12;
-      border: none;
-      border-radius: 6px;
-      color: #8a8f9c;
-      font-size: 13px;
-      cursor: pointer;
-    }
-
-
-    input[type="file"]::file-selector-button {
-      background: #242733;
-      border: none;
-      color: #e9ecf1;
-      padding: 10px 16px;
-      border-radius: 8px;
-      cursor: pointer;
-      margin-right: 8px;
-      font-size: 13px;
-      font-weight: 500;
-    }
-
-
-    input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      cursor: pointer;
-      border-radius: 6px;
-      accent-color: #027EF2;
-    }
-
-
-    .checkbox-group {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .checkbox-group label {
-      margin: 0;
-      cursor: pointer;
-    }
-
-    .toggle-switch {
-      position: relative;
-      display: inline-block;
-      width: 100%;
-      height: 40px;
-      background: #0e0f12;
-      border-radius: 8px;
-      padding: 4px;
-      cursor: pointer;
-    }
-
-    .toggle-switch-track {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      border-radius: 6px;
-    }
-
-    .toggle-switch-option {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      font-weight: 500;
-      color: #8a8f9c;
-      border-radius: 6px;
-      transition: all 0.2s ease;
-      z-index: 1;
-    }
-
-    .toggle-switch-slider {
-      position: absolute;
-      top: 4px;
-      left: 4px;
-      height: calc(100% - 8px);
-      background: #242733;
-      border-radius: 6px;
-      transition: all 0.2s ease;
-      z-index: 0;
-    }
-
-    /* Для тумблера с 2 опциями (язык логотипа) */
-    .toggle-switch[data-options="2"] .toggle-switch-slider {
-      width: calc(50% - 4px);
-    }
-
-    .toggle-switch[data-options="2"][data-value="kz"] .toggle-switch-slider,
-    .toggle-switch[data-options="2"].lang-kz .toggle-switch-slider {
-      transform: translateX(100%);
-    }
-
-    /* Для тумблера с 3 опциями (выключка текста, вертикальная позиция) */
-    .toggle-switch[data-options="3"] .toggle-switch-slider {
-      width: calc(33.333% - 2.67px);
-    }
-
-    .toggle-switch[data-options="3"][data-value="center"] .toggle-switch-slider {
-      /* translateX считается от ширины слайдера, слайдер = ~33.333% track */
-      /* Для сдвига на одну секцию (33.333% track) нужен translateX = 100% слайдера + компенсация gap */
-      transform: translateX(calc(100% + 4px));
-    }
-
-    .toggle-switch[data-options="3"][data-value="right"] .toggle-switch-slider,
-    .toggle-switch[data-options="3"][data-value="bottom"] .toggle-switch-slider {
-      /* Для сдвига на две секции (66.666% track) нужен translateX = 200% слайдера + компенсация gap */
-      transform: translateX(calc(200% + 8px));
-    }
-
-    /* Для тумблера с 4 опциями (масштаб) */
-    .toggle-switch[data-options="4"] .toggle-switch-slider {
-      width: calc(25% - 3px);
-    }
-
-    .toggle-switch[data-options="4"][data-value="2"] .toggle-switch-slider {
-      transform: translateX(calc(100% + 4px));
-    }
-
-    .toggle-switch[data-options="4"][data-value="3"] .toggle-switch-slider {
-      transform: translateX(calc(200% + 8px));
-    }
-
-    .toggle-switch[data-options="4"][data-value="4"] .toggle-switch-slider {
-      transform: translateX(calc(300% + 12px));
-    }
-
-    .toggle-switch-option.active {
-      color: #e9ecf1;
-    }
-
-
-    .btn {
-      background: #242733;
-      border: none;
-      color: #e9ecf1;
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      outline: none;
-      letter-spacing: -0.1px;
-      height: 40px;
-      box-sizing: border-box;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-
-    .btn:hover {
-      background: #2a2d3a;
-      transform: translateY(-1px);
-    }
-
-
-    .btn.primary {
-      background: #027EF2;
-      color: #fff;
-    }
-
-
-    .btn.primary:hover {
-      background: #026dd9;
-      transform: translateY(-1px);
-    }
-
-
-    .btn-full {
-      width: 100%;
-    }
-
-
-    .chips {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-
-    .chips-3 {
-      grid-template-columns: 1fr 1fr 1fr;
-    }
-
-
-    .chip {
-      background: #0e0f12;
-      border: none;
-      color: #b4b8c4;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      cursor: pointer;
-      text-align: center;
-      transition: all 0.2s ease;
-      font-weight: 500;
-      letter-spacing: -0.1px;
-    }
-    
-    .chip:hover {
-      background: #12141a;
-      transform: translateY(-1px);
-    }
-
-
-    .chip.active {
-      background: #027EF2;
-      color: #fff;
-    }
-    
-    .chip.active:hover {
-      transform: translateY(-1px);
-    }
-
-
-    .input-group {
-      display: flex;
-      gap: 8px;
-    }
-
-
-    .input-group input {
-      flex: 1;
-    }
-
-
-    .size-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-
-    .size-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #0e0f12;
-      padding: 8px;
-      border-radius: 6px;
-    }
-
-
-    .size-item span {
-      flex: 1;
-      font-size: 13px;
-    }
-
-
-    .btn-small {
-      padding: 4px 8px;
-      font-size: 12px;
-      height: 32px;
-    }
-
-
-    .hint {
-      font-size: 12px;
-      color: #6a6f7a;
-      margin-top: 6px;
-      line-height: 1.5;
-      letter-spacing: -0.1px;
-    }
-    
-    .hint-box {
-      display: flex;
-      gap: 12px;
-      padding: 14px 16px;
-      background: linear-gradient(135deg, #1a1c21 0%, #15171c 100%);
-      border-radius: 10px;
-      border-left: 3px solid #027EF2;
-    }
-    
-    .hint-icon {
-      font-size: 18px;
-      flex-shrink: 0;
-      line-height: 1.2;
-    }
-    
-    .hint-text {
-      font-size: 13px;
-      color: #b4b8c4;
-      line-height: 1.6;
-      flex: 1;
-      letter-spacing: -0.1px;
-    }
-
-
-    input[type="range"] {
-      width: 100%;
-      height: 8px;
-      background: #242733;
-      border-radius: 4px;
-      outline: none;
-      appearance: none;
-      -webkit-appearance: none;
-      cursor: pointer;
-    }
-
-
-    input[type="range"]::-webkit-slider-thumb {
-      appearance: none;
-      -webkit-appearance: none;
-      width: 20px;
-      height: 20px;
-      background: #027EF2;
-      border-radius: 50%;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    
-    input[type="range"]::-webkit-slider-thumb:hover {
-      transform: scale(1.15);
-    }
-
-
-    input[type="range"]::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
-      background: #027EF2;
-      border-radius: 50%;
-      cursor: pointer;
-      border: none;
-      transition: all 0.2s ease;
-    }
-    
-    input[type="range"]::-moz-range-thumb:hover {
-      transform: scale(1.15);
-    }
-
-
-    .slider-value {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: #8a8f9c;
-      margin-top: 8px;
-      font-weight: 500;
-    }
-    
-    .slider-value span:nth-child(2) {
-      color: #027EF2;
-      font-weight: 600;
-    }
-
-
-    .platform-group {
-      margin-bottom: 12px;
-      border-radius: 8px;
-      overflow: hidden;
-      transition: all 0.2s ease;
-    }
-    
-    .platform-group:hover {
-    }
-
-
-    .platform-header {
-      background: #242733;
-      padding: 10px 16px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-weight: 500;
-      font-size: 13px;
-      user-select: none;
-      -webkit-user-select: none;
-      color: #e9ecf1;
-      transition: all 0.2s ease;
-      border-radius: 8px;
-    }
-
-
-    .platform-header:hover {
-      background: #2a2d3a;
-      color: #e9ecf1;
-    }
-
-
-    .platform-arrow {
-      transition: transform 0.2s;
-      color: #e9ecf1;
-      font-size: 10px;
-    }
-
-
-    .platform-arrow.collapsed {
-      transform: rotate(-90deg);
-    }
-
-
-    .platform-sizes {
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      background: #1a1c23;
-      border-radius: 0 0 8px 8px;
-    }
-
-
-    .platform-sizes.collapsed {
-      display: none;
-    }
-
-
-    .size-checkbox-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 12px;
-      border-radius: 6px;
-      transition: all 0.2s ease;
-    }
-
-
-    .size-checkbox-item:hover {
-      background: rgba(255, 255, 255, 0.04);
-      transform: translateX(2px);
-    }
-
-
-    .size-checkbox-item input[type="checkbox"] {
-      margin: 0;
-    }
-
-
-    .size-checkbox-item label {
-      margin: 0;
-      font-size: 13px;
-      cursor: pointer;
-      flex: 1;
-      color: #b4b8c4;
-      font-weight: 500;
-      transition: color 0.2s ease;
-    }
-    
-    .size-checkbox-item:hover label {
-      color: #e9ecf1;
-    }
-
-
-            /* === FONT LOADING === */
-        /* Шрифты теперь загружаются динамически через scanFonts() и loadFonts() */
-        
-            /* === PERFORMANCE OPTIMIZATIONS === */
-        
-        /* Canvas rendering optimization */
-        #previewCanvas,
-        #previewCanvasNarrow,
-        #previewCanvasWide,
-        #previewCanvasSquare {
-            will-change: contents;
-            transform: translateZ(0);
-            image-rendering: -webkit-optimize-contrast;
-        }
-        
-        /* Content visibility for off-screen sections */
-        .section {
-            content-visibility: auto;
-            contain-intrinsic-size: 0 500px;
-        }
-        
-        /* Optimize form controls rendering */
-        input[type="text"],
-        input[type="color"],
-        input[type="range"],
-        textarea,
-        select {
-            will-change: auto;
-        }
-        
-        /* Smooth scrolling with GPU acceleration */
-        .panel-content {
-            transform: translateZ(0);
-            -webkit-overflow-scrolling: touch;
-        }
-        
-        /* Custom select dropdown styles */
-        .custom-select-dropdown {
-            scrollbar-width: thin;
-            scrollbar-color: #242733 #15171c;
-        }
-        
-        .custom-select-dropdown::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        .custom-select-dropdown::-webkit-scrollbar-track {
-            background: #15171c;
-        }
-        
-        .custom-select-dropdown::-webkit-scrollbar-thumb {
-            background: #242733;
-            border-radius: 3px;
-        }
-        
-        .custom-select-option {
-            padding: 10px 12px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border-bottom: none;
-            transition: background-color 0.2s;
-        }
-        
-        .custom-select-option:last-child {
-            border-bottom: none;
-        }
-        
-        .custom-select-option:hover {
-            background: #1e2025;
-        }
-        
-        .custom-select-option.selected {
-            background: #242733;
-        }
-        
-        .custom-select-option-preview {
-            width: 24px;
-            height: 24px;
-            object-fit: contain;
-            border: none;
-            border-radius: 3px;
-            padding: 2px;
-            background: #0e0f12;
-            flex-shrink: 0;
-        }
-        
-        .custom-select-option-label {
-            flex: 1;
-            font-size: 14px;
-            color: #e9ecf1;
-        }
-        
-        .custom-select-option-group {
-            padding: 8px 12px;
-            font-size: 12px;
-            color: #8a8f9c;
-            font-weight: 600;
-            background: #1a1c21;
-            border-bottom: none;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        /* === УНИФИЦИРОВАННЫЕ СТИЛИ КОЛОНОК === */
-        .column-item {
-            padding: 10px 12px;
-            cursor: pointer;
-            font-size: 13px;
-            color: #b4b8c4;
-            border-bottom: 1px solid #242733;
-            transition: all 0.2s ease;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        
-        .column-item:hover {
-            background: rgba(255, 255, 255, 0.04);
-        }
-        
-        .column-item.active {
-            background: #242733;
-            color: #e9ecf1;
-        }
-        
-        .column-empty-message {
-            padding: 20px;
-            text-align: center;
-            font-size: 13px;
-            color: #8a8f9c;
-        }
-        
-        /* Колонки в модальных окнах */
-        .modal-column {
-            overflow-y: auto;
-            background: #0e0f12;
-        }
-        
-        .modal-column:nth-child(2) {
-            background: #12141a;
-        }
-        
-        .modal-column:nth-child(3) {
-            background: #1a1c21;
-        }
-        
-        .modal-column:last-child {
-            background: #15171c;
-            padding: 16px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            gap: 12px;
-            align-content: start;
-        }
-        
-        /* Явно применяем grid для колонок с изображениями */
-        #kvImagesColumn,
-        #logoImagesColumn {
-            background: #15171c;
-            padding: 16px;
-            display: grid !important;
-            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-            grid-auto-rows: min-content;
-            gap: 12px;
-            align-content: start;
-            overflow-y: auto;
-        }
-        
-        /* Элементы превью в колонках изображений */
-        .preview-item {
-            position: relative;
-            cursor: pointer;
-            border: 2px solid #242733;
-            border-radius: 6px;
-            overflow: hidden;
-            transition: all 0.2s ease;
-            width: 100%;
-            padding-bottom: 100%; /* Создает квадрат через padding-bottom trick */
-            min-width: 0;
-            background: #1a1c21;
-        }
-        
-        .preview-item:hover {
-            border-color: #027EF2;
-            transform: scale(1.05);
-            z-index: 1;
-        }
-        
-        .preview-item img {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            display: block;
-        }
-        
-        /* Унифицированные стили для форм */
-        .form-item {
-            background: #0e0f12;
-            border: 1px solid #242733;
-            border-radius: 6px;
-            padding: 12px;
-        }
-        
-        .form-item.active {
-            border-color: #027EF2;
-        }
-        
-        .form-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-        
-        .form-label {
-            margin: 0;
-            font-size: 12px;
-            color: #8a8f9c;
-            font-weight: 400;
-            cursor: pointer;
-        }
-        
-        .form-label.active {
-            color: #027EF2;
-            font-weight: 500;
-        }
-        
-        .form-textarea {
-            width: 100%;
-            min-height: 60px;
-            background: #0e0f12;
-            border: 1px solid #242733;
-            color: #e9ecf1;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-family: inherit;
-            resize: vertical;
-        }
-        
-        .form-textarea:focus {
-            outline: none;
-            border-color: #027EF2;
-            background: #12141a;
-        }
-        
-        /* Кнопки действий */
-        .btn-small {
-            padding: 4px 8px;
-            font-size: 12px;
-            height: 32px;
-        }
-        
-        .btn-tiny {
-            padding: 4px 10px;
-            font-size: 12px;
-            white-space: nowrap;
-            height: 32px;
-        }
-        
-        /* Заголовки модальных окон */
-        .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            border-bottom: 1px solid #242733;
-            background: #0e0f12;
-        }
-        
-        .modal-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #e9ecf1;
-        }
-        
-        .modal-actions {
-            display: flex;
-            gap: 8px;
-        }
-        
-        /* Превью контейнеры */
-        .preview-container {
-            width: 100%;
-            height: 60px;
-            background: #15171c;
-            border: none;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            cursor: pointer;
-        }
-        
-        .preview-placeholder {
-            color: #6a6f7a;
-            font-size: 12px;
-        }
-        
-        .preview-img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-        
-        /* Унифицированные размеры для labels */
-        .label-small {
-            font-size: 11px;
-            color: #6a6f7a;
-            display: block;
-            margin-bottom: 4px;
-            font-weight: 500;
-        }
-        
-        .label-medium {
-            font-size: 12px;
-            color: #8a8f9c;
-            font-weight: 500;
-        }
-        
-        /* Унифицированные отступы */
-        .gap-sm {
-            gap: 8px;
-        }
-        
-        .gap-md {
-            gap: 12px;
-        }
-        
-        .gap-lg {
-            gap: 16px;
-        }
-        
-        .mb-sm {
-            margin-bottom: 8px;
-        }
-        
-        .mb-md {
-            margin-bottom: 12px;
-        }
-        
-        .mb-lg {
-            margin-bottom: 16px;
-        }
-        
-        .mt-md {
-            margin-top: 12px;
-        }
-        
-        .mt-lg {
-            margin-top: 24px;
-        }
-        
-        /* Tooltip стили */
-        .tooltip-wrapper {
-            position: relative;
-            display: inline-block;
-            overflow: visible;
-        }
-        
-        #titlePairsContainer {
-            overflow: visible;
-        }
-        
-        .tooltip {
-            visibility: hidden;
-            opacity: 0;
-            position: fixed;
-            background-color: #1a1c21;
-            color: #e9ecf1;
-            text-align: left;
-            padding: 12px 16px;
-            border-radius: 8px;
-            border: 1px solid #242733;
-            font-size: 12px;
-            line-height: 1.5;
-            white-space: normal;
-            width: 280px;
-            z-index: 10000;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            transition: opacity 0.2s ease, visibility 0.2s ease;
-            pointer-events: none;
-        }
-        
-        .tooltip-wrapper:hover .tooltip {
-            visibility: visible;
-            opacity: 1;
-        }
-        
-        .tooltip::before {
-            content: '';
-            position: absolute;
-            right: 100%;
-            top: 50%;
-            transform: translateY(-50%);
-            border: 6px solid transparent;
-            border-right-color: #242733;
-        }
-        
-        .tooltip::after {
-            content: '';
-            position: absolute;
-            right: 100%;
-            top: 50%;
-            transform: translateY(-50%);
-            border: 5px solid transparent;
-            border-right-color: #1a1c21;
-            margin-right: -1px;
-        }
-        
-          </style>
+    })();
+  </script>
 </head>
 <body>
   <div class="app">
     <div class="header">
       <h1>Генератор макетов Практикума</h1>
+      <div class="header-actions">
+        <div class="theme-toggle">
+          <button class="theme-toggle-btn" id="themeToggle" onclick="toggleTheme()" title="Переключить тему">
+            <span class="theme-icon">🌙</span>
+          </button>
+        </div>
+      </div>
     </div>
     <div class="main">
       <!-- Icons Panel -->
@@ -1286,8 +52,8 @@
         <div class="tab" onclick="showSection('kv')" data-section="kv">
           <span>KV</span>
         </div>
-        <div style="margin-top: auto; padding: 16px; text-align: center; font-size: 12px; color: #8a8f9c;">
-          <span>Вайб-код от <a href="https://staff.yandex-team.ru/vidmich" target="_blank" rel="noopener" style="color: #027EF2; text-decoration: none;">@vidmich</a></span>
+        <div class="theme-text-muted" style="margin-top: auto; padding: 16px; text-align: center; font-size: 12px;">
+          <span>Вайб-код от <a href="https://staff.yandex-team.ru/vidmich" target="_blank" rel="noopener" style="color: var(--accent-color); text-decoration: none;">@vidmich</a></span>
         </div>
       </div>
       
@@ -1386,7 +152,7 @@
               <span id="logoPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
             </div>
             <div id="logoSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" onclick="closeLogoSelectModal()">
-              <div id="logoSelectPanel" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; background: #15171c; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" onclick="event.stopPropagation()">
+              <div id="logoSelectPanel" class="theme-bg-secondary" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" onclick="event.stopPropagation()">
                 <div class="modal-header">
                   <span class="modal-title">Выбрать логотип</span>
                   <div class="modal-actions">
@@ -1416,7 +182,7 @@
             </select>
             <div style="display: flex; gap: 8px; width: 100%;">
               <button class="btn" onclick="document.getElementById('logoUpload').click()" style="flex: 1;">Загрузить</button>
-              <button class="btn" id="logoRemoveBtn" onclick="clearLogo()" style="flex: 1; background: #2a1f1f; color: #ff6b6b; border-color: #ff6b6b; opacity: 0.5; cursor: not-allowed;" disabled>Удалить</button>
+              <button class="btn btn-danger" id="logoRemoveBtn" onclick="clearLogo()" style="flex: 1;" disabled>Удалить</button>
               <input type="file" id="logoUpload" accept="image/*,.svg" style="display: none;" onchange="handleLogoUpload(event)">
             </div>
           </div>
@@ -1451,9 +217,31 @@
             <div class="form-group" id="titlePairEditor" style="display: none;">
               <label>Текст заголовка (для активной пары)</label>
               <textarea id="title" oninput="updateActivePairTitle(this.value)">Курс «Frontend-разработчик» от Практикума</textarea>
+              <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
+                
+                <div class="toggle-switch" id="titleTransformToggle" data-value="none" data-options="3">
+                  <div class="toggle-switch-slider"></div>
+                  <div class="toggle-switch-track">
+                    <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                    <div class="toggle-switch-option" data-value="lowercase">ааа</div>
+                    <div class="toggle-switch-option" data-value="none">—</div>
+                  </div>
+                </div>
+              </div>
             </div>
           <div class="form-group">
-            <label>Цвет</label>
+          
+            <div class="toggle-switch" id="titleTransformToggleMain" data-value="none" data-options="3">
+              <div class="toggle-switch-slider"></div>
+              <div class="toggle-switch-track">
+                <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                <div class="toggle-switch-option" data-value="lowercase">ааа</div>
+                <div class="toggle-switch-option" data-value="none">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
               <input type="color" id="titleColor" value="#ffffff" onchange="updateColorFromPicker('titleColor', this.value)" style="flex: 0 0 60px;">
               <input type="text" id="titleColorHex" value="#ffffff" placeholder="#ffffff" onchange="updateColorFromHex('titleColor', this.value)" style="flex: 1;">
@@ -1464,7 +252,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label>Выключка текста</label>
+            <label>Направление текста</label>
             <div class="toggle-switch" id="titleAlignToggle" data-value="left" data-options="3">
               <div class="toggle-switch-slider"></div>
               <div class="toggle-switch-track">
@@ -1480,48 +268,58 @@
               <div class="toggle-switch-slider"></div>
               <div class="toggle-switch-track">
                 <div class="toggle-switch-option active" data-value="top">Сверху</div>
-                <div class="toggle-switch-option" data-value="center">По центру</div>
+                <div class="toggle-switch-option" data-value="center">Середина</div>
                 <div class="toggle-switch-option" data-value="bottom">Снизу</div>
               </div>
             </div>
           </div>
           <div class="form-group">
-            <label>Размер шрифта (% от макета)</label>
+            <label>Размер шрифта</label>
             <input type="range" id="titleSize" value="7" min="6" max="10" step="0.1" oninput="updateTitleSize(this.value)">
             <div class="slider-value">
               <span>6%</span>
               <span id="titleSizeValue">7%</span>
               <span>10%</span>
             </div>
-            <div class="hint">Процент от минимального размера макета (подзаголовок автоматически масштабируется)</div>
+            <div class="hint">Подзаголовок автоматически масштабируется</div>
           </div>
           <div class="form-group">
-            <label>Гарнитура</label>
+            
             <div style="display: flex; gap: 8px;">
-              <select id="titleFontFamily" onchange="selectTitleFontFamily(this.value)" style="flex: 1;">
-                <!-- Опции будут заполнены динамически через initializeFontDropdowns() -->
-              </select>
+              <div class="custom-select-wrapper" style="flex: 1;">
+                <div class="custom-select-button" id="titleFontFamilyBtn">
+                  <span id="titleFontFamilyText">Выберите...</span>
+                  <span class="custom-select-arrow">▼</span>
+                </div>
+                <div class="custom-select-dropdown" id="titleFontFamilyDropdown"></div>
+              </div>
               <button class="btn" onclick="document.getElementById('titleFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
               <input type="file" id="titleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleTitleFontUpload(event)">
             </div>
-            <div id="titleCustomFontInfo" style="display: none; margin-top: 8px; font-size: 12px; color: #8a8f9c;">
+            <div id="titleCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="titleCustomFontName"></span>
               <button class="btn btn-small" onclick="clearTitleCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
             </div>
           </div>
           <div class="form-group">
-            <label>Начертание</label>
-            <select id="titleWeight" onchange="updateState('titleWeight', this.value)">
-              <option value="Thin">Thin — Тонкий</option>
-              <option value="ExtraLight">ExtraLight — Экстра-светлый</option>
-              <option value="Light">Light — Светлый</option>
-              <option value="Regular" selected>Regular — Обычный</option>
-              <option value="Medium">Medium — Средний</option>
-              <option value="SemiBold">SemiBold — Полужирный</option>
-              <option value="Bold">Bold — Жирный</option>
-              <option value="Heavy">Heavy — Экстра-жирный</option>
-              <option value="Black">Black — Чёрный</option>
-            </select>
+            
+            <div class="custom-select-wrapper">
+              <div class="custom-select-button" id="titleWeightBtn">
+                <span id="titleWeightText">Regular — Обычный</span>
+                <span class="custom-select-arrow">▼</span>
+              </div>
+              <div class="custom-select-dropdown" id="titleWeightDropdown">
+                <div class="custom-select-option" data-value="Thin">Thin — Тонкий</div>
+                <div class="custom-select-option" data-value="ExtraLight">ExtraLight — Экстра-светлый</div>
+                <div class="custom-select-option" data-value="Light">Light — Светлый</div>
+                <div class="custom-select-option selected" data-value="Regular">Regular — Обычный</div>
+                <div class="custom-select-option" data-value="Medium">Medium — Средний</div>
+                <div class="custom-select-option" data-value="SemiBold">SemiBold — Полужирный</div>
+                <div class="custom-select-option" data-value="Bold">Bold — Жирный</div>
+                <div class="custom-select-option" data-value="Heavy">Heavy — Экстра-жирный</div>
+                <div class="custom-select-option" data-value="Black">Black — Чёрный</div>
+              </div>
+            </div>
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
@@ -1530,6 +328,17 @@
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межстрочный интервал</label>
             <input type="number" id="titleLineHeight" value="1.1" min="1.0" max="3.0" step="0.1" oninput="updateState('titleLineHeight', parseFloat(this.value))" style="width: 80px;">
+          </div>
+          <div class="form-group">
+        
+            <div class="toggle-switch" id="titleTransformToggleMain" data-value="none" data-options="3">
+              <div class="toggle-switch-slider"></div>
+              <div class="toggle-switch-track">
+                <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                <div class="toggle-switch-option" data-value="lowercase">ааа</div>
+                <div class="toggle-switch-option" data-value="none">—</div>
+              </div>
+            </div>
           </div>
         </div>
         <!-- End Title Section -->
@@ -1555,9 +364,31 @@
             <div class="form-group" id="subtitlePairEditor" style="display: none;">
               <label>Текст подзаголовка (для активной пары)</label>
               <textarea id="subtitle" oninput="updateActivePairSubtitle(this.value)">Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев</textarea>
+              <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
+               
+                <div class="toggle-switch" id="subtitleTransformToggle" data-value="none" data-options="3">
+                  <div class="toggle-switch-slider"></div>
+                  <div class="toggle-switch-track">
+                    <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                    <div class="toggle-switch-option" data-value="lowercase">ааа</div>
+                    <div class="toggle-switch-option" data-value="none">—</div>
+                  </div>
+                </div>
+              </div>
             </div>
           <div class="form-group">
-            <label>Цвет</label>
+            
+            <div class="toggle-switch" id="subtitleTransformToggleMain" data-value="none" data-options="3">
+              <div class="toggle-switch-slider"></div>
+              <div class="toggle-switch-track">
+                <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                <div class="toggle-switch-option" data-value="lowercase">ааа</div>
+                <div class="toggle-switch-option" data-value="none">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
               <input type="color" id="subtitleColor" value="#e0e0e0" onchange="updateColorFromPicker('subtitleColor', this.value)" style="flex: 0 0 60px;">
               <input type="text" id="subtitleColorHex" value="#e0e0e0" placeholder="#e0e0e0" onchange="updateColorFromHex('subtitleColor', this.value)" style="flex: 1;">
@@ -1568,7 +399,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label>Непрозрачность (%)</label>
+            <label>Непрозрачность</label>
             <input type="range" id="subtitleOpacity" value="90" min="0" max="100" oninput="updateSubtitleOpacity(this.value)">
             <div class="slider-value">
               <span>0%</span>
@@ -1577,42 +408,52 @@
             </div>
           </div>
           <div class="form-group">
-            <label>Размер шрифта (% от макета)</label>
+            <label>Размер шрифта</label>
             <input type="range" id="subtitleSize" value="4" min="1" max="12" step="0.1" oninput="updateSubtitleSize(this.value)">
             <div class="slider-value">
               <span>1%</span>
               <span id="subtitleSizeValue">4%</span>
               <span>12%</span>
             </div>
-            <div class="hint">Процент от минимального размера макета (заголовок автоматически масштабируется)</div>
+            
           </div>
           <div class="form-group">
-            <label>Гарнитура</label>
+            
             <div style="display: flex; gap: 8px;">
-              <select id="subtitleFontFamily" onchange="selectSubtitleFontFamily(this.value)" style="flex: 1;">
-                <!-- Опции будут заполнены динамически через initializeFontDropdowns() -->
-              </select>
+              <div class="custom-select-wrapper" style="flex: 1;">
+                <div class="custom-select-button" id="subtitleFontFamilyBtn">
+                  <span id="subtitleFontFamilyText">Выберите...</span>
+                  <span class="custom-select-arrow">▼</span>
+                </div>
+                <div class="custom-select-dropdown" id="subtitleFontFamilyDropdown"></div>
+              </div>
               <button class="btn" onclick="document.getElementById('subtitleFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
               <input type="file" id="subtitleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleSubtitleFontUpload(event)">
             </div>
-            <div id="subtitleCustomFontInfo" style="display: none; margin-top: 8px; font-size: 12px; color: #8a8f9c;">
+            <div id="subtitleCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="subtitleCustomFontName"></span>
               <button class="btn btn-small" onclick="clearSubtitleCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
             </div>
           </div>
           <div class="form-group">
-            <label>Начертание</label>
-            <select id="subtitleWeight" onchange="updateState('subtitleWeight', this.value)">
-              <option value="Thin">Thin — Тонкий</option>
-              <option value="ExtraLight">ExtraLight — Экстра-светлый</option>
-              <option value="Light">Light — Светлый</option>
-              <option value="Regular" selected>Regular — Обычный</option>
-              <option value="Medium">Medium — Средний</option>
-              <option value="SemiBold">SemiBold — Полужирный</option>
-              <option value="Bold">Bold — Жирный</option>
-              <option value="Heavy">Heavy — Экстра-жирный</option>
-              <option value="Black">Black — Чёрный</option>
-            </select>
+            
+            <div class="custom-select-wrapper">
+              <div class="custom-select-button" id="subtitleWeightBtn">
+                <span id="subtitleWeightText">Regular — Обычный</span>
+                <span class="custom-select-arrow">▼</span>
+              </div>
+              <div class="custom-select-dropdown" id="subtitleWeightDropdown">
+                <div class="custom-select-option" data-value="Thin">Thin — Тонкий</div>
+                <div class="custom-select-option" data-value="ExtraLight">ExtraLight — Экстра-светлый</div>
+                <div class="custom-select-option" data-value="Light">Light — Светлый</div>
+                <div class="custom-select-option selected" data-value="Regular">Regular — Обычный</div>
+                <div class="custom-select-option" data-value="Medium">Medium — Средний</div>
+                <div class="custom-select-option" data-value="SemiBold">SemiBold — Полужирный</div>
+                <div class="custom-select-option" data-value="Bold">Bold — Жирный</div>
+                <div class="custom-select-option" data-value="Heavy">Heavy — Экстра-жирный</div>
+                <div class="custom-select-option" data-value="Black">Black — Чёрный</div>
+              </div>
+            </div>
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
@@ -1638,11 +479,22 @@
               </div>
             </div>
           <div class="form-group">
-            <label>Текст</label>
+            
             <textarea id="legal" oninput="updateState('legal', this.value)">Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/</textarea>
+            <div class="form-group" style="margin-top: 12px;">
+              
+              <div class="toggle-switch" id="legalTransformToggle" data-value="none" data-options="3">
+                <div class="toggle-switch-slider"></div>
+                <div class="toggle-switch-track">
+                  <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
+                  <div class="toggle-switch-option" data-value="lowercase">ааа</div>
+                  <div class="toggle-switch-option" data-value="none">—</div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="form-group">
-            <label>Цвет</label>
+            
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
               <input type="color" id="legalColor" value="#ffffff" onchange="updateColorFromPicker('legalColor', this.value)" style="flex: 0 0 60px;">
               <input type="text" id="legalColorHex" value="#ffffff" placeholder="#ffffff" onchange="updateColorFromHex('legalColor', this.value)" style="flex: 1;">
@@ -1653,7 +505,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label>Непрозрачность (%)</label>
+            <label>Непрозрачность</label>
             <input type="range" id="legalOpacity" value="60" min="0" max="100" oninput="updateLegalOpacity(this.value)">
             <div class="slider-value">
               <span>0%</span>
@@ -1662,37 +514,51 @@
             </div>
           </div>
           <div class="form-group">
-            <label>Размер шрифта (% от макета)</label>
-            <input type="number" id="legalSize" value="2" min="0.3" max="5" step="0.1" oninput="updateState('legalSize', parseFloat(this.value))">
-            <div class="hint">Процент от минимального размера макета</div>
+            <label>Размер шрифта</label>
+            <input type="range" id="legalSize" value="2" min="0.3" max="5" step="0.1" oninput="updateLegalSize(this.value)">
+            <div class="slider-value">
+              <span>0.3%</span>
+              <span id="legalSizeValue">2%</span>
+              <span>5%</span>
+            </div>
           </div>
           <div class="form-group">
-            <label>Гарнитура</label>
+           
             <div style="display: flex; gap: 8px;">
-              <select id="legalFontFamily" onchange="selectLegalFontFamily(this.value)" style="flex: 1;">
-                <!-- Опции будут заполнены динамически через initializeFontDropdowns() -->
-              </select>
+              <div class="custom-select-wrapper" style="flex: 1;">
+                <div class="custom-select-button" id="legalFontFamilyBtn">
+                  <span id="legalFontFamilyText">Выберите...</span>
+                  <span class="custom-select-arrow">▼</span>
+                </div>
+                <div class="custom-select-dropdown" id="legalFontFamilyDropdown"></div>
+              </div>
               <button class="btn" onclick="document.getElementById('legalFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
               <input type="file" id="legalFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleLegalFontUpload(event)">
             </div>
-            <div id="legalCustomFontInfo" style="display: none; margin-top: 8px; font-size: 12px; color: #8a8f9c;">
+            <div id="legalCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="legalCustomFontName"></span>
               <button class="btn btn-small" onclick="clearLegalCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
             </div>
           </div>
           <div class="form-group">
-            <label>Начертание</label>
-            <select id="legalWeight" onchange="updateState('legalWeight', this.value)">
-              <option value="Thin">Thin — Тонкий</option>
-              <option value="ExtraLight">ExtraLight — Экстра-светлый</option>
-              <option value="Light">Light — Светлый</option>
-              <option value="Regular" selected>Regular — Обычный</option>
-              <option value="Medium">Medium — Средний</option>
-              <option value="SemiBold">SemiBold — Полужирный</option>
-              <option value="Bold">Bold — Жирный</option>
-              <option value="Heavy">Heavy — Экстра-жирный</option>
-              <option value="Black">Black — Чёрный</option>
-            </select>
+       
+            <div class="custom-select-wrapper">
+              <div class="custom-select-button" id="legalWeightBtn">
+                <span id="legalWeightText">Regular — Обычный</span>
+                <span class="custom-select-arrow">▼</span>
+              </div>
+              <div class="custom-select-dropdown" id="legalWeightDropdown">
+                <div class="custom-select-option" data-value="Thin">Thin — Тонкий</div>
+                <div class="custom-select-option" data-value="ExtraLight">ExtraLight — Экстра-светлый</div>
+                <div class="custom-select-option" data-value="Light">Light — Светлый</div>
+                <div class="custom-select-option selected" data-value="Regular">Regular — Обычный</div>
+                <div class="custom-select-option" data-value="Medium">Medium — Средний</div>
+                <div class="custom-select-option" data-value="SemiBold">SemiBold — Полужирный</div>
+                <div class="custom-select-option" data-value="Bold">Bold — Жирный</div>
+                <div class="custom-select-option" data-value="Heavy">Heavy — Экстра-жирный</div>
+                <div class="custom-select-option" data-value="Black">Black — Чёрный</div>
+              </div>
+            </div>
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
@@ -1711,29 +577,33 @@
               </div>
             </div>
             <div class="form-group">
-              <label>Текст</label>
+              
               <input type="text" id="age" value="18+" oninput="updateState('age', this.value)">
             </div>
             <div class="form-group">
-              <label>Размер шрифта (% от макета)</label>
+              <label>Размер шрифта</label>
               <input type="range" id="ageSize" value="4" min="1" max="12" step="0.1" oninput="updateAgeSize(this.value)">
               <div class="slider-value">
                 <span>1%</span>
                 <span id="ageSizeValue">4%</span>
                 <span>12%</span>
               </div>
-              <div class="hint">Процент от минимального размера макета</div>
+             
             </div>
             <div class="form-group">
-              <label>Гарнитура</label>
+              
               <div style="display: flex; gap: 8px;">
-                <select id="ageFontFamily" onchange="selectAgeFontFamily(this.value)" style="flex: 1;">
-                  <!-- Опции будут заполнены динамически через initializeFontDropdowns() -->
-                </select>
+                <div class="custom-select-wrapper" style="flex: 1;">
+                  <div class="custom-select-button" id="ageFontFamilyBtn">
+                    <span id="ageFontFamilyText">Выберите...</span>
+                    <span class="custom-select-arrow">▼</span>
+                  </div>
+                  <div class="custom-select-dropdown" id="ageFontFamilyDropdown"></div>
+                </div>
                 <button class="btn" onclick="document.getElementById('ageFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
                 <input type="file" id="ageFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleAgeFontUpload(event)">
               </div>
-              <div id="ageCustomFontInfo" style="display: none; margin-top: 8px; font-size: 12px; color: #8a8f9c;">
+              <div id="ageCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
                 <span id="ageCustomFontName"></span>
                 <button class="btn btn-small" onclick="clearAgeCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
               </div>
@@ -1742,7 +612,7 @@
               <label style="margin: 0; flex: 1;">Отступ от юридического текста (%)</label>
               <input type="number" id="ageGapPercent" value="1" min="0" max="20" step="0.5" oninput="updateState('ageGapPercent', parseFloat(this.value))" style="width: 80px;">
             </div>
-            <div class="hint" style="margin-top: -8px;">Горизонтальный отступ в % от ширины холста</div>
+
           </div>
         </div>
         <!-- End Legal Section -->
@@ -1756,7 +626,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label>Скругление углов (%)</label>
+            <label>Скругление углов</label>
             <input type="range" id="kvBorderRadius" value="0" min="0" max="20" step="1" oninput="updateKVBorderRadius(this.value)">
             <div class="slider-value">
               <span>0%</span>
@@ -1772,7 +642,7 @@
                 <span id="kvPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
               </div>
               <div id="kvSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" onclick="closeKVSelectModal()">
-                <div id="kvSelectPanel" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; background: #15171c; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" onclick="event.stopPropagation()">
+                <div id="kvSelectPanel" class="theme-bg-secondary" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" onclick="event.stopPropagation()">
                   <div class="modal-header">
                     <span class="modal-title">Выбрать KV</span>
                     <div class="modal-actions">
@@ -1799,7 +669,7 @@
               </select>
               <div style="display: flex; gap: 8px; width: 100%;">
                 <button class="btn" onclick="document.getElementById('kvUpload').click()" style="flex: 1;">Загрузить</button>
-                <button class="btn" id="kvRemoveBtn" onclick="clearKV()" style="flex: 1; background: #2a1f1f; color: #ff6b6b; border-color: #ff6b6b; opacity: 0.5; cursor: not-allowed;" disabled>Удалить</button>
+                <button class="btn btn-danger" id="kvRemoveBtn" onclick="clearKV()" style="flex: 1;" disabled>Удалить</button>
                 <input type="file" id="kvUpload" accept="image/*" style="display: none;" onchange="handleKVUpload(event)">
               </div>
             </div>
@@ -1815,37 +685,52 @@
       <!-- Center Canvas Preview -->
       <div class="canvas-area" id="canvasArea">
         <div style="max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
-          <div style="background: #15171c; padding: 12px; border-radius: 8px;">
+          <div class="theme-bg-secondary" style="padding: 12px; border-radius: 8px;">
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
               <div>
                 <label class="label-small">Узкий формат</label>
-                <select id="previewSizeSelectNarrow" onchange="changePreviewSizeCategory('narrow', this.value)">
-                </select>
+                <div class="custom-select-wrapper">
+                  <div class="custom-select-button" id="previewSizeSelectNarrowBtn">
+                    <span id="previewSizeSelectNarrowText">Выберите...</span>
+                    <span class="custom-select-arrow">▼</span>
+                  </div>
+                  <div class="custom-select-dropdown" id="previewSizeSelectNarrowDropdown"></div>
+                </div>
               </div>
               <div>
                 <label class="label-small">Квадратный формат</label>
-                <select id="previewSizeSelectSquare" onchange="changePreviewSizeCategory('square', this.value)">
-                </select>
+                <div class="custom-select-wrapper">
+                  <div class="custom-select-button" id="previewSizeSelectSquareBtn">
+                    <span id="previewSizeSelectSquareText">Выберите...</span>
+                    <span class="custom-select-arrow">▼</span>
+                  </div>
+                  <div class="custom-select-dropdown" id="previewSizeSelectSquareDropdown"></div>
+                </div>
               </div>
               <div>
                 <label class="label-small">Широкий формат</label>
-                <select id="previewSizeSelectWide" onchange="changePreviewSizeCategory('wide', this.value)">
-                </select>
+                <div class="custom-select-wrapper">
+                  <div class="custom-select-button" id="previewSizeSelectWideBtn">
+                    <span id="previewSizeSelectWideText">Выберите...</span>
+                    <span class="custom-select-arrow">▼</span>
+                  </div>
+                  <div class="custom-select-dropdown" id="previewSizeSelectWideDropdown"></div>
+                </div>
               </div>
             </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-            <div style="background: #000000; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+            <div class="theme-bg-canvas" style="border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
                 <canvas id="previewCanvasNarrow" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
             </div>
-            <div style="background: #000000; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+            <div class="theme-bg-canvas" style="border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
                 <canvas id="previewCanvasSquare" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
             </div>
-            <div style="background: #000000; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
+            <div class="theme-bg-canvas" style="border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative;">
               <div style="width: 100%; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 300px; position: relative;">
                 <canvas id="previewCanvasWide" style="max-width: 100%; max-height: 100%; height: auto; display: block;"></canvas>
               </div>
@@ -1858,7 +743,7 @@
       <!-- Right Panel -->
       <div class="panel">
         <div class="form-group">
-          <label>Название папки</label>
+          <label>Название архива</label>
           <input type="text" id="namePrefix" value="layout" oninput="updateState('namePrefix', this.value)">
         </div>
         <div class="form-group">
@@ -1878,26 +763,32 @@
           </div>
         </div>
         <div class="form-group-section">
-          <label>Предустановленные размеры</label>
-          <div id="content-preset-sizes">
-            <div class="form-group">
-              <div class="gap-sm mb-md" style="display: flex;">
-                <button class="btn btn-full" onclick="selectAllSizes()">Выбрать все</button>
-                <button class="btn btn-full" onclick="deselectAllSizes()">Снять выбор</button>
-              </div>
+          
+          <div class="form-group">
+            <div class="gap-sm mb-sm" style="display: flex; align-items: center;">
+                <input type="number" id="customWidth" class="theme-input" placeholder="Ширина" min="1" oninput="updateAddSizeButtonState()" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+                <span class="theme-text-muted" style="font-size: 16px; padding: 0 4px;">×</span>
+                <input type="number" id="customHeight" class="theme-input" placeholder="Высота" min="1" oninput="updateAddSizeButtonState()" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
             </div>
-            <div class="form-group">
-              <div id="sizesSummary" class="mb-md" style="font-size: 13px; color: #8a8f9c; text-align: center;">Выбрано: 0 размеров</div>
-            </div>
-            <div id="presetSizesList"></div>
-            <div class="form-group form-group-section">
-              <label>Добавить размер</label>
-              <button class="btn btn-full" onclick="addCustomSizeFromInput()" style="margin-bottom: 12px;">+ Добавить размер</button>
-              <div class="gap-sm mb-sm" style="display: flex; align-items: center;">
-                <input type="number" id="customWidth" placeholder="Ширина" min="1" style="flex: 1; background: #0e0f12; border: none; color: #e9ecf1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
-                <span style="color: #8a8f9c; font-size: 16px; padding: 0 4px;">×</span>
-                <input type="number" id="customHeight" placeholder="Высота" min="1" style="flex: 1; background: #0e0f12; border: none; color: #e9ecf1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+            <button class="btn btn-full" id="addSizeButton" onclick="addCustomSizeFromInput()" disabled>+ Добавить размер</button>
+          </div>
+          <div class="form-group-section" id="customSizesSection" style="display: none;">
+            <label>Пользовательские</label>
+            <div id="customSizesList"></div>
+          </div>
+          <div class="form-group-section">
+            <label>Предустановленные размеры</label>
+            <div id="content-preset-sizes">
+              <div class="form-group">
+                <div class="gap-sm mb-md" style="display: flex;">
+                  <button class="btn btn-full" onclick="selectAllSizes()">Выбрать все</button>
+                  <button class="btn btn-full" onclick="deselectAllSizes()">Снять выбор</button>
+                </div>
               </div>
+              <div class="form-group">
+                <div id="sizesSummary" class="mb-md theme-text-muted" style="font-size: 13px; text-align: center;">Выбрано: 0 размеров</div>
+              </div>
+              <div id="presetSizesList"></div>
             </div>
           </div>
         </div>

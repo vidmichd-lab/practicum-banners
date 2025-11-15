@@ -368,8 +368,6 @@ export const scanLogos = async () => {
   }
   
   // Возвращаем структурированные данные вместо плоского массива
-  console.log('scanLogos returning structure:', logoStructure);
-  console.log('scanLogos structure keys:', Object.keys(logoStructure));
   return logoStructure;
 };
 

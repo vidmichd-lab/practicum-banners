@@ -3,6 +3,7 @@ import {
   syncFormFields,
   updatePreviewSizeSelect,
   renderPresetSizes,
+  renderCustomSizes,
   updatePadding,
   updateLegalOpacity,
   updateSubtitleOpacity,
@@ -45,6 +46,7 @@ import {
   toggleCustomSizeAction,
   removeCustomSizeAction,
   addCustomSizeFromInput,
+  updateAddSizeButtonState,
   changePreviewSize,
   changePreviewSizeCategory,
   handlePresetContainerClick,
@@ -85,7 +87,16 @@ import {
     clearTitleCustomFont,
     clearSubtitleCustomFont,
     clearLegalCustomFont,
-    clearAgeCustomFont
+    clearAgeCustomFont,
+    transformTitleText,
+    transformSubtitleText,
+    transformLegalText,
+    selectTitleTransform,
+    selectSubtitleTransform,
+    selectLegalTransform,
+    initializeTitleTransformToggle,
+    initializeSubtitleTransformToggle,
+    initializeLegalTransformToggle
 } from './ui/ui.js';
 import { renderer, clearTextMeasurementCache } from './renderer.js';
 import { setKey, getState, ensurePresetSelection } from './state/store.js';
@@ -98,15 +109,8 @@ const initializeEventDelegation = (dom) => {
   if (dom.previewSizeSelect) {
     dom.previewSizeSelect.addEventListener('change', (event) => changePreviewSize(event.target.value));
   }
-  if (dom.previewSizeSelectNarrow) {
-    dom.previewSizeSelectNarrow.addEventListener('change', (event) => changePreviewSizeCategory('narrow', event.target.value));
-  }
-  if (dom.previewSizeSelectWide) {
-    dom.previewSizeSelectWide.addEventListener('change', (event) => changePreviewSizeCategory('wide', event.target.value));
-  }
-  if (dom.previewSizeSelectSquare) {
-    dom.previewSizeSelectSquare.addEventListener('change', (event) => changePreviewSizeCategory('square', event.target.value));
-  }
+  // Обработчики для кастомных дропдаунов превью форматов больше не нужны
+  // они обрабатываются напрямую в updatePreviewSizeSelect
 };
 
 const exposeGlobals = () => {
@@ -180,6 +184,7 @@ const exposeGlobals = () => {
     toggleCustomSize: toggleCustomSizeAction,
     removeCustomSize: removeCustomSizeAction,
     addCustomSizeFromInput,
+    updateAddSizeButtonState,
     saveSettings,
     loadSettings,
     resetAll,
@@ -200,7 +205,10 @@ const exposeGlobals = () => {
     clearTitleCustomFont,
     clearSubtitleCustomFont,
     clearLegalCustomFont,
-    clearAgeCustomFont
+    clearAgeCustomFont,
+    transformTitleText,
+    transformSubtitleText,
+    transformLegalText
   });
 };
 
@@ -281,28 +289,20 @@ const loadFonts = async (fonts) => {
     document.head.appendChild(link);
   });
   
-  console.log(`Загружено ${fonts.length} шрифтов из ${fontGroups.size} семейств`);
 };
 
 const initialize = async () => {
   try {
-    console.log('Начало инициализации...');
-    
     // Загружаем шрифты из папки font/
-    console.log('Сканирование шрифтов...');
     const fonts = await scanFonts();
-    console.log(`Найдено ${fonts.length} шрифтов`);
     
     // Обновляем список доступных шрифтов
     setAvailableFonts(fonts);
-    console.log('Список доступных шрифтов обновлен');
     
     // Загружаем шрифты через @font-face
     await loadFonts(fonts);
-    console.log('Шрифты загружены через @font-face');
     
     const dom = cacheDom();
-    console.log('DOM кэширован');
     
     // Инициализируем старый canvas для обратной совместимости
     if (dom.previewCanvas) {
@@ -312,48 +312,31 @@ const initialize = async () => {
     if (dom.previewCanvasNarrow && dom.previewCanvasWide && dom.previewCanvasSquare) {
       renderer.initializeMulti(dom.previewCanvasNarrow, dom.previewCanvasWide, dom.previewCanvasSquare);
     }
-    console.log('Canvas инициализированы');
     
     initializeStateSubscribers();
-    console.log('Подписчики состояния инициализированы');
 
     initializeTabs();
-    console.log('Табы инициализированы');
-    
     initializeLogoDropdown();
-    console.log('Логотип dropdown инициализирован');
-    
     initializeLogoToggle();
-    console.log('Логотип toggle инициализирован');
-    
     initializeLogoPosToggle();
-    console.log('Позиция логотипа toggle инициализирована');
-    
     initializeTitleAlignToggle();
-    console.log('Выключка заголовка toggle инициализирована');
-    
     initializeTitleVPosToggle();
-    console.log('Вертикальная позиция заголовка toggle инициализирована');
-    
     initializeExportScaleToggle();
-    console.log('Масштаб экспорта toggle инициализирован');
+    initializeTitleTransformToggle();
+    initializeSubtitleTransformToggle();
+    initializeLegalTransformToggle();
     
     // Инициализируем dropdown для шрифтов после их загрузки
     initializeFontDropdown();
-    console.log('Шрифт dropdown инициализирован');
     
     // Инициализируем dropdown для шрифтов в каждом разделе
     initializeFontDropdowns();
-    console.log('Все dropdown для шрифтов инициализированы');
     
     initializeKVDropdown();
-    console.log('KV dropdown инициализирован');
     
     ensurePresetSelection();
-    console.log('Предустановленные размеры проверены');
     
     await selectPreloadedLogo(getState().logoSelected);
-    console.log('Логотип загружен');
     
     // Загружаем KV из активной пары, если есть, иначе используем значение по умолчанию
     const initialState = getState();
@@ -363,36 +346,23 @@ const initialize = async () => {
     if (kvToLoad) {
       await selectPreloadedKV(kvToLoad);
     }
-    console.log('KV загружен');
 
     // Сначала экспортируем функции в глобальную область, чтобы они были доступны в HTML
     exposeGlobals();
-    console.log('Функции экспортированы в глобальную область');
     
     renderPresetSizes();
-    console.log('Предустановленные размеры отрендерены');
-    
+    renderCustomSizes();
     updatePreviewSizeSelect();
-    console.log('Выбор размера превью обновлен');
-    
     syncFormFields();
-    console.log('Поля формы синхронизированы');
-    
     refreshMediaPreviews();
-    console.log('Превью медиа обновлены');
-    
     updateSizesSummary();
-    console.log('Сводка размеров обновлена');
-    
     initializeEventDelegation(dom);
-    console.log('Делегирование событий инициализировано');
+    updateAddSizeButtonState();
     
     // Показываем раздел по умолчанию
     showSection('layout');
-    console.log('Раздел показан');
 
     renderer.render();
-    console.log('Рендеринг завершен');
   } catch (error) {
     console.error('Ошибка инициализации:', error);
     console.error('Стек ошибки:', error.stack);
@@ -405,5 +375,49 @@ if (document.readyState === 'loading') {
 } else {
   initialize();
 }
+
+// Переключение темы
+function toggleTheme() {
+  const html = document.documentElement;
+  const currentTheme = html.getAttribute('data-theme') || 'dark';
+  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+  
+  if (newTheme === 'dark') {
+    html.removeAttribute('data-theme');
+  } else {
+    html.setAttribute('data-theme', newTheme);
+  }
+  localStorage.setItem('theme', newTheme);
+  
+  // Обновляем иконку
+  const themeIcon = document.querySelector('.theme-icon');
+  if (themeIcon) {
+    themeIcon.textContent = newTheme === 'light' ? '🌙' : '☀️';
+  }
+}
+
+// Инициализация темы при загрузке
+function initTheme() {
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  const html = document.documentElement;
+  
+  if (savedTheme === 'light') {
+    html.setAttribute('data-theme', 'light');
+  } else {
+    html.removeAttribute('data-theme');
+  }
+  
+  // Устанавливаем иконку
+  const themeIcon = document.querySelector('.theme-icon');
+  if (themeIcon) {
+    themeIcon.textContent = savedTheme === 'light' ? '🌙' : '☀️';
+  }
+}
+
+// Делаем функции доступными глобально
+window.toggleTheme = toggleTheme;
+
+// Инициализируем тему сразу при загрузке скрипта (до отображения страницы)
+initTheme();
 
 

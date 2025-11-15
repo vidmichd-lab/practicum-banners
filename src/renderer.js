@@ -9,6 +9,20 @@ const getFontWeight = (weightName) => {
   return FONT_NAME_TO_WEIGHT[weightName] || '400';
 };
 
+// Функция для применения преобразования регистра к тексту
+const applyTextTransform = (text, transformType) => {
+  if (!text || !transformType || transformType === 'none') {
+    return text;
+  }
+  if (transformType === 'uppercase') {
+    return text.toUpperCase();
+  }
+  if (transformType === 'lowercase') {
+    return text.toLowerCase();
+  }
+  return text;
+};
+
 const TITLE_SUBTITLE_RATIO = 1 / 2;
 const LEGAL_DESCENT_FACTOR = 0.2;
 
@@ -31,12 +45,12 @@ const getSortedSizes = () => {
 
 // Категоризация размеров
 const categorizeSizes = (sizes) => {
-  const narrow = []; // height > width * 1.5 (вертикальные)
+  const narrow = []; // height >= width * 1.5 (вертикальные)
   const wide = [];   // width >= height * 3 (горизонтальные)
   const square = []; // остальные (примерно квадратные)
   
   sizes.forEach((size) => {
-    if (size.height > size.width * 1.5) {
+    if (size.height >= size.width * 1.5) {
       narrow.push(size);
     } else if (size.width >= size.height * 3) {
       wide.push(size);
@@ -554,7 +568,8 @@ const renderToCanvas = (canvas, width, height, state) => {
     // Legal всегда занимает всю ширину макета (минус отступы и место для age)
     const availableWidth = width - paddingPx * 2;
     const legalMaxWidth = Math.max(50, availableWidth - ageReservedWidth);
-    legalLines = wrapText(ctx, state.legal, legalMaxWidth, legalSize, legalWeight, state.legalLineHeight);
+    const legalText = applyTextTransform(state.legal, state.legalTransform);
+    legalLines = wrapText(ctx, legalText, legalMaxWidth, legalSize, legalWeight, state.legalLineHeight);
     preliminaryLegalBlockHeight = Math.max(preliminaryLegalBlockHeight, legalLines.length * legalSize * state.legalLineHeight);
   }
   
@@ -892,7 +907,8 @@ const renderToCanvas = (canvas, width, height, state) => {
   const subtitleWeight = getFontWeight(state.subtitleWeight);
   
   ctx.font = `${titleWeight} ${titleSize}px ${state.titleFontFamily || state.fontFamily}`;
-  const titleLines = wrapText(ctx, state.title, maxTextWidth, titleSize, titleWeight, state.titleLineHeight);
+  const titleText = applyTextTransform(state.title, state.titleTransform);
+  const titleLines = wrapText(ctx, titleText, maxTextWidth, titleSize, titleWeight, state.titleLineHeight);
   const titleBlockHeight = titleLines.length * titleSize * state.titleLineHeight;
 
   let subtitleBlockHeight = 0;
@@ -908,7 +924,8 @@ const renderToCanvas = (canvas, width, height, state) => {
       const letterSpacingImpact = state.subtitleLetterSpacing * Math.max(0, estimatedCharsPerLine - 1);
       effectiveMaxWidth = Math.max(50, maxTextWidth - letterSpacingImpact);
     }
-    subtitleLines = wrapText(ctx, state.subtitle, effectiveMaxWidth, subtitleSize, subtitleWeight, state.subtitleLineHeight);
+    const subtitleText = applyTextTransform(state.subtitle, state.subtitleTransform);
+    subtitleLines = wrapText(ctx, subtitleText, effectiveMaxWidth, subtitleSize, subtitleWeight, state.subtitleLineHeight);
     if (subtitleLines.length > 0) {
       // Gap is calculated separately, not included in block height
       subtitleBlockHeight = subtitleLines.length * subtitleSize * state.subtitleLineHeight;
