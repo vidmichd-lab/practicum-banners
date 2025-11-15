@@ -1,4 +1,5 @@
 import { cacheDom } from './ui/domCache.js';
+import { initEventDelegation, registerHandler, initCheckboxHandlers } from './ui/eventHandler.js';
 import {
   syncFormFields,
   updatePreviewSizeSelect,
@@ -34,9 +35,12 @@ import {
   selectBgPosition,
   applyPresetBgColor,
   handleLogoUpload,
+  handlePartnerLogoUpload,
   handleKVUpload,
   handleBgUpload,
   clearLogo,
+  clearPartnerLogo,
+  showPartnerLogoSection,
   clearKV,
   clearBg,
   showSection,
@@ -65,10 +69,15 @@ import {
   initializeFontDropdowns,
   initializeKVDropdown,
   initializeTabs,
-    selectPreloadedKV,
+  openLogoSelectModal,
+  closeLogoSelectModal,
+  openKVSelectModal,
+  closeKVSelectModal,
+  selectPreloadedKV,
     loadDefaultKV,
     initializeStateSubscribers,
     refreshMediaPreviews,
+    updatePartnerLogoUI,
     updateSizesSummary,
     addTitleSubtitlePairAction,
     removeTitleSubtitlePairAction,
@@ -96,10 +105,13 @@ import {
     selectLegalTransform,
     initializeTitleTransformToggle,
     initializeSubtitleTransformToggle,
-    initializeLegalTransformToggle
+    initializeLegalTransformToggle,
+  initializeBackgroundUI,
+  initializeSizeManager
 } from './ui/ui.js';
-import { renderer, clearTextMeasurementCache } from './renderer.js';
-import { setKey, getState, ensurePresetSelection } from './state/store.js';
+import { renderer } from './renderer.js';
+import { clearTextMeasurementCache } from './renderer/text.js';
+import { setKey, getState, ensurePresetSelection, getCheckedSizes } from './state/store.js';
 import { exportPNG, exportJPG } from './exporter.js';
 import { scanFonts } from './utils/assetScanner.js';
 import { setAvailableFonts } from './constants.js';
@@ -116,25 +128,61 @@ const initializeEventDelegation = (dom) => {
 const exposeGlobals = () => {
   Object.assign(window, {
     updateState: (key, rawValue) => {
-      const value = typeof rawValue === 'string' && rawValue.trim() === '' ? rawValue : rawValue;
-      
-      // Очищаем кэш измерения текста ПЕРЕД изменением состояния, если меняются параметры текста
-      if (key === 'titleWeight' || key === 'subtitleWeight' || key === 'legalWeight' || key === 'ageWeight' ||
-          key === 'titleFontFamily' || key === 'subtitleFontFamily' || key === 'legalFontFamily' || key === 'ageFontFamily' ||
-          key === 'titleSize' || key === 'subtitleSize' || key === 'legalSize' || key === 'ageSize' ||
-          key === 'titleLetterSpacing' || key === 'subtitleLetterSpacing' || key === 'legalLetterSpacing') {
-        clearTextMeasurementCache();
-      }
-      
-      setKey(key, value);
-      // Для начертаний используем синхронный рендеринг для немедленного отображения
-      if (key === 'titleWeight' || key === 'subtitleWeight' || key === 'legalWeight' || key === 'ageWeight') {
-        // Принудительно очищаем кэш измерения текста перед рендерингом для начертаний
-        clearTextMeasurementCache();
-        // Используем синхронный рендеринг для немедленного отображения изменений
-        renderer.renderSync();
-      } else {
-        renderer.render();
+      try {
+        // Валидация ключа
+        if (!key || typeof key !== 'string') {
+          console.warn('Некорректный ключ состояния:', key);
+          return;
+        }
+        
+        // Нормализация значения
+        let value = rawValue;
+        // Булевы значения (true/false) всегда валидны
+        if (typeof rawValue === 'boolean') {
+          value = rawValue;
+        } else if (typeof rawValue === 'string' && rawValue.trim() === '') {
+          value = rawValue;
+        } else if (rawValue === null || rawValue === undefined) {
+          console.warn('Попытка установить null/undefined для ключа:', key);
+          return;
+        }
+        
+        // Очищаем кэш измерения текста ПЕРЕД изменением состояния, если меняются параметры текста
+        if (key === 'titleWeight' || key === 'subtitleWeight' || key === 'legalWeight' || key === 'ageWeight' ||
+            key === 'titleFontFamily' || key === 'subtitleFontFamily' || key === 'legalFontFamily' || key === 'ageFontFamily' ||
+            key === 'titleSize' || key === 'subtitleSize' || key === 'legalSize' || key === 'ageSize' ||
+            key === 'titleLetterSpacing' || key === 'subtitleLetterSpacing' || key === 'legalLetterSpacing') {
+          clearTextMeasurementCache();
+        }
+        
+        // Обновляем состояние
+        setKey(key, value);
+        
+        // Для начертаний используем синхронный рендеринг для немедленного отображения
+        if (key === 'titleWeight' || key === 'subtitleWeight' || key === 'legalWeight' || key === 'ageWeight') {
+          // Принудительно очищаем кэш измерения текста перед рендерингом для начертаний
+          clearTextMeasurementCache();
+          // Используем синхронный рендеринг для немедленного отображения изменений
+          try {
+            renderer.renderSync();
+          } catch (renderError) {
+            console.error('Ошибка синхронного рендеринга:', renderError);
+            // Пробуем асинхронный рендеринг как fallback
+            renderer.render();
+          }
+        } else {
+          // Асинхронный рендеринг для остальных изменений
+          try {
+            renderer.render();
+          } catch (renderError) {
+            console.error('Ошибка асинхронного рендеринга:', renderError);
+          }
+        }
+      } catch (error) {
+        console.error('Ошибка в updateState:', error);
+        console.error('Ключ:', key, 'Значение:', rawValue);
+        console.error('Стек ошибки:', error.stack);
+        // Не прерываем выполнение, просто логируем ошибку
       }
     },
     updatePadding,
@@ -149,9 +197,12 @@ const exposeGlobals = () => {
     selectPreloadedLogo,
     selectPreloadedKV,
     handleLogoUpload,
+    handlePartnerLogoUpload,
     handleKVUpload,
     handleBgUpload,
     clearLogo,
+    clearPartnerLogo,
+    showPartnerLogoSection,
     clearKV,
     clearBg,
     selectTitleAlign,
@@ -198,6 +249,10 @@ const exposeGlobals = () => {
     refreshLogoColumns,
     refreshKVColumns,
     refreshAllAssets,
+    openLogoSelectModal,
+    closeLogoSelectModal,
+    openKVSelectModal,
+    closeKVSelectModal,
     handleTitleFontUpload,
     handleSubtitleFontUpload,
     handleLegalFontUpload,
@@ -304,6 +359,15 @@ const initialize = async () => {
     
     const dom = cacheDom();
     
+    // Проверяем наличие canvas элементов
+    if (!dom.previewCanvasNarrow || !dom.previewCanvasWide || !dom.previewCanvasSquare) {
+      console.error('Canvas элементы не найдены в DOM:', {
+        narrow: !!dom.previewCanvasNarrow,
+        wide: !!dom.previewCanvasWide,
+        square: !!dom.previewCanvasSquare
+      });
+    }
+    
     // Инициализируем старый canvas для обратной совместимости
     if (dom.previewCanvas) {
       renderer.initialize(dom.previewCanvas);
@@ -311,6 +375,8 @@ const initialize = async () => {
     // Инициализируем новые canvas для мульти-превью
     if (dom.previewCanvasNarrow && dom.previewCanvasWide && dom.previewCanvasSquare) {
       renderer.initializeMulti(dom.previewCanvasNarrow, dom.previewCanvasWide, dom.previewCanvasSquare);
+    } else {
+      console.warn('Не все canvas элементы найдены, мульти-превью не инициализировано');
     }
     
     initializeStateSubscribers();
@@ -334,17 +400,32 @@ const initialize = async () => {
     
     initializeKVDropdown();
     
+    // Инициализируем фон
+    initializeBackgroundUI();
+    
+    // Инициализируем менеджер размеров
+    initializeSizeManager();
+    
     ensurePresetSelection();
     
-    await selectPreloadedLogo(getState().logoSelected);
+    // Загружаем логотип и KV, но не блокируем рендеринг при ошибках
+    try {
+      await selectPreloadedLogo(getState().logoSelected);
+    } catch (error) {
+      console.warn('Ошибка загрузки логотипа:', error);
+    }
     
     // Загружаем KV из активной пары, если есть, иначе используем значение по умолчанию
-    const initialState = getState();
-    const pairs = initialState.titleSubtitlePairs || [];
-    const activePair = pairs[initialState.activePairIndex || 0];
-    const kvToLoad = (activePair && activePair.kvSelected) || initialState.kvSelected || 'assets/3d/sign/01.png';
-    if (kvToLoad) {
-      await selectPreloadedKV(kvToLoad);
+    try {
+      const initialState = getState();
+      const pairs = initialState.titleSubtitlePairs || [];
+      const activePair = pairs[initialState.activePairIndex || 0];
+      const kvToLoad = (activePair && activePair.kvSelected) || initialState.kvSelected || 'assets/3d/sign/01.png';
+      if (kvToLoad) {
+        await selectPreloadedKV(kvToLoad);
+      }
+    } catch (error) {
+      console.warn('Ошибка загрузки KV:', error);
     }
 
     // Сначала экспортируем функции в глобальную область, чтобы они были доступны в HTML
@@ -355,14 +436,61 @@ const initialize = async () => {
     updatePreviewSizeSelect();
     syncFormFields();
     refreshMediaPreviews();
+    updatePartnerLogoUI();
     updateSizesSummary();
     initializeEventDelegation(dom);
+    
+    // Регистрируем обработчики для чипсов
+    registerHandler('chip[data-group="bg-size"]', (value) => {
+      if (typeof window.selectBgSize === 'function') {
+        window.selectBgSize(value);
+      }
+    });
+    registerHandler('chip[data-group="bg-position"]', (value) => {
+      if (typeof window.selectBgPosition === 'function') {
+        window.selectBgPosition(value);
+      }
+    });
+    
+    // Инициализируем систему делегирования событий
+    initEventDelegation();
+    
+    // Инициализируем обработчики для чекбоксов напрямую
+    initCheckboxHandlers();
+    
     updateAddSizeButtonState();
     
     // Показываем раздел по умолчанию
     showSection('layout');
 
-    renderer.render();
+    // Убеждаемся, что есть выбранные размеры перед рендерингом
+    ensurePresetSelection();
+    
+    // Рендерим после небольшой задержки, чтобы убедиться, что все инициализировано
+    // Используем requestAnimationFrame для гарантии, что DOM готов
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        // Проверяем, что canvas элементы действительно в DOM
+        const narrow = document.getElementById('previewCanvasNarrow');
+        const wide = document.getElementById('previewCanvasWide');
+        const square = document.getElementById('previewCanvasSquare');
+        
+        if (!narrow || !wide || !square) {
+          console.error('Canvas элементы не найдены в DOM при попытке рендеринга');
+          return;
+        }
+        
+        // Проверяем, что есть выбранные размеры
+        const sizes = getCheckedSizes();
+        if (!sizes || sizes.length === 0) {
+          console.warn('Нет выбранных размеров для рендеринга');
+          return;
+        }
+        
+        console.log('Начинаем рендеринг превью, размеров:', sizes.length);
+        renderer.render();
+      }, 100);
+    });
   } catch (error) {
     console.error('Ошибка инициализации:', error);
     console.error('Стек ошибки:', error.stack);

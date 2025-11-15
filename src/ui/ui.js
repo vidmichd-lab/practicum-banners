@@ -24,158 +24,99 @@ import {
 } from '../state/store.js';
 import { AVAILABLE_LOGOS, AVAILABLE_FONTS, AVAILABLE_KV, PRESET_BACKGROUND_COLORS, FONT_WEIGHT_TO_NAME, FONT_NAME_TO_WEIGHT, AVAILABLE_WEIGHTS } from '../constants.js';
 import { scanLogos, scanKV } from '../utils/assetScanner.js';
+import {
+  updateLogoUI,
+  handleLogoUpload,
+  clearLogo,
+  selectPreloadedLogo,
+  refreshLogoColumns,
+  initializeLogoDropdown,
+  openLogoSelectModal,
+  closeLogoSelectModal,
+  populateLogoColumns,
+  updateLogoTriggerText
+} from './components/logoSelector.js';
 import { renderer, clearTextMeasurementCache } from '../renderer.js';
 import { getDom } from './domCache.js';
+import {
+  getAvailableWeightsForFamily,
+  updateWeightDropdown,
+  updateCustomWeightDropdown,
+  updateCustomFontDropdown,
+  updateFontDropdown,
+  updateCustomFontInfo,
+  closeAllFontDropdowns,
+  selectFontFamily,
+  handleTitleFontUpload,
+  handleSubtitleFontUpload,
+  handleLegalFontUpload,
+  handleAgeFontUpload,
+  clearTitleCustomFont,
+  clearSubtitleCustomFont,
+  clearLegalCustomFont,
+  clearAgeCustomFont,
+  selectTitleFontFamily,
+  selectSubtitleFontFamily,
+  selectLegalFontFamily,
+  selectAgeFontFamily,
+  initializeFontDropdown,
+  initializeFontDropdowns
+} from './components/fontSelector.js';
+import {
+  updateKVUI,
+  handleKVUpload,
+  clearKV,
+  selectPreloadedKV,
+  handlePairKVUpload,
+  refreshKVColumns as refreshKVColumnsFromModule,
+  initializeKVDropdown,
+  loadDefaultKV,
+  updateKVBorderRadius,
+  updateKVTriggerText,
+  openKVSelectModal,
+  closeKVSelectModal
+} from './components/kvSelector.js';
+import {
+  handleBgImageUpload,
+  clearBgImage,
+  updateBgColor,
+  applyPresetBgColor,
+  updateBgSize,
+  updateBgPosition,
+  initializeBackgroundUI
+} from './components/backgroundSelector.js';
+import {
+  updateSizesSummary,
+  renderPresetSizes,
+  renderCustomSizes,
+  changePreviewSizeCategory,
+  toggleSize,
+  toggleCustomSizeAction,
+  removeCustomSizeAction,
+  addCustomSizeAction,
+  addCustomSizeFromInput,
+  updateAddSizeButtonState,
+  selectAllSizesAction,
+  deselectAllSizesAction,
+  togglePlatformSizes,
+  initializeSizeManager
+} from './components/sizeManager.js';
 let savedSettings = null;
 
-// Функция для получения доступных начертаний для конкретной гарнитуры
-const getAvailableWeightsForFamily = (fontFamily) => {
-  // Для system-ui и кастомных шрифтов показываем все начертания
-  if (!fontFamily || fontFamily === 'system-ui' || fontFamily.startsWith('CustomFont_')) {
-    return AVAILABLE_WEIGHTS.map(w => w.name);
-  }
-  
-  // Получаем уникальные начертания для данной гарнитуры
-  const availableWeights = new Set();
-  AVAILABLE_FONTS.forEach((font) => {
-    if (font.family === fontFamily && font.weightName) {
-      availableWeights.add(font.weightName);
-    }
-  });
-  
-  // Если начертания не найдены, возвращаем Regular как минимум
-  if (availableWeights.size === 0) {
-    return ['Regular'];
-  }
-  
-  // Сортируем начертания в правильном порядке
-  const weightOrder = ['Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'Heavy', 'Black'];
-  return Array.from(availableWeights).sort((a, b) => {
-    const indexA = weightOrder.indexOf(a);
-    const indexB = weightOrder.indexOf(b);
-    if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
-  });
-};
+// Переменные для работы с KV (используются в функциях для пар)
+let cachedKV = null;
+let kvScanning = false;
+let selectedFolder1 = null;
+let selectedFolder2 = null;
+let currentKVModalPairIndex = null;
 
-// Функция для обновления селекта начертаний на основе выбранной гарнитуры
-const updateWeightDropdown = (selectElement, fontFamily, currentWeight) => {
-  if (!selectElement) return;
-  
-  const availableWeights = getAvailableWeightsForFamily(fontFamily);
-  const currentValue = currentWeight || 'Regular';
-  
-  // Сохраняем текущее значение, если оно доступно
-  const shouldKeepCurrent = availableWeights.includes(currentValue);
-  
-  // Очищаем селект
-  selectElement.innerHTML = '';
-  
-  // Маппинг названий начертаний на русские описания
-  const weightLabels = {
-    'Thin': 'Thin — Тонкий',
-    'ExtraLight': 'ExtraLight — Экстра-светлый',
-    'Light': 'Light — Светлый',
-    'Regular': 'Regular — Обычный',
-    'Medium': 'Medium — Средний',
-    'SemiBold': 'SemiBold — Полужирный',
-    'Bold': 'Bold — Жирный',
-    'Heavy': 'Heavy — Экстра-жирный',
-    'Black': 'Black — Чёрный'
-  };
-  
-  // Добавляем только доступные начертания
-  availableWeights.forEach((weightName) => {
-    const option = document.createElement('option');
-    option.value = weightName;
-    option.textContent = weightLabels[weightName] || weightName;
-    if (weightName === (shouldKeepCurrent ? currentValue : 'Regular')) {
-      option.selected = true;
-    }
-    selectElement.appendChild(option);
-  });
-  
-  // Если текущее начертание недоступно, выбираем Regular или первое доступное
-  if (!shouldKeepCurrent) {
-    selectElement.value = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
-  }
-};
+// Переменные для работы с логотипами (используются в функциях)
+let cachedLogosStructure = null;
+let selectedLogoFolder1 = null;
+let selectedLogoFolder2 = null;
+let selectedLogoFolder3 = null;
 
-// Функция для обновления кастомного дропдауна начертаний
-const updateCustomWeightDropdown = (dropdownElement, textElement, fontFamily, currentWeight, updateCallback) => {
-  if (!dropdownElement || !textElement) return;
-  
-  const availableWeights = getAvailableWeightsForFamily(fontFamily);
-  const currentValue = currentWeight || 'Regular';
-  const shouldKeepCurrent = availableWeights.includes(currentValue);
-  const selectedValue = shouldKeepCurrent ? currentValue : (availableWeights.includes('Regular') ? 'Regular' : availableWeights[0]);
-  
-  const weightLabels = {
-    'Thin': 'Thin — Тонкий',
-    'ExtraLight': 'ExtraLight — Экстра-светлый',
-    'Light': 'Light — Светлый',
-    'Regular': 'Regular — Обычный',
-    'Medium': 'Medium — Средний',
-    'SemiBold': 'SemiBold — Полужирный',
-    'Bold': 'Bold — Жирный',
-    'Heavy': 'Heavy — Экстра-жирный',
-    'Black': 'Black — Чёрный'
-  };
-  
-  // Если в дропдауне уже есть опции (статические из HTML), обновляем их
-  const existingOptions = dropdownElement.querySelectorAll('.custom-select-option');
-  if (existingOptions.length > 0) {
-    // Обновляем существующие опции
-    existingOptions.forEach(option => {
-      const value = option.dataset.value;
-      if (availableWeights.includes(value)) {
-        option.style.display = '';
-        // Обновляем класс selected
-        if (value === selectedValue) {
-          option.classList.add('selected');
-          textElement.textContent = option.textContent;
-        } else {
-          option.classList.remove('selected');
-        }
-      } else {
-        // Скрываем недоступные опции
-        option.style.display = 'none';
-        option.classList.remove('selected');
-      }
-    });
-  } else {
-    // Если опций нет, создаем их
-    dropdownElement.innerHTML = '';
-    
-    availableWeights.forEach((weightName) => {
-      const option = document.createElement('div');
-      option.className = 'custom-select-option';
-      if (weightName === selectedValue) {
-        option.classList.add('selected');
-        textElement.textContent = weightLabels[weightName] || weightName;
-      }
-      option.dataset.value = weightName;
-      option.textContent = weightLabels[weightName] || weightName;
-      option.onclick = () => {
-        textElement.textContent = option.textContent;
-        dropdownElement.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
-        option.classList.add('selected');
-        dropdownElement.style.display = 'none';
-        closeAllFontDropdowns();
-        if (updateCallback) updateCallback(weightName);
-      };
-      dropdownElement.appendChild(option);
-    });
-  }
-  
-  // Обновляем выбранное значение в тексте кнопки
-  const selectedOption = dropdownElement.querySelector(`[data-value="${selectedValue}"]`);
-  if (selectedOption) {
-    textElement.textContent = selectedOption.textContent;
-  }
-};
+// Функции для работы со шрифтами теперь импортируются из ./components/fontSelector.js
 
 const updateChipGroup = (group, value) => {
   document.querySelectorAll(`[data-group="${group}"]`).forEach((chip) => {
@@ -200,8 +141,9 @@ export const syncFormFields = () => {
 
   if (!dom.paddingPercent) return;
 
-  dom.paddingPercent.value = state.paddingPercent;
-  if (dom.paddingValue) dom.paddingValue.textContent = `${state.paddingPercent}%`;
+  const paddingPercent = state.paddingPercent ?? 5;
+  dom.paddingPercent.value = paddingPercent;
+  if (dom.paddingValue) dom.paddingValue.textContent = `${paddingPercent}%`;
   
   // Синхронизируем активную пару
   if (state.titleSubtitlePairs && state.titleSubtitlePairs.length > 0) {
@@ -214,10 +156,14 @@ export const syncFormFields = () => {
     if (dom.title) dom.title.value = state.title || '';
     if (dom.subtitle) dom.subtitle.value = state.subtitle || '';
   }
-  dom.titleColor.value = state.titleColor;
-  if (dom.titleColorHex) dom.titleColorHex.value = state.titleColor;
-  dom.titleSize.value = state.titleSize;
-  if (dom.titleSizeValue) dom.titleSizeValue.textContent = `${state.titleSize}%`;
+  dom.titleColor.value = state.titleColor || '#ffffff';
+  if (dom.titleColorHex) dom.titleColorHex.value = state.titleColor || '#ffffff';
+  const titleSize = state.titleSize ?? 7;
+  dom.titleSize.value = titleSize;
+  if (dom.titleSizeValue) {
+    const titleSizeNum = typeof titleSize === 'number' && !isNaN(titleSize) ? titleSize : 7;
+    dom.titleSizeValue.textContent = `${titleSizeNum}%`;
+  }
   // Конвертируем вес из числа в название для обратной совместимости
   const titleWeight = typeof state.titleWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
@@ -238,7 +184,7 @@ export const syncFormFields = () => {
   if (titleWeightText && titleWeightDropdown) {
     const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
     updateCustomWeightDropdown(titleWeightDropdown, titleWeightText, titleFontFamily, titleWeight, (value) => {
-      updateState('titleWeight', value);
+      setKey('titleWeight', value);
     });
   }
   
@@ -256,13 +202,21 @@ export const syncFormFields = () => {
   dom.titleLetterSpacing.value = state.titleLetterSpacing;
   dom.titleLineHeight.value = state.titleLineHeight;
 
-  dom.subtitle.value = state.subtitle;
-  dom.subtitleColor.value = state.subtitleColor;
-  if (dom.subtitleColorHex) dom.subtitleColorHex.value = state.subtitleColor;
-  dom.subtitleOpacity.value = state.subtitleOpacity || 90;
-  if (dom.subtitleOpacityValue) dom.subtitleOpacityValue.textContent = `${state.subtitleOpacity || 90}%`;
-  dom.subtitleSize.value = state.subtitleSize;
-  if (dom.subtitleSizeValue) dom.subtitleSizeValue.textContent = `${state.subtitleSize}%`;
+  dom.subtitle.value = state.subtitle || '';
+  dom.subtitleColor.value = state.subtitleColor || '#e0e0e0';
+  if (dom.subtitleColorHex) dom.subtitleColorHex.value = state.subtitleColor || '#e0e0e0';
+  const subtitleOpacity = state.subtitleOpacity ?? 90;
+  dom.subtitleOpacity.value = subtitleOpacity;
+  if (dom.subtitleOpacityValue) {
+    const subtitleOpacityNum = typeof subtitleOpacity === 'number' && !isNaN(subtitleOpacity) ? subtitleOpacity : 90;
+    dom.subtitleOpacityValue.textContent = `${subtitleOpacityNum}%`;
+  }
+  const subtitleSize = state.subtitleSize ?? 4;
+  dom.subtitleSize.value = subtitleSize;
+  if (dom.subtitleSizeValue) {
+    const subtitleSizeNum = typeof subtitleSize === 'number' && !isNaN(subtitleSize) ? subtitleSize : 4;
+    dom.subtitleSizeValue.textContent = `${subtitleSizeNum}%`;
+  }
   // Конвертируем вес из числа в название для обратной совместимости
   const subtitleWeight = typeof state.subtitleWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
@@ -283,7 +237,7 @@ export const syncFormFields = () => {
   if (subtitleWeightText && subtitleWeightDropdown) {
     const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
     updateCustomWeightDropdown(subtitleWeightDropdown, subtitleWeightText, subtitleFontFamily, subtitleWeight, (value) => {
-      updateState('subtitleWeight', value);
+      setKey('subtitleWeight', value);
     });
   }
   
@@ -302,13 +256,21 @@ export const syncFormFields = () => {
   dom.subtitleLineHeight.value = state.subtitleLineHeight;
   dom.subtitleGap.value = state.subtitleGap;
 
-  dom.legal.value = state.legal;
-  dom.legalColor.value = state.legalColor;
-  if (dom.legalColorHex) dom.legalColorHex.value = state.legalColor;
-  dom.legalOpacity.value = state.legalOpacity;
-  if (dom.legalOpacityValue) dom.legalOpacityValue.textContent = `${state.legalOpacity}%`;
-  dom.legalSize.value = state.legalSize;
-  if (dom.legalSizeValue) dom.legalSizeValue.textContent = `${state.legalSize}%`;
+  dom.legal.value = state.legal || '';
+  dom.legalColor.value = state.legalColor || '#ffffff';
+  if (dom.legalColorHex) dom.legalColorHex.value = state.legalColor || '#ffffff';
+  const legalOpacity = state.legalOpacity ?? 60;
+  dom.legalOpacity.value = legalOpacity;
+  if (dom.legalOpacityValue) {
+    const legalOpacityNum = typeof legalOpacity === 'number' && !isNaN(legalOpacity) ? legalOpacity : 60;
+    dom.legalOpacityValue.textContent = `${legalOpacityNum}%`;
+  }
+  const legalSize = state.legalSize ?? 2;
+  dom.legalSize.value = legalSize;
+  if (dom.legalSizeValue) {
+    const legalSizeNum = typeof legalSize === 'number' && !isNaN(legalSize) ? legalSize : 2;
+    dom.legalSizeValue.textContent = `${legalSizeNum.toFixed(1)}%`;
+  }
   // Конвертируем вес из числа в название для обратной совместимости
   const legalWeight = typeof state.legalWeight === 'number' 
     ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
@@ -329,7 +291,7 @@ export const syncFormFields = () => {
   if (legalWeightText && legalWeightDropdown) {
     const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
     updateCustomWeightDropdown(legalWeightDropdown, legalWeightText, legalFontFamily, legalWeight, (value) => {
-      updateState('legalWeight', value);
+      setKey('legalWeight', value);
     });
   }
   
@@ -347,9 +309,13 @@ export const syncFormFields = () => {
   dom.legalLetterSpacing.value = state.legalLetterSpacing;
   dom.legalLineHeight.value = state.legalLineHeight;
 
-  dom.age.value = state.age;
-  dom.ageSize.value = state.ageSize;
-  if (dom.ageSizeValue) dom.ageSizeValue.textContent = `${state.ageSize}%`;
+  dom.age.value = state.age || '18+';
+  const ageSize = state.ageSize ?? 4;
+  dom.ageSize.value = ageSize;
+  if (dom.ageSizeValue) {
+    const ageSizeNum = typeof ageSize === 'number' && !isNaN(ageSize) ? ageSize : 4;
+    dom.ageSizeValue.textContent = `${ageSizeNum}%`;
+  }
   // Обновляем кастомный дропдаун для возраста
   const ageFontFamilyText = document.getElementById('ageFontFamilyText');
   const ageFontFamilyDropdown = document.getElementById('ageFontFamilyDropdown');
@@ -365,30 +331,35 @@ export const syncFormFields = () => {
   if (state.ageCustomFontName) {
     updateCustomFontInfo('age', state.ageCustomFontName);
   }
-  dom.ageGapPercent.value = state.ageGapPercent;
+  if (dom.ageGapPercent) dom.ageGapPercent.value = state.ageGapPercent;
 
-  dom.showSubtitle.checked = state.showSubtitle;
+  if (dom.showLogo) dom.showLogo.checked = state.showLogo !== false;
+  if (dom.showSubtitle) dom.showSubtitle.checked = state.showSubtitle;
   if (dom.hideSubtitleOnWide) dom.hideSubtitleOnWide.checked = state.hideSubtitleOnWide;
-  dom.showLegal.checked = state.showLegal;
-  dom.showAge.checked = state.showAge;
-  dom.showKV.checked = state.showKV;
-  dom.showBlocks.checked = state.showBlocks || false;
-  dom.showGuides.checked = !!state.showGuides;
+  if (dom.showLegal) dom.showLegal.checked = state.showLegal;
+  if (dom.showAge) dom.showAge.checked = state.showAge;
+  if (dom.showKV) dom.showKV.checked = state.showKV;
 
   if (dom.logoSelect) dom.logoSelect.value = state.logoSelected || '';
   updateLogoTriggerText(state.logoSelected || '');
-  dom.logoSize.value = state.logoSize;
-  if (dom.logoSizeValue) dom.logoSizeValue.textContent = `${state.logoSize}%`;
+  const logoSize = state.logoSize ?? 40;
+  dom.logoSize.value = logoSize;
+  if (dom.logoSizeValue) {
+    const logoSizeNum = typeof logoSize === 'number' && !isNaN(logoSize) ? logoSize : 40;
+    dom.logoSizeValue.textContent = `${logoSizeNum}%`;
+  }
 
   if (dom.kvSelect) {
     dom.kvSelect.value = state.kvSelected || '';
     updateKVTriggerText(state.kvSelected || '');
   }
+  const kvBorderRadius = state.kvBorderRadius ?? 0;
   if (dom.kvBorderRadius) {
-    dom.kvBorderRadius.value = state.kvBorderRadius || 0;
+    dom.kvBorderRadius.value = kvBorderRadius;
   }
   if (dom.kvBorderRadiusValue) {
-    dom.kvBorderRadiusValue.textContent = `${state.kvBorderRadius || 0}%`;
+    const kvBorderRadiusNum = typeof kvBorderRadius === 'number' && !isNaN(kvBorderRadius) ? kvBorderRadius : 0;
+    dom.kvBorderRadiusValue.textContent = `${kvBorderRadiusNum}%`;
   }
 
   dom.bgColor.value = state.bgColor;
@@ -410,6 +381,8 @@ export const syncFormFields = () => {
   updateLogoToggle(state.logoLanguage || 'ru');
 };
 
+// updatePreviewSizeSelect имеет дополнительную логику с обработчиками в ui.js
+// Поэтому оставляем её здесь, а не используем версию из sizeManager.js
 export const updatePreviewSizeSelect = () => {
   const dom = getDom();
   const categorized = renderer.getCategorizedSizes();
@@ -620,121 +593,9 @@ export const updatePreviewSizeSelectOld = () => {
   }
 };
 
-const updateLogoUI = () => {
-  const dom = getDom();
-  const { logo, logoSelected } = getState();
-  const logoRemoveBtn = document.getElementById('logoRemoveBtn');
-  const logoPreviewImg = document.getElementById('logoPreviewImg');
-  const logoPreviewPlaceholder = document.getElementById('logoPreviewPlaceholder');
-  const logoPreviewContainer = document.getElementById('logoPreviewContainer');
-  
-  // Обновляем превью логотипа
-  if (logoPreviewImg && logoPreviewPlaceholder) {
-    if (logo) {
-      // Загруженное изображение
-      logoPreviewImg.src = logo.src;
-      logoPreviewImg.style.display = 'block';
-      logoPreviewPlaceholder.style.display = 'none';
-    } else if (logoSelected) {
-      // Предзагруженный логотип
-      logoPreviewImg.src = logoSelected;
-      logoPreviewImg.style.display = 'block';
-      logoPreviewPlaceholder.style.display = 'none';
-    } else {
-      // Нет логотипа
-      logoPreviewImg.src = '';
-      logoPreviewImg.style.display = 'none';
-      logoPreviewPlaceholder.style.display = 'block';
-    }
-  }
-  
-  // Добавляем обработчик клика на превью для открытия модального окна
-  if (logoPreviewContainer) {
-    logoPreviewContainer.style.cursor = 'pointer';
-    // Используем data-атрибут для отслеживания, был ли уже добавлен обработчик
-    if (!logoPreviewContainer.dataset.clickHandlerAdded) {
-      logoPreviewContainer.addEventListener('click', async () => {
-        await openLogoSelectModal();
-      });
-      logoPreviewContainer.dataset.clickHandlerAdded = 'true';
-    }
-  }
-  
-  // Обновляем состояние кнопки "Удалить"
-  if (logoRemoveBtn) {
-    const hasLogo = !!(logo || logoSelected);
-    logoRemoveBtn.disabled = !hasLogo;
-    if (hasLogo) {
-      logoRemoveBtn.style.opacity = '1';
-      logoRemoveBtn.style.cursor = 'pointer';
-    } else {
-      logoRemoveBtn.style.opacity = '0.5';
-      logoRemoveBtn.style.cursor = 'not-allowed';
-    }
-  }
-};
+// Функция updateLogoUI теперь импортируется из ./components/logoSelector.js
 
-const updateKVUI = () => {
-  const dom = getDom();
-  const state = getState();
-  const { kv, kvSelected } = state;
-  const kvRemoveBtn = document.getElementById('kvRemoveBtn');
-  const kvPreviewImg = document.getElementById('kvPreviewImg');
-  const kvPreviewPlaceholder = document.getElementById('kvPreviewPlaceholder');
-  const kvActivePairLabel = document.getElementById('kvActivePairLabel');
-  const kvPreviewContainer = document.getElementById('kvPreviewContainer');
-  
-  // Обновляем заголовок для активной пары
-  if (kvActivePairLabel) {
-    const activeIndex = state.activePairIndex || 0;
-    kvActivePairLabel.textContent = `KV для заголовка ${activeIndex + 1}`;
-  }
-  
-  // Обновляем превью KV
-  if (kvPreviewImg && kvPreviewPlaceholder) {
-    if (kv) {
-      // Загруженное изображение
-      kvPreviewImg.src = kv.src;
-      kvPreviewImg.style.display = 'block';
-      kvPreviewPlaceholder.style.display = 'none';
-    } else if (kvSelected) {
-      // Предзагруженный KV
-      kvPreviewImg.src = kvSelected;
-      kvPreviewImg.style.display = 'block';
-      kvPreviewPlaceholder.style.display = 'none';
-    } else {
-      // Нет KV
-      kvPreviewImg.src = '';
-      kvPreviewImg.style.display = 'none';
-      kvPreviewPlaceholder.style.display = 'block';
-    }
-  }
-  
-  // Добавляем обработчик клика на превью для открытия модального окна
-  if (kvPreviewContainer) {
-    kvPreviewContainer.style.cursor = 'pointer';
-    // Используем data-атрибут для отслеживания, был ли уже добавлен обработчик
-    if (!kvPreviewContainer.dataset.clickHandlerAdded) {
-      kvPreviewContainer.addEventListener('click', async () => {
-        await openKVSelectModal();
-      });
-      kvPreviewContainer.dataset.clickHandlerAdded = 'true';
-    }
-  }
-  
-  // Обновляем состояние кнопки "Удалить"
-  if (kvRemoveBtn) {
-    const hasKV = !!(kv || kvSelected);
-    kvRemoveBtn.disabled = !hasKV;
-    if (hasKV) {
-      kvRemoveBtn.style.opacity = '1';
-      kvRemoveBtn.style.cursor = 'pointer';
-    } else {
-      kvRemoveBtn.style.opacity = '0.5';
-      kvRemoveBtn.style.cursor = 'not-allowed';
-    }
-  }
-};
+// updateKVUI теперь импортируется из ./components/kvSelector.js
 
 const updateBgUI = () => {
   const dom = getDom();
@@ -757,102 +618,91 @@ const updateBgUI = () => {
 };
 
 export const selectBgSize = (size) => {
-  setKey('bgSize', size);
+  updateBgSize(size);
   updateChipGroup('bg-size', size);
-  renderer.render();
 };
 
 export const selectBgPosition = (position) => {
-  setKey('bgPosition', position);
+  updateBgPosition(position);
   updateChipGroup('bg-position', position);
+};
+
+export const updatePartnerLogoUI = () => {
+  const state = getState();
+  const dom = getDom();
+  const partnerLogoPreview = document.getElementById('partnerLogoPreviewImg');
+  const partnerLogoPlaceholder = document.getElementById('partnerLogoPreviewPlaceholder');
+  const partnerLogoSection = document.getElementById('partnerLogoSection');
+  const addPartnerLogoBtn = document.getElementById('addPartnerLogoBtn');
+  
+  if (!partnerLogoPreview || !partnerLogoPlaceholder || !partnerLogoSection || !addPartnerLogoBtn) return;
+  
+  if (state.partnerLogo) {
+    partnerLogoPreview.src = state.partnerLogoFile || '';
+    partnerLogoPreview.style.display = 'block';
+    partnerLogoPlaceholder.style.display = 'none';
+    partnerLogoSection.style.display = 'block';
+    addPartnerLogoBtn.style.display = 'none';
+  } else {
+    partnerLogoPreview.style.display = 'none';
+    partnerLogoPlaceholder.style.display = 'block';
+    partnerLogoSection.style.display = 'none';
+    addPartnerLogoBtn.style.display = 'block';
+  }
+};
+
+export const handlePartnerLogoUpload = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  try {
+    const dataURL = await readFileAsDataURL(file);
+    const img = await loadImage(dataURL);
+    setKey('partnerLogo', img);
+    setKey('partnerLogoFile', dataURL);
+    updatePartnerLogoUI();
+    renderer.render();
+  } catch (error) {
+    console.error(error);
+    alert('Не удалось загрузить логотип партнера.');
+  }
+};
+
+export const clearPartnerLogo = () => {
+  setKey('partnerLogo', null);
+  setKey('partnerLogoFile', null);
+  updatePartnerLogoUI();
   renderer.render();
+};
+
+export const showPartnerLogoSection = () => {
+  const partnerLogoSection = document.getElementById('partnerLogoSection');
+  const addPartnerLogoBtn = document.getElementById('addPartnerLogoBtn');
+  const partnerLogoUpload = document.getElementById('partnerLogoUpload');
+  
+  if (partnerLogoSection && addPartnerLogoBtn) {
+    partnerLogoSection.style.display = 'block';
+    addPartnerLogoBtn.style.display = 'none';
+    if (partnerLogoUpload) {
+      partnerLogoUpload.click();
+    }
+  }
 };
 
 export const refreshMediaPreviews = () => {
   updateLogoUI();
+  updatePartnerLogoUI();
   updateKVUI();
   updateBgUI();
 };
 
-export const updateSizesSummary = () => {
-  const dom = getDom();
-  if (!dom.sizesSummary) return;
-  const sizes = getCheckedSizes();
-  dom.sizesSummary.textContent = `Выбрано: ${sizes.length} размеров`;
-};
-
-export const renderPresetSizes = () => {
-  const dom = getDom();
-  const state = getState();
-  let html = '';
-
-  Object.keys(state.presetSizes).forEach((platform) => {
-    html += `
-      <div class="platform-group">
-        <div class="platform-header" data-platform="${platform}">
-          <span>${platform}</span>
-          <span class="platform-arrow collapsed" id="arrow-${platform}">▶</span>
-        </div>
-        <div class="platform-sizes collapsed" id="sizes-${platform}">
-    `;
-
-    state.presetSizes[platform].forEach((size, index) => {
-      const id = `size-${platform}-${index}`;
-      html += `
-        <div class="size-checkbox-item">
-          <input type="checkbox" id="${id}" data-platform="${platform}" data-index="${index}" ${
-            size.checked ? 'checked' : ''
-          }>
-          <label for="${id}">${size.width} × ${size.height}</label>
-        </div>
-      `;
-    });
-
-    html += `
-        </div>
-      </div>
-    `;
-  });
-
-  dom.presetSizesList.innerHTML = html;
-  updateSizesSummary();
-  
-  // Рендерим пользовательские размеры в отдельном контейнере
-  renderCustomSizes();
-};
-
-export const renderCustomSizes = () => {
-  const state = getState();
-  const customSizesSection = document.getElementById('customSizesSection');
-  const customSizesList = document.getElementById('customSizesList');
-  
-  if (!customSizesSection || !customSizesList) return;
-  
-  // Показываем секцию только если есть пользовательские размеры
-  if (state.customSizes && state.customSizes.length > 0) {
-    customSizesSection.style.display = 'block';
-    let html = '';
-    
-    state.customSizes.forEach((size) => {
-      const id = `custom-size-${size.id}`;
-      html += `
-        <div class="size-checkbox-item" style="position: relative;">
-          <input type="checkbox" id="${id}" data-custom-id="${size.id}" ${
-            size.checked ? 'checked' : ''
-          }>
-          <label for="${id}" style="flex: 1;">${size.width} × ${size.height}</label>
-          <button onclick="removeCustomSizeAction('${size.id}')" class="btn-small btn-danger" style="border: none; cursor: pointer; font-size: 16px; line-height: 1; opacity: 0.7; transition: opacity 0.2s; padding: 4px 8px;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" title="Удалить">×</button>
-        </div>
-      `;
-    });
-    
-    customSizesList.innerHTML = html;
-    updateSizesSummary();
-  } else {
-    customSizesSection.style.display = 'none';
-    customSizesList.innerHTML = '';
-  }
-};
+// updateSizesSummary, renderPresetSizes, renderCustomSizes теперь импортируются из ./components/sizeManager.js
+export { 
+  updateSizesSummary, 
+  renderPresetSizes, 
+  renderCustomSizes,
+  initializeSizeManager
+} from './components/sizeManager.js';
 
 const readFileAsDataURL = (file) =>
   new Promise((resolve, reject) => {
@@ -879,6 +729,7 @@ const loadImageFile = async (file, target) => {
     if (target === 'logo') updateLogoUI();
     if (target === 'kv') updateKVUI();
     if (target === 'bgImage') updateBgUI();
+    if (target === 'partnerLogo') updatePartnerLogoUI();
     renderer.render();
   } catch (error) {
     console.error(error);
@@ -886,551 +737,36 @@ const loadImageFile = async (file, target) => {
   }
 };
 
-export const handleLogoUpload = (event) => {
-  const file = event.target.files[0];
-  if (file) loadImageFile(file, 'logo');
-};
+// Функция handleLogoUpload теперь импортируется из ./components/logoSelector.js
 
-export const handleKVUpload = (event) => {
-  const file = event.target.files[0];
-  if (file) loadImageFile(file, 'kv');
-};
+// handleKVUpload, handlePairKVUpload, clearKV, selectPreloadedKV, initializeKVDropdown, 
+// loadDefaultKV, refreshKVColumns теперь импортируются из ./components/kvSelector.js
+// Экспортируем их для обратной совместимости
+export { 
+  handleKVUpload, 
+  handlePairKVUpload, 
+  clearKV, 
+  selectPreloadedKV, 
+  initializeKVDropdown, 
+  loadDefaultKV,
+  updateKVBorderRadius,
+  openKVSelectModal,
+  closeKVSelectModal
+} from './components/kvSelector.js';
 
 export const handleBgUpload = (event) => {
-  const file = event.target.files[0];
-  if (file) loadImageFile(file, 'bgImage');
+  handleBgImageUpload(event);
 };
 
-export const handlePairKVUpload = async (pairIndex, file) => {
-  try {
-    const dataURL = await readFileAsDataURL(file);
-    const img = await loadImage(dataURL);
-    
-    // Обновляем KV для пары
-    const state = getState();
-    const pairs = state.titleSubtitlePairs || [];
-    const pair = pairs[pairIndex];
-    
-    if (pair) {
-      // Сохраняем путь к файлу (используем data URL как идентификатор)
-      updatePairKV(pairIndex, dataURL);
-      
-      // Если это активная пара, обновляем глобальный KV
-      if (pairIndex === (state.activePairIndex || 0)) {
-        setState({ kv: img, kvSelected: dataURL });
-        updateKVUI();
-        renderer.render();
-      }
-      
-      // Обновляем UI
-      renderKVPairs();
-    }
-  } catch (error) {
-    console.error(error);
-    alert('Не удалось загрузить изображение.');
-  }
-};
-
-export const clearLogo = () => {
-  setState({ logo: null, logoSelected: '' });
-  const dom = getDom();
-  if (dom.logoSelect) dom.logoSelect.value = '';
-  updateLogoTriggerText('');
-  updateLogoUI();
-  renderer.render();
-};
-
-export const clearKV = () => {
-  setState({ kv: null, kvSelected: '', showKV: false });
-  const dom = getDom();
-  dom.showKV.checked = false;
-  updateKVTriggerText('');
-  updateKVUI();
-  renderer.render();
-};
+// Функция clearLogo теперь импортируется из ./components/logoSelector.js
 
 export const clearBg = () => {
-  setState({ bgImage: null });
-  updateBgUI();
-  renderer.render();
+  clearBgImage();
 };
 
-export const selectPreloadedLogo = async (logoFile) => {
-  const dom = getDom();
-  
-  // Закрываем модальное окно выбора
-  closeLogoSelectModal();
-  
-  setState({ logoSelected: logoFile || '' });
-  updateLogoTriggerText(logoFile || '');
+// Функция selectPreloadedLogo теперь импортируется из ./components/logoSelector.js
 
-  if (!logoFile) {
-    setState({ logo: null });
-    updateLogoUI();
-    renderer.render();
-    return;
-  }
-
-  // Пробуем найти логотип в структуре или загрузить напрямую
-  let logoInfo = null;
-  
-  // Сначала проверяем в AVAILABLE_LOGOS (если есть)
-  if (AVAILABLE_LOGOS && AVAILABLE_LOGOS.length > 0) {
-    logoInfo = AVAILABLE_LOGOS.find((logo) => logo.file === logoFile);
-  }
-  
-  // Если не нашли, пробуем загрузить напрямую по пути
-  // (файл может существовать, даже если его нет в структуре)
-  if (!logoInfo) {
-    // Создаем объект с информацией о логотипе из пути
-    const pathParts = logoFile.split('/');
-    const fileName = pathParts[pathParts.length - 1];
-    const nameWithoutExt = fileName.replace(/\.(svg|png)$/, '');
-    const displayName = nameWithoutExt.charAt(0).toUpperCase() + nameWithoutExt.slice(1).replace(/_/g, ' ');
-    logoInfo = { file: logoFile, name: displayName };
-  }
-
-  try {
-    const img = await loadImage(logoInfo.file);
-    setState({ logo: img });
-    if (dom.logoSelect) dom.logoSelect.value = logoFile;
-    updateLogoUI();
-    renderer.render();
-  } catch (error) {
-    console.error(error);
-    alert('Не удалось загрузить логотип.');
-    setState({ logo: null });
-    updateLogoUI();
-    renderer.render();
-  }
-};
-
-export const selectFontFamily = (fontFamily) => {
-  const font = AVAILABLE_FONTS.find((item) => item.family === fontFamily);
-  setState({ fontFamily, fontFamilyFile: font?.file || null });
-  clearTextMeasurementCache();
-  renderer.render();
-};
-
-// Функции для загрузки пользовательских шрифтов
-const loadCustomFont = async (file, fontType) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const arrayBuffer = e.target.result;
-      const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      
-      // Определяем формат шрифта
-      let format = 'woff2';
-      if (file.name.endsWith('.woff')) format = 'woff';
-      else if (file.name.endsWith('.ttf')) format = 'truetype';
-      else if (file.name.endsWith('.otf')) format = 'opentype';
-      
-      // Создаем уникальное имя для шрифта
-      const fontName = `CustomFont_${fontType}_${Date.now()}`;
-      
-      // Создаем @font-face правило
-      const style = document.createElement('style');
-      style.id = `font-face-${fontType}`;
-      style.textContent = `
-        @font-face {
-          font-family: '${fontName}';
-          src: url('${url}') format('${format}');
-          font-display: swap;
-        }
-      `;
-      
-      // Удаляем старое правило, если есть
-      const oldStyle = document.getElementById(`font-face-${fontType}`);
-      if (oldStyle) {
-        oldStyle.remove();
-        // Освобождаем старый URL
-        const state = getState();
-        const oldUrl = state[`${fontType}CustomFont`];
-        if (oldUrl) {
-          URL.revokeObjectURL(oldUrl);
-        }
-      }
-      
-      document.head.appendChild(style);
-      
-      resolve({ url, fontName, fileName: file.name });
-    };
-    reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
-  });
-};
-
-export const handleTitleFontUpload = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  try {
-    const { url, fontName, fileName } = await loadCustomFont(file, 'title');
-    setState({
-      titleCustomFont: url,
-      titleCustomFontName: fileName,
-      titleFontFamily: fontName
-    });
-    updateCustomFontInfo('title', fileName);
-    clearTextMeasurementCache();
-    renderer.render();
-  } catch (error) {
-    console.error('Ошибка загрузки шрифта:', error);
-    alert('Ошибка загрузки шрифта');
-  }
-  
-  // Сбрасываем input
-  event.target.value = '';
-};
-
-export const handleSubtitleFontUpload = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  try {
-    const { url, fontName, fileName } = await loadCustomFont(file, 'subtitle');
-    setState({
-      subtitleCustomFont: url,
-      subtitleCustomFontName: fileName,
-      subtitleFontFamily: fontName
-    });
-    updateCustomFontInfo('subtitle', fileName);
-    clearTextMeasurementCache();
-    renderer.render();
-  } catch (error) {
-    console.error('Ошибка загрузки шрифта:', error);
-    alert('Ошибка загрузки шрифта');
-  }
-  
-  event.target.value = '';
-};
-
-export const handleLegalFontUpload = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  try {
-    const { url, fontName, fileName } = await loadCustomFont(file, 'legal');
-    setState({
-      legalCustomFont: url,
-      legalCustomFontName: fileName,
-      legalFontFamily: fontName
-    });
-    updateCustomFontInfo('legal', fileName);
-    clearTextMeasurementCache();
-    renderer.render();
-  } catch (error) {
-    console.error('Ошибка загрузки шрифта:', error);
-    alert('Ошибка загрузки шрифта');
-  }
-  
-  event.target.value = '';
-};
-
-export const handleAgeFontUpload = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  try {
-    const { url, fontName, fileName } = await loadCustomFont(file, 'age');
-    setState({
-      ageCustomFont: url,
-      ageCustomFontName: fileName,
-      ageFontFamily: fontName
-    });
-    updateCustomFontInfo('age', fileName);
-    clearTextMeasurementCache();
-    renderer.render();
-  } catch (error) {
-    console.error('Ошибка загрузки шрифта:', error);
-    alert('Ошибка загрузки шрифта');
-  }
-  
-  event.target.value = '';
-};
-
-// Функции для очистки кастомных шрифтов
-export const clearTitleCustomFont = () => {
-  const state = getState();
-  if (state.titleCustomFont) {
-    URL.revokeObjectURL(state.titleCustomFont);
-  }
-  const style = document.getElementById('font-face-title');
-  if (style) style.remove();
-  
-  setState({
-    titleCustomFont: null,
-    titleCustomFontName: null,
-    titleFontFamily: 'YS Text',
-    titleFontFamilyFile: null
-  });
-  updateCustomFontInfo('title', null);
-  clearTextMeasurementCache();
-  renderer.render();
-};
-
-export const clearSubtitleCustomFont = () => {
-  const state = getState();
-  if (state.subtitleCustomFont) {
-    URL.revokeObjectURL(state.subtitleCustomFont);
-  }
-  const style = document.getElementById('font-face-subtitle');
-  if (style) style.remove();
-  
-  setState({
-    subtitleCustomFont: null,
-    subtitleCustomFontName: null,
-    subtitleFontFamily: 'YS Text',
-    subtitleFontFamilyFile: null
-  });
-  updateCustomFontInfo('subtitle', null);
-  clearTextMeasurementCache();
-  renderer.render();
-};
-
-export const clearLegalCustomFont = () => {
-  const state = getState();
-  if (state.legalCustomFont) {
-    URL.revokeObjectURL(state.legalCustomFont);
-  }
-  const style = document.getElementById('font-face-legal');
-  if (style) style.remove();
-  
-  setState({
-    legalCustomFont: null,
-    legalCustomFontName: null,
-    legalFontFamily: 'YS Text',
-    legalFontFamilyFile: null
-  });
-  updateCustomFontInfo('legal', null);
-  clearTextMeasurementCache();
-  renderer.render();
-};
-
-export const clearAgeCustomFont = () => {
-  const state = getState();
-  if (state.ageCustomFont) {
-    URL.revokeObjectURL(state.ageCustomFont);
-  }
-  const style = document.getElementById('font-face-age');
-  if (style) style.remove();
-  
-  setState({
-    ageCustomFont: null,
-    ageCustomFontName: null,
-    ageFontFamily: 'YS Text',
-    ageFontFamilyFile: null
-  });
-  updateCustomFontInfo('age', null);
-  clearTextMeasurementCache();
-  renderer.render();
-};
-
-// Функция для обновления UI информации о кастомном шрифте
-const updateCustomFontInfo = (fontType, fileName) => {
-  const infoDiv = document.getElementById(`${fontType}CustomFontInfo`);
-  const nameSpan = document.getElementById(`${fontType}CustomFontName`);
-  
-  if (infoDiv && nameSpan) {
-    if (fileName) {
-      infoDiv.style.display = 'block';
-      nameSpan.textContent = fileName;
-    } else {
-      infoDiv.style.display = 'none';
-      nameSpan.textContent = '';
-    }
-  }
-};
-
-// Обновляем функции выбора шрифтов, чтобы они очищали кастомные шрифты при выборе стандартного
-export const selectTitleFontFamily = (fontFamily) => {
-  const state = getState();
-  // Если выбираем стандартный шрифт (не кастомный), очищаем кастомный
-  if (!fontFamily.startsWith('CustomFont_') && state.titleCustomFont) {
-    URL.revokeObjectURL(state.titleCustomFont);
-    const style = document.getElementById('font-face-title');
-    if (style) style.remove();
-  }
-  
-  const font = AVAILABLE_FONTS.find((item) => item.family === fontFamily);
-  setState({ 
-    titleFontFamily: fontFamily, 
-    titleFontFamilyFile: font?.file || null,
-    titleCustomFont: fontFamily.startsWith('CustomFont_') ? state.titleCustomFont : null,
-    titleCustomFontName: fontFamily.startsWith('CustomFont_') ? state.titleCustomFontName : null
-  });
-  if (!fontFamily.startsWith('CustomFont_')) {
-    updateCustomFontInfo('title', null);
-  }
-  
-  // Обновляем текст в кастомной кнопке
-  const titleFontFamilyText = document.getElementById('titleFontFamilyText');
-  if (titleFontFamilyText) {
-    titleFontFamilyText.textContent = fontFamily === 'system-ui' ? 'System Default' : fontFamily;
-  }
-  
-  // Обновляем селект начертаний для выбранной гарнитуры
-  const dom = getDom();
-  const titleWeightText = document.getElementById('titleWeightText');
-  const titleWeightDropdown = document.getElementById('titleWeightDropdown');
-  
-  if (titleWeightText && titleWeightDropdown) {
-    const currentWeight = typeof state.titleWeight === 'number' 
-      ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
-      : (state.titleWeight || 'Regular');
-    updateCustomWeightDropdown(titleWeightDropdown, titleWeightText, fontFamily, currentWeight, (value) => {
-      updateState('titleWeight', value);
-    });
-  } else if (dom.titleWeight) {
-    updateWeightDropdown(dom.titleWeight, fontFamily, state.titleWeight);
-    // Обновляем состояние, если текущее начертание недоступно
-    const availableWeights = getAvailableWeightsForFamily(fontFamily);
-    if (!availableWeights.includes(state.titleWeight)) {
-      const newWeight = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
-      setState({ titleWeight: newWeight });
-    }
-  }
-  
-  clearTextMeasurementCache();
-  renderer.render();
-};
-
-export const selectSubtitleFontFamily = (fontFamily) => {
-  const state = getState();
-  if (!fontFamily.startsWith('CustomFont_') && state.subtitleCustomFont) {
-    URL.revokeObjectURL(state.subtitleCustomFont);
-    const style = document.getElementById('font-face-subtitle');
-    if (style) style.remove();
-  }
-  
-  const font = AVAILABLE_FONTS.find((item) => item.family === fontFamily);
-  setState({ 
-    subtitleFontFamily: fontFamily, 
-    subtitleFontFamilyFile: font?.file || null,
-    subtitleCustomFont: fontFamily.startsWith('CustomFont_') ? state.subtitleCustomFont : null,
-    subtitleCustomFontName: fontFamily.startsWith('CustomFont_') ? state.subtitleCustomFontName : null
-  });
-  if (!fontFamily.startsWith('CustomFont_')) {
-    updateCustomFontInfo('subtitle', null);
-  }
-  
-  // Обновляем текст в кастомной кнопке
-  const subtitleFontFamilyText = document.getElementById('subtitleFontFamilyText');
-  if (subtitleFontFamilyText) {
-    subtitleFontFamilyText.textContent = fontFamily === 'system-ui' ? 'System Default' : fontFamily;
-  }
-  
-  // Обновляем селект начертаний для выбранной гарнитуры
-  const dom = getDom();
-  const subtitleWeightText = document.getElementById('subtitleWeightText');
-  const subtitleWeightDropdown = document.getElementById('subtitleWeightDropdown');
-  
-  if (subtitleWeightText && subtitleWeightDropdown) {
-    const currentWeight = typeof state.subtitleWeight === 'number' 
-      ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
-      : (state.subtitleWeight || 'Regular');
-    updateCustomWeightDropdown(subtitleWeightDropdown, subtitleWeightText, fontFamily, currentWeight, (value) => {
-      updateState('subtitleWeight', value);
-    });
-  } else if (dom.subtitleWeight) {
-    updateWeightDropdown(dom.subtitleWeight, fontFamily, state.subtitleWeight);
-    // Обновляем состояние, если текущее начертание недоступно
-    const availableWeights = getAvailableWeightsForFamily(fontFamily);
-    if (!availableWeights.includes(state.subtitleWeight)) {
-      const newWeight = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
-      setState({ subtitleWeight: newWeight });
-    }
-  }
-  
-  clearTextMeasurementCache();
-  renderer.render();
-};
-
-export const selectLegalFontFamily = (fontFamily) => {
-  const state = getState();
-  if (!fontFamily.startsWith('CustomFont_') && state.legalCustomFont) {
-    URL.revokeObjectURL(state.legalCustomFont);
-    const style = document.getElementById('font-face-legal');
-    if (style) style.remove();
-  }
-  
-  const font = AVAILABLE_FONTS.find((item) => item.family === fontFamily);
-  setState({ 
-    legalFontFamily: fontFamily, 
-    legalFontFamilyFile: font?.file || null,
-    legalCustomFont: fontFamily.startsWith('CustomFont_') ? state.legalCustomFont : null,
-    legalCustomFontName: fontFamily.startsWith('CustomFont_') ? state.legalCustomFontName : null
-  });
-  if (!fontFamily.startsWith('CustomFont_')) {
-    updateCustomFontInfo('legal', null);
-  }
-  
-  // Обновляем текст в кастомной кнопке
-  const legalFontFamilyText = document.getElementById('legalFontFamilyText');
-  if (legalFontFamilyText) {
-    legalFontFamilyText.textContent = fontFamily === 'system-ui' ? 'System Default' : fontFamily;
-  }
-  
-  // Обновляем селект начертаний для выбранной гарнитуры
-  const dom = getDom();
-  const legalWeightText = document.getElementById('legalWeightText');
-  const legalWeightDropdown = document.getElementById('legalWeightDropdown');
-  
-  if (legalWeightText && legalWeightDropdown) {
-    const currentWeight = typeof state.legalWeight === 'number' 
-      ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
-      : (state.legalWeight || 'Regular');
-    updateCustomWeightDropdown(legalWeightDropdown, legalWeightText, fontFamily, currentWeight, (value) => {
-      updateState('legalWeight', value);
-    });
-  } else if (dom.legalWeight) {
-    updateWeightDropdown(dom.legalWeight, fontFamily, state.legalWeight);
-    // Обновляем состояние, если текущее начертание недоступно
-    const availableWeights = getAvailableWeightsForFamily(fontFamily);
-    if (!availableWeights.includes(state.legalWeight)) {
-      const newWeight = availableWeights.includes('Regular') ? 'Regular' : availableWeights[0];
-      setState({ legalWeight: newWeight });
-    }
-  }
-  
-  clearTextMeasurementCache();
-  renderer.render();
-};
-
-export const selectAgeFontFamily = (fontFamily) => {
-  const state = getState();
-  if (!fontFamily.startsWith('CustomFont_') && state.ageCustomFont) {
-    URL.revokeObjectURL(state.ageCustomFont);
-    const style = document.getElementById('font-face-age');
-    if (style) style.remove();
-  }
-  
-  const font = AVAILABLE_FONTS.find((item) => item.family === fontFamily);
-  setState({ 
-    ageFontFamily: fontFamily, 
-    ageFontFamilyFile: font?.file || null,
-    ageCustomFont: fontFamily.startsWith('CustomFont_') ? state.ageCustomFont : null,
-    ageCustomFontName: fontFamily.startsWith('CustomFont_') ? state.ageCustomFontName : null
-  });
-  if (!fontFamily.startsWith('CustomFont_')) {
-    updateCustomFontInfo('age', null);
-  }
-  
-  // Обновляем текст в кастомной кнопке
-  const ageFontFamilyText = document.getElementById('ageFontFamilyText');
-  if (ageFontFamilyText) {
-    ageFontFamilyText.textContent = fontFamily === 'system-ui' ? 'System Default' : fontFamily;
-  }
-  
-  // Обновляем селект начертаний для выбранной гарнитуры (если есть)
-  const dom = getDom();
-  // Для age нет weight дропдауна, только для title, subtitle, legal
-  
-  clearTextMeasurementCache();
-  renderer.render();
-};
+// Все функции для работы со шрифтами теперь импортируются из ./components/fontSelector.js
 
 const updateTitleAlignToggle = (align) => {
   const toggle = document.getElementById('titleAlignToggle');
@@ -1718,6 +1054,10 @@ export const selectLayoutMode = (mode) => {
 
 export const updatePadding = (value) => {
   const numeric = parseInt(value, 10);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для paddingPercent:', value);
+    return;
+  }
   setKey('paddingPercent', numeric);
   const dom = getDom();
   if (dom.paddingValue) dom.paddingValue.textContent = `${numeric}%`;
@@ -1726,6 +1066,10 @@ export const updatePadding = (value) => {
 
 export const updateLogoSize = (value) => {
   const numeric = parseInt(value, 10);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для logoSize:', value);
+    return;
+  }
   setKey('logoSize', numeric);
   const dom = getDom();
   if (dom.logoSizeValue) dom.logoSizeValue.textContent = `${numeric}%`;
@@ -1734,6 +1078,10 @@ export const updateLogoSize = (value) => {
 
 export const updateTitleSize = (value) => {
   const numeric = parseFloat(value);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для titleSize:', value);
+    return;
+  }
   setKey('titleSize', numeric);
   const dom = getDom();
   if (dom.titleSizeValue) {
@@ -1744,6 +1092,10 @@ export const updateTitleSize = (value) => {
 
 export const updateSubtitleSize = (value) => {
   const numeric = parseFloat(value);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для subtitleSize:', value);
+    return;
+  }
   setKey('subtitleSize', numeric);
   const dom = getDom();
   if (dom.subtitleSizeValue) {
@@ -1754,6 +1106,10 @@ export const updateSubtitleSize = (value) => {
 
 export const updateLegalSize = (value) => {
   const numeric = parseFloat(value);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для legalSize:', value);
+    return;
+  }
   setKey('legalSize', numeric);
   clearTextMeasurementCache();
   const dom = getDom();
@@ -1765,6 +1121,10 @@ export const updateLegalSize = (value) => {
 
 export const updateAgeSize = (value) => {
   const numeric = parseFloat(value);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для ageSize:', value);
+    return;
+  }
   setKey('ageSize', numeric);
   const dom = getDom();
   if (dom.ageSizeValue) {
@@ -1773,18 +1133,14 @@ export const updateAgeSize = (value) => {
   renderer.render();
 };
 
-export const updateKVBorderRadius = (value) => {
-  const numeric = parseInt(value, 10);
-  setKey('kvBorderRadius', numeric);
-  const dom = getDom();
-  if (dom.kvBorderRadiusValue) {
-    dom.kvBorderRadiusValue.textContent = `${numeric}%`;
-  }
-  renderer.render();
-};
+// updateKVBorderRadius теперь импортируется из ./components/kvSelector.js
 
 export const updateLegalOpacity = (value) => {
   const numeric = parseInt(value, 10);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для legalOpacity:', value);
+    return;
+  }
   setKey('legalOpacity', numeric);
   const dom = getDom();
   if (dom.legalOpacityValue) dom.legalOpacityValue.textContent = `${numeric}%`;
@@ -1793,9 +1149,15 @@ export const updateLegalOpacity = (value) => {
 
 export const updateSubtitleOpacity = (value) => {
   const numeric = parseInt(value, 10);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для subtitleOpacity:', value);
+    return;
+  }
   setKey('subtitleOpacity', numeric);
   const dom = getDom();
-  dom.subtitleOpacityValue.textContent = `${numeric}%`;
+  if (dom.subtitleOpacityValue) {
+    dom.subtitleOpacityValue.textContent = `${numeric}%`;
+  }
   renderer.render();
 };
 
@@ -1879,20 +1241,35 @@ const normalizeColor = (color) => {
 };
 
 // Автоматически выбирает логотип на основе цвета текста
-const autoSelectLogoByTextColor = async (textColor) => {
+export const autoSelectLogoByTextColor = async (textColor) => {
   const normalizedColor = normalizeColor(textColor);
   const state = getState();
   const currentLogo = state.logoSelected || '';
   
-  // Определяем, какую папку использовать
+  // Определяем, какую папку использовать на основе яркости цвета
   let targetFolder = null;
-  if (normalizedColor === '#1E1E1E') {
+  
+  // Проверяем точные значения для обратной совместимости
+  if (normalizedColor === '#1E1E1E' || normalizedColor === '#000000') {
     targetFolder = 'black';
   } else if (normalizedColor === '#FFFFFF') {
     targetFolder = 'white';
+  } else {
+    // Вычисляем яркость цвета для определения темного или светлого
+    const hex = normalizedColor.replace('#', '');
+    if (hex.length === 6) {
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      
+      // Если яркость меньше 0.5, считаем цвет темным (используем white логотип)
+      // Если яркость больше или равна 0.5, считаем цвет светлым (используем black логотип)
+      targetFolder = luminance < 0.5 ? 'white' : 'black';
+    }
   }
   
-  // Если цвет не соответствует ни black, ни white, не меняем логотип
+  // Если не удалось определить папку, не меняем логотип
   if (!targetFolder) {
     return;
   }
@@ -1973,7 +1350,7 @@ export const updateColorFromPicker = async (key, value) => {
     await updateTextColorsForBg(value);
   }
   // Автоматически выбираем логотип на основе цвета текста
-  if (key === 'titleColor' || key === 'subtitleColor') {
+  if (key === 'titleColor' || key === 'subtitleColor' || key === 'legalColor') {
     await autoSelectLogoByTextColor(value);
   }
   renderer.render();
@@ -2006,119 +1383,34 @@ export const updateColorFromHex = async (key, value) => {
   }
 };
 
-export const applyPresetBgColor = async (color) => {
-  const dom = getDom();
-  setKey('bgColor', color);
-  if (dom.bgColor) dom.bgColor.value = color;
-  if (dom.bgColorHex) dom.bgColorHex.value = color;
-  await updateTextColorsForBg(color);
-  renderer.render();
-};
+// applyPresetBgColor теперь импортируется из ./components/backgroundSelector.js
+export { 
+  applyPresetBgColor,
+  initializeBackgroundUI
+} from './components/backgroundSelector.js';
 
 export const changePreviewSize = (index) => {
   renderer.setCurrentIndex(Number(index) || 0);
 };
 
-export const changePreviewSizeCategory = (category, index) => {
-  renderer.setCategoryIndex(category, Number(index) || 0);
-};
+// changePreviewSizeCategory, toggleSize, toggleCustomSizeAction, removeCustomSizeAction, 
+// addCustomSizeAction, updateAddSizeButtonState, addCustomSizeFromInput, 
+// selectAllSizesAction, deselectAllSizesAction теперь импортируются из ./components/sizeManager.js
+export { 
+  changePreviewSizeCategory, 
+  toggleSize, 
+  toggleCustomSizeAction, 
+  removeCustomSizeAction,
+  addCustomSizeAction, 
+  updateAddSizeButtonState, 
+  addCustomSizeFromInput,
+  selectAllSizesAction, 
+  deselectAllSizesAction,
+  togglePlatformSizes
+} from './components/sizeManager.js';
 
 export const togglePlatform = (platform) => {
-  const sizesEl = document.getElementById(`sizes-${platform}`);
-  const arrowEl = document.getElementById(`arrow-${platform}`);
-  if (sizesEl) {
-    sizesEl.classList.toggle('collapsed');
-    const isCollapsed = sizesEl.classList.contains('collapsed');
-    if (arrowEl) {
-      arrowEl.classList.toggle('collapsed');
-      arrowEl.textContent = isCollapsed ? '▶' : '▼';
-    }
-  }
-};
-
-export const toggleSize = (platform, index) => {
-  togglePresetSize(platform, index);
-  updatePreviewSizeSelect();
-  updateSizesSummary();
-  renderer.render();
-};
-
-export const toggleCustomSizeAction = (id) => {
-  toggleCustomSize(id);
-  updatePreviewSizeSelect();
-  updateSizesSummary();
-  renderer.render();
-};
-
-export const removeCustomSizeAction = (id) => {
-  removeCustomSize(id);
-  renderCustomSizes();
-  updatePreviewSizeSelect();
-  updateSizesSummary();
-  renderer.render();
-};
-
-export const addCustomSizeAction = (width, height) => {
-  if (!width || !height || width <= 0 || height <= 0) {
-    alert('Пожалуйста, введите корректные значения ширины и высоты');
-    return;
-  }
-  addCustomSize(width, height);
-  renderCustomSizes();
-  updatePreviewSizeSelect();
-  updateSizesSummary();
-  renderer.render();
-};
-
-export const updateAddSizeButtonState = () => {
-  const widthInput = document.getElementById('customWidth');
-  const heightInput = document.getElementById('customHeight');
-  const addButton = document.getElementById('addSizeButton');
-  
-  if (!widthInput || !heightInput || !addButton) return;
-  
-  const widthValue = widthInput.value.trim();
-  const heightValue = heightInput.value.trim();
-  
-  // Проверяем, что оба поля заполнены
-  if (!widthValue || !heightValue) {
-    addButton.disabled = true;
-    return;
-  }
-  
-  const width = parseInt(widthValue, 10);
-  const height = parseInt(heightValue, 10);
-  
-  // Активируем кнопку только если оба значения корректны и больше 0
-  if (!isNaN(width) && !isNaN(height) && width > 0 && height > 0) {
-    addButton.disabled = false;
-  } else {
-    addButton.disabled = true;
-  }
-};
-
-export const addCustomSizeFromInput = () => {
-  const widthInput = document.getElementById('customWidth');
-  const heightInput = document.getElementById('customHeight');
-  
-  if (!widthInput || !heightInput) return;
-  
-  const width = parseInt(widthInput.value, 10);
-  const height = parseInt(heightInput.value, 10);
-  
-  if (!width || !height || width <= 0 || height <= 0) {
-    alert('Пожалуйста, введите корректные значения ширины и высоты');
-    return;
-  }
-  
-  addCustomSizeAction(width, height);
-  
-  // Очищаем поля ввода
-  widthInput.value = '';
-  heightInput.value = '';
-  
-  // Деактивируем кнопку после добавления
-  updateAddSizeButtonState();
+  togglePlatformSizes(platform);
 };
 
 export const handlePresetContainerClick = (event) => {
@@ -2139,20 +1431,6 @@ export const handlePresetContainerClick = (event) => {
       toggleCustomSizeAction(checkbox.dataset.customId);
     }
   }
-};
-
-export const selectAllSizesAction = () => {
-  selectAllPresetSizes();
-  renderPresetSizes();
-  updatePreviewSizeSelect();
-  renderer.render();
-};
-
-export const deselectAllSizesAction = () => {
-  deselectAllPresetSizes();
-  renderPresetSizes();
-  updatePreviewSizeSelect();
-  renderer.render();
 };
 
 export const saveSettings = () => {
@@ -2202,513 +1480,19 @@ export const resetAll = () => {
   renderer.render();
 };
 
-// Кэш для отсканированных логотипов (структурированный)
-let cachedLogosStructure = null;
-let logosScanning = false;
+// Все функции для работы с логотипами теперь импортируются из ./components/logoSelector.js
 
-let selectedLogoFolder1 = null;
-let selectedLogoFolder2 = null;
-let selectedLogoFolder3 = null;
-
-const renderLogoColumn1 = (allLogos) => {
-  const column1 = document.getElementById('logoFolder1Column');
-  if (!column1) {
-    console.error('logoFolder1Column not found');
-    return;
-  }
-  
-  column1.innerHTML = '';
-  const folders1 = Object.keys(allLogos || {}).sort();
-  
-  if (folders1.length === 0) {
-    const emptyMsg = document.createElement('div');
-    emptyMsg.textContent = 'Логотипы не найдены';
-    emptyMsg.className = 'column-empty-message';
-    column1.appendChild(emptyMsg);
-    return;
-  }
-  
-  folders1.forEach((folder1) => {
-    const item = document.createElement('div');
-    item.className = 'column-item logo-folder1-item';
-    item.dataset.folder1 = folder1;
-    item.textContent = folder1;
-    
-    item.addEventListener('click', () => {
-      selectedLogoFolder1 = folder1;
-      selectedLogoFolder2 = null;
-      selectedLogoFolder3 = null;
-      // Обновляем стили
-      document.querySelectorAll('.logo-folder1-item').forEach(el => {
-        el.classList.remove('active');
-      });
-      item.classList.add('active');
-      
-      // Обновляем вторую колонку
-      renderLogoColumn2(allLogos);
-      // Очищаем колонки
-      const column3 = document.getElementById('logoFolder3Column');
-      const column4 = document.getElementById('logoImagesColumn');
-      if (column3) {
-        column3.innerHTML = '';
-        column3.style.display = 'none';
-      }
-      if (column4) {
-        column4.innerHTML = '';
-      }
-    });
-    
-    column1.appendChild(item);
-  });
-  
-  // Выбираем первую папку по умолчанию
-  if (folders1.length > 0 && !selectedLogoFolder1) {
-    selectedLogoFolder1 = folders1[0];
-    const firstItem = column1.querySelector(`[data-folder1="${folders1[0]}"]`);
-    if (firstItem) {
-      firstItem.classList.add('active');
-      // Сбрасываем выбранные подпапки
-      selectedLogoFolder2 = null;
-      selectedLogoFolder3 = null;
-      renderLogoColumn2(allLogos);
-    }
-  }
-};
-
-const renderLogoColumn2 = (allLogos) => {
-  const column2 = document.getElementById('logoFolder2Column');
-  const column3 = document.getElementById('logoFolder3Column');
-  if (!column2 || !selectedLogoFolder1) return;
-  
-  column2.innerHTML = '';
-  const folders2 = Object.keys(allLogos[selectedLogoFolder1] || {}).sort();
-  
-  folders2.forEach((folder2) => {
-    const item = document.createElement('div');
-    item.className = 'column-item logo-folder2-item';
-    item.dataset.folder2 = folder2;
-    // Показываем "root" как пустую строку или скрываем
-    item.textContent = folder2 === 'root' ? '—' : folder2;
-    
-    item.addEventListener('click', () => {
-      selectedLogoFolder2 = folder2;
-      selectedLogoFolder3 = null;
-      // Обновляем стили
-      document.querySelectorAll('.logo-folder2-item').forEach(el => {
-        el.classList.remove('active');
-      });
-      item.classList.add('active');
-      
-      const folder2Data = allLogos[selectedLogoFolder1][selectedLogoFolder2];
-      
-      // Проверяем, является ли это трехуровневой структурой (объект) или массивом
-      if (folder2Data && typeof folder2Data === 'object' && !Array.isArray(folder2Data)) {
-        // Трехуровневая структура - показываем колонку 3
-        if (column3) {
-          column3.style.display = 'block';
-        }
-        renderLogoColumn3(allLogos);
-      } else {
-        // Двухуровневая структура - скрываем колонку 3 и показываем изображения
-        if (column3) {
-          column3.style.display = 'none';
-        }
-        const images = Array.isArray(folder2Data) ? folder2Data : [];
-        
-        // Фильтруем по языку, если выбран kz
-        const state = getState();
-        const selectedLanguage = state.logoLanguage || 'ru';
-        const filteredImages = selectedLanguage === 'kz' 
-          ? images.filter(logo => logo.file.includes(`/${selectedLanguage}/`))
-          : images;
-        
-        renderLogoColumn4(filteredImages);
-      }
-      
-    });
-    
-    column2.appendChild(item);
-  });
-  
-  // Выбираем первую подпапку по умолчанию
-  if (folders2.length > 0 && !selectedLogoFolder2) {
-    selectedLogoFolder2 = folders2[0];
-    const firstItem = column2.querySelector(`[data-folder2="${folders2[0]}"]`);
-    if (firstItem) {
-      firstItem.classList.add('active');
-      const folder2Data = allLogos[selectedLogoFolder1][selectedLogoFolder2];
-      if (folder2Data && typeof folder2Data === 'object' && !Array.isArray(folder2Data)) {
-        if (column3) {
-          column3.style.display = 'block';
-        }
-        renderLogoColumn3(allLogos);
-      } else {
-        if (column3) {
-          column3.style.display = 'none';
-        }
-        const images = Array.isArray(folder2Data) ? folder2Data : [];
-        
-        // Фильтруем по языку, если выбран kz
-        const state = getState();
-        const selectedLanguage = state.logoLanguage || 'ru';
-        const filteredImages = selectedLanguage === 'kz' 
-          ? images.filter(logo => logo.file.includes(`/${selectedLanguage}/`))
-          : images;
-        
-        renderLogoColumn4(filteredImages);
-      }
-    }
-  }
-};
-
-const renderLogoColumn3 = (allLogos) => {
-  const column3 = document.getElementById('logoFolder3Column');
-  if (!column3 || !selectedLogoFolder1 || !selectedLogoFolder2) return;
-  
-  column3.innerHTML = '';
-  const folder2Data = allLogos[selectedLogoFolder1][selectedLogoFolder2];
-  
-  // Проверяем, является ли это трехуровневой структурой
-  if (!folder2Data || typeof folder2Data !== 'object' || Array.isArray(folder2Data)) {
-    return;
-  }
-  
-  const state = getState();
-  const selectedLanguage = state.logoLanguage || 'ru';
-  
-  // Фильтруем языки: если выбран kz, показываем только kz
-  let folders3 = Object.keys(folder2Data).sort();
-  if (selectedLanguage === 'kz') {
-    folders3 = folders3.filter(folder => folder === 'kz');
-  }
-  
-  folders3.forEach((folder3) => {
-    const item = document.createElement('div');
-    item.className = 'column-item logo-folder3-item';
-    item.dataset.folder3 = folder3;
-    item.textContent = folder3 === 'root' ? '—' : folder3.toUpperCase();
-    
-    item.addEventListener('click', () => {
-      selectedLogoFolder3 = folder3;
-      // Обновляем стили
-      document.querySelectorAll('.logo-folder3-item').forEach(el => {
-        el.classList.remove('active');
-      });
-      item.classList.add('active');
-      
-      // Обновляем четвертую колонку с изображениями
-      const images = folder2Data[folder3] || [];
-      renderLogoColumn4(images);
-    });
-    
-    column3.appendChild(item);
-  });
-  
-  // Выбираем первую подпапку по умолчанию
-  if (folders3.length > 0 && !selectedLogoFolder3) {
-    selectedLogoFolder3 = folders3[0];
-    const firstItem = column3.querySelector(`[data-folder3="${folders3[0]}"]`);
-    if (firstItem) {
-      firstItem.classList.add('active');
-      const images = folder2Data[selectedLogoFolder3] || [];
-      renderLogoColumn4(images);
-    }
-  }
-};
-
-const renderLogoColumn4 = (images) => {
-  const column4 = document.getElementById('logoImagesColumn');
-  if (!column4) return;
-  
-  column4.innerHTML = '';
-  
-  const state = getState();
-  const selectedLanguage = state.logoLanguage || 'ru';
-  
-  // Фильтруем логотипы по выбранному языку
-  const filteredImages = images.filter((logo) => {
-    if (selectedLanguage === 'kz') {
-      // Если выбран kz, показываем только логотипы из папки kz
-      return logo.file.includes(`/${selectedLanguage}/`);
-    }
-    // Если выбран ru, показываем все (ru, en, kz)
-    return true;
-  });
-  
-  filteredImages.forEach((logo, index) => {
-    const imgContainer = document.createElement('div');
-    imgContainer.className = 'preview-item';
-    
-    const img = document.createElement('img');
-    img.alt = logo.name;
-    img.src = logo.file;
-    
-    // Используем нативный loading="lazy" для прогрессивной загрузки
-    // Первые 6 изображений загружаем сразу (eager), остальные - лениво
-    if (index < 6) {
-      img.loading = 'eager'; // Загружаем сразу
-    } else {
-      img.loading = 'lazy'; // Ленивая загрузка
-    }
-    
-    imgContainer.appendChild(img);
-    
-    imgContainer.addEventListener('click', () => {
-      selectPreloadedLogo(logo.file);
-      // Закрываем модальное окно после выбора
-      closeLogoSelectModal();
-    });
-    
-    column4.appendChild(imgContainer);
-  });
-};
-
-const buildLogoStructure = (scannedLogos) => {
-  const logoStructure = {};
-  
-  // Добавляем AVAILABLE_LOGOS в структуру
-  AVAILABLE_LOGOS.forEach(logo => {
-    const pathParts = logo.file.split('/');
-    if (pathParts.length >= 3 && pathParts[0] === 'logo') {
-      const folder1 = pathParts[1];
-      
-      // Проверяем трехуровневую структуру (logo/folder1/folder2/folder3/file)
-      if (pathParts.length === 5) {
-        const folder2 = pathParts[2];
-        const folder3 = pathParts[3];
-        if (!logoStructure[folder1]) {
-          logoStructure[folder1] = {};
-        }
-        if (!logoStructure[folder1][folder2]) {
-          logoStructure[folder1][folder2] = {};
-        }
-        if (!logoStructure[folder1][folder2][folder3]) {
-          logoStructure[folder1][folder2][folder3] = [];
-        }
-        if (!logoStructure[folder1][folder2][folder3].find(l => l.file === logo.file)) {
-          logoStructure[folder1][folder2][folder3].push(logo);
-        }
-      }
-      // Проверяем двухуровневую структуру (logo/folder1/folder2/file)
-      else if (pathParts.length === 4) {
-        const folder2 = pathParts[2];
-        if (!logoStructure[folder1]) {
-          logoStructure[folder1] = {};
-        }
-        if (!logoStructure[folder1][folder2]) {
-          logoStructure[folder1][folder2] = [];
-        }
-        if (!logoStructure[folder1][folder2].find(l => l.file === logo.file)) {
-          logoStructure[folder1][folder2].push(logo);
-        }
-      } else {
-        // Одноуровневая структура (logo/folder1/file) - используем "root" как folder2
-        if (!logoStructure[folder1]) {
-          logoStructure[folder1] = {};
-        }
-        if (!logoStructure[folder1]['root']) {
-          logoStructure[folder1]['root'] = [];
-        }
-        if (!logoStructure[folder1]['root'].find(l => l.file === logo.file)) {
-          logoStructure[folder1]['root'].push(logo);
-        }
-      }
-    }
-  });
-  
-  // Добавляем отсканированные логотипы
-  scannedLogos.forEach(logo => {
-    const pathParts = logo.file.split('/');
-    if (pathParts.length >= 3 && pathParts[0] === 'logo') {
-      const folder1 = pathParts[1];
-      
-      // Проверяем трехуровневую структуру (logo/folder1/folder2/folder3/file)
-      if (pathParts.length === 5) {
-        const folder2 = pathParts[2];
-        const folder3 = pathParts[3];
-        if (!logoStructure[folder1]) {
-          logoStructure[folder1] = {};
-        }
-        if (!logoStructure[folder1][folder2]) {
-          logoStructure[folder1][folder2] = {};
-        }
-        if (!logoStructure[folder1][folder2][folder3]) {
-          logoStructure[folder1][folder2][folder3] = [];
-        }
-        if (!logoStructure[folder1][folder2][folder3].find(l => l.file === logo.file)) {
-          logoStructure[folder1][folder2][folder3].push(logo);
-        }
-      }
-      // Проверяем двухуровневую структуру (logo/folder1/folder2/file)
-      else if (pathParts.length === 4) {
-        const folder2 = pathParts[2];
-        if (!logoStructure[folder1]) {
-          logoStructure[folder1] = {};
-        }
-        // Если уже есть трехуровневая структура, добавляем в 'root'
-        if (logoStructure[folder1][folder2] && typeof logoStructure[folder1][folder2] === 'object' && !Array.isArray(logoStructure[folder1][folder2])) {
-          if (!logoStructure[folder1][folder2]['root']) {
-            logoStructure[folder1][folder2]['root'] = [];
-          }
-          if (!logoStructure[folder1][folder2]['root'].find(l => l.file === logo.file)) {
-            logoStructure[folder1][folder2]['root'].push(logo);
-          }
-        } else {
-          if (!logoStructure[folder1][folder2]) {
-            logoStructure[folder1][folder2] = [];
-          }
-          if (!logoStructure[folder1][folder2].find(l => l.file === logo.file)) {
-            logoStructure[folder1][folder2].push(logo);
-          }
-        }
-      } else {
-        // Одноуровневая структура (logo/folder1/file) - используем "root" как folder2
-        if (!logoStructure[folder1]) {
-          logoStructure[folder1] = {};
-        }
-        if (!logoStructure[folder1]['root']) {
-          logoStructure[folder1]['root'] = [];
-        }
-        if (!logoStructure[folder1]['root'].find(l => l.file === logo.file)) {
-          logoStructure[folder1]['root'].push(logo);
-        }
-      }
-    }
-  });
-  
-  return logoStructure;
-};
-
-const populateLogoColumns = async (forceRefresh = false) => {
-  const column1 = document.getElementById('logoFolder1Column');
-  if (!column1) return;
-  
-  // Если уже сканируем, ждем
-  if (logosScanning) {
-    return;
-  }
-  
-  // Если принудительное обновление, очищаем кэш
-  if (forceRefresh) {
-    cachedLogosStructure = null;
-    selectedLogoFolder1 = null;
-    selectedLogoFolder2 = null;
-    selectedLogoFolder3 = null;
-  }
-  
-  // Если есть кэш и не принудительное обновление, используем его
-  if (cachedLogosStructure && !forceRefresh) {
-    // Сбрасываем выбранные папки, чтобы автоматически выбралась первая
-    selectedLogoFolder1 = null;
-    selectedLogoFolder2 = null;
-    selectedLogoFolder3 = null;
-    renderLogoColumn1(cachedLogosStructure);
-    return;
-  }
-  
-  // Сканируем в фоне
-  logosScanning = true;
-  const scannedStructure = await scanLogos();
-  
-  // scanLogos теперь возвращает структурированные данные напрямую
-  // Добавляем AVAILABLE_LOGOS в структуру
-  const logoStructure = { ...scannedStructure };
-  
-  // Добавляем AVAILABLE_LOGOS в структуру
-  AVAILABLE_LOGOS.forEach(logo => {
-    const pathParts = logo.file.split('/');
-    if (pathParts.length >= 3 && pathParts[0] === 'logo') {
-      const folder1 = pathParts[1];
-      
-      if (!logoStructure[folder1]) {
-        logoStructure[folder1] = {};
-      }
-      
-      // Проверяем трехуровневую структуру (logo/folder1/folder2/folder3/file)
-      if (pathParts.length === 5) {
-        const folder2 = pathParts[2];
-        const folder3 = pathParts[3];
-        if (!logoStructure[folder1][folder2]) {
-          logoStructure[folder1][folder2] = {};
-        }
-        if (!logoStructure[folder1][folder2][folder3]) {
-          logoStructure[folder1][folder2][folder3] = [];
-        }
-        if (!logoStructure[folder1][folder2][folder3].find(l => l.file === logo.file)) {
-          logoStructure[folder1][folder2][folder3].push(logo);
-        }
-      }
-      // Проверяем двухуровневую структуру (logo/folder1/folder2/file)
-      else if (pathParts.length === 4) {
-        const folder2 = pathParts[2];
-        // Если уже есть трехуровневая структура, добавляем в 'root'
-        if (logoStructure[folder1][folder2] && typeof logoStructure[folder1][folder2] === 'object' && !Array.isArray(logoStructure[folder1][folder2])) {
-          if (!logoStructure[folder1][folder2]['root']) {
-            logoStructure[folder1][folder2]['root'] = [];
-          }
-          if (!logoStructure[folder1][folder2]['root'].find(l => l.file === logo.file)) {
-            logoStructure[folder1][folder2]['root'].push(logo);
-          }
-        } else {
-          if (!logoStructure[folder1][folder2]) {
-            logoStructure[folder1][folder2] = [];
-          }
-          if (!logoStructure[folder1][folder2].find(l => l.file === logo.file)) {
-            logoStructure[folder1][folder2].push(logo);
-          }
-        }
-      } else {
-        // Одноуровневая структура (logo/folder1/file) - используем "root" как folder2
-        if (!logoStructure[folder1]['root']) {
-          logoStructure[folder1]['root'] = [];
-        }
-        if (!logoStructure[folder1]['root'].find(l => l.file === logo.file)) {
-          logoStructure[folder1]['root'].push(logo);
-        }
-      }
-    }
-  });
-  
-  cachedLogosStructure = logoStructure;
-  logosScanning = false;
-  
-  // Сбрасываем выбранные папки перед рендерингом
-  selectedLogoFolder1 = null;
-  selectedLogoFolder2 = null;
-  selectedLogoFolder3 = null;
-  
-  // Заполняем колонки
-  renderLogoColumn1(logoStructure);
-};
-
-export const refreshLogoColumns = async () => {
-  await populateLogoColumns(true);
-};
-
-const openLogoSelectModal = async () => {
-  const overlay = document.getElementById('logoSelectModalOverlay');
-  if (!overlay) return;
-  
-  // Сбрасываем выбранные папки
-  selectedLogoFolder1 = null;
-  selectedLogoFolder2 = null;
-  selectedLogoFolder3 = null;
-  
-  // При открытии заполняем колонки лениво
-  await populateLogoColumns();
-  
-  // Показываем модальное окно
-  overlay.style.display = 'block';
-  document.body.style.overflow = 'hidden'; // Блокируем скролл фона
-};
-
-const closeLogoSelectModal = () => {
-  const overlay = document.getElementById('logoSelectModalOverlay');
-  if (overlay) {
-    overlay.style.display = 'none';
-    document.body.style.overflow = ''; // Разблокируем скролл
-  }
-};
+// Переэкспортируем функции из logoSelector для обратной совместимости
+export { 
+  updateLogoUI,
+  handleLogoUpload,
+  clearLogo,
+  selectPreloadedLogo,
+  refreshLogoColumns, 
+  initializeLogoDropdown,
+  openLogoSelectModal,
+  closeLogoSelectModal
+} from './components/logoSelector.js';
 
 export const initializeLogoToggle = () => {
   const toggle = document.getElementById('logoLangToggle');
@@ -2729,6 +1513,10 @@ export const initializeLogoToggle = () => {
   const state = getState();
   updateLogoToggle(state.logoLanguage || 'ru');
 };
+
+// Все функции для работы с логотипами (renderLogoColumn*, buildLogoStructure, populateLogoColumns, openLogoSelectModal, closeLogoSelectModal) 
+// теперь находятся в ./components/logoSelector.js
+// Переэкспорт refreshLogoColumns и initializeLogoDropdown уже добавлен выше
 
 export const initializeLogoPosToggle = () => {
   const toggle = document.getElementById('logoPosToggle');
@@ -2839,7 +1627,7 @@ export const initializeExportScaleToggle = () => {
     option.addEventListener('click', (e) => {
       e.stopPropagation();
       const value = parseInt(option.dataset.value, 10);
-      updateState('exportScale', value);
+      setKey('exportScale', value);
     });
   });
   
@@ -2848,44 +1636,7 @@ export const initializeExportScaleToggle = () => {
   updateExportScaleToggle(state.exportScale || 1);
 };
 
-export const initializeLogoDropdown = async () => {
-  const dom = getDom();
-  if (!dom.logoSelect) return;
-  
-  const trigger = document.getElementById('logoSelectTrigger');
-  const textSpan = document.getElementById('logoSelectText');
-  
-  if (!trigger || !textSpan) return;
-  
-  // Удаляем старые обработчики через клонирование trigger
-  const newTrigger = trigger.cloneNode(true);
-  trigger.parentNode.replaceChild(newTrigger, trigger);
-  const updatedTrigger = document.getElementById('logoSelectTrigger');
-  
-  // Обработчик открытия модального окна
-  updatedTrigger.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    await openLogoSelectModal();
-  });
-  
-  // Закрытие по Escape
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      const overlay = document.getElementById('logoSelectModalOverlay');
-      if (overlay && overlay.style.display === 'block') {
-        closeLogoSelectModal();
-      }
-    }
-  });
-  
-  // Делаем функцию закрытия доступной глобально
-  window.closeLogoSelectModal = closeLogoSelectModal;
-  
-  // Обновляем текст триггера
-  const state = getState();
-  updateLogoTriggerText(state.logoSelected || '');
-};
+// Функция initializeLogoDropdown теперь импортируется из ./components/logoSelector.js
 
 const toggleDropdown = (type) => {
   const dropdown = document.getElementById(`${type}SelectDropdown`);
@@ -2913,399 +1664,35 @@ const closeDropdown = (type) => {
   if (dropdown) dropdown.style.display = 'none';
 };
 
-const updateLogoTriggerText = async (value) => {
-  const textSpan = document.getElementById('logoSelectText');
-  if (!textSpan) return;
-  
-  if (!value) {
-    textSpan.textContent = 'Выбрать';
-    return;
-  }
-  
-  // Если есть логотип, показываем "Выбрать из библиотеки"
-  textSpan.textContent = 'Выбрать из библиотеки';
-};
+// Функция updateLogoTriggerText теперь импортируется из ./components/logoSelector.js
 
-// Функция для обновления dropdown для шрифтов
-// Показывает только гарнитуры (семейства), начертания выбираются отдельно
-const updateFontDropdown = (selectElement, currentValue) => {
-  if (!selectElement) return;
-  
-  selectElement.innerHTML = '';
-  
-  // Группируем шрифты по семействам
-  const fontFamilies = new Set();
-  
-  AVAILABLE_FONTS.forEach((font) => {
-    if (font.family && font.family !== 'system-ui') {
-      fontFamilies.add(font.family);
-    }
-  });
-  
-  // Добавляем опцию "System Default" первой
-  const systemOption = document.createElement('option');
-  systemOption.value = 'system-ui';
-  systemOption.textContent = 'System Default';
-  systemOption.dataset.file = null;
-  selectElement.appendChild(systemOption);
-  
-  // Добавляем опции для каждого семейства
-  const sortedFamilies = Array.from(fontFamilies).sort();
-  sortedFamilies.forEach((family) => {
-    const option = document.createElement('option');
-    option.value = family;
-    option.textContent = family;
-    // Находим Regular начертание (400, normal) для этого семейства
-    const regularFont = AVAILABLE_FONTS.find(
-      f => f.family === family && f.weight === '400' && f.style === 'normal'
-    );
-    option.dataset.file = regularFont?.file || '';
-    selectElement.appendChild(option);
-  });
-  
-  // Устанавливаем текущее значение
-  if (currentValue) {
-    selectElement.value = currentValue;
-  } else {
-    // По умолчанию выбираем YS Text
-    selectElement.value = 'YS Text';
-  }
-};
+// Функции updateFontDropdown, updateCustomFontDropdown, closeAllFontDropdowns, 
+// initializeFontDropdown и initializeFontDropdowns теперь импортируются из ./components/fontSelector.js
 
-// Функция для обновления кастомного дропдауна шрифтов
-const updateCustomFontDropdown = (dropdownElement, textElement, currentValue, selectCallback) => {
-  if (!dropdownElement || !textElement) return;
-  
-  dropdownElement.innerHTML = '';
-  
-  // Группируем шрифты по семействам
-  const fontFamilies = new Set();
-  AVAILABLE_FONTS.forEach((font) => {
-    if (font.family && font.family !== 'system-ui') {
-      fontFamilies.add(font.family);
-    }
-  });
-  
-  // Добавляем опцию "System Default" первой
-  const systemOption = document.createElement('div');
-  systemOption.className = 'custom-select-option';
-  if (currentValue === 'system-ui') {
-    systemOption.classList.add('selected');
-    textElement.textContent = 'System Default';
-  }
-  systemOption.dataset.value = 'system-ui';
-  systemOption.textContent = 'System Default';
-  systemOption.onclick = () => {
-    textElement.textContent = 'System Default';
-    dropdownElement.style.display = 'none';
-    closeAllFontDropdowns();
-    if (selectCallback) selectCallback('system-ui');
-  };
-  dropdownElement.appendChild(systemOption);
-  
-  // Добавляем опции для каждого семейства
-  const sortedFamilies = Array.from(fontFamilies).sort();
-  sortedFamilies.forEach((family) => {
-    const option = document.createElement('div');
-    option.className = 'custom-select-option';
-    if (currentValue === family) {
-      option.classList.add('selected');
-      textElement.textContent = family;
-    }
-    option.dataset.value = family;
-    option.textContent = family;
-    option.onclick = () => {
-      textElement.textContent = family;
-      dropdownElement.style.display = 'none';
-      closeAllFontDropdowns();
-      if (selectCallback) selectCallback(family);
-    };
-    dropdownElement.appendChild(option);
-  });
-  
-  // Если текущее значение не установлено, используем первое доступное
-  if (!currentValue || (!sortedFamilies.includes(currentValue) && currentValue !== 'system-ui')) {
-    const defaultFont = sortedFamilies.includes('YS Text') ? 'YS Text' : sortedFamilies[0];
-    textElement.textContent = defaultFont;
-    dropdownElement.querySelector(`[data-value="${defaultFont}"]`)?.classList.add('selected');
-  }
-};
+// Реэкспортируем функции для работы со шрифтами для использования в main.js
+export {
+  selectFontFamily,
+  handleTitleFontUpload,
+  handleSubtitleFontUpload,
+  handleLegalFontUpload,
+  handleAgeFontUpload,
+  clearTitleCustomFont,
+  clearSubtitleCustomFont,
+  clearLegalCustomFont,
+  clearAgeCustomFont,
+  selectTitleFontFamily,
+  selectSubtitleFontFamily,
+  selectLegalFontFamily,
+  selectAgeFontFamily,
+  initializeFontDropdown,
+  initializeFontDropdowns
+} from './components/fontSelector.js';
 
-// Функция для закрытия всех дропдаунов шрифтов
-const closeAllFontDropdowns = () => {
-  const dropdowns = [
-    document.getElementById('titleFontFamilyDropdown'),
-    document.getElementById('titleWeightDropdown'),
-    document.getElementById('subtitleFontFamilyDropdown'),
-    document.getElementById('subtitleWeightDropdown'),
-    document.getElementById('legalFontFamilyDropdown'),
-    document.getElementById('legalWeightDropdown'),
-    document.getElementById('ageFontFamilyDropdown')
-  ];
-  dropdowns.forEach(dropdown => {
-    if (dropdown) dropdown.style.display = 'none';
-  });
-};
+// Все функции для работы с KV (renderKVColumn1-3, buildKVStructure, populateKVColumns, 
+// openKVSelectModal, closeKVSelectModal, updateKVTriggerText, selectPreloadedKV, 
+// initializeKVDropdown, loadDefaultKV) теперь импортируются из ./components/kvSelector.js
 
-export const initializeFontDropdown = () => {
-  const dom = getDom();
-  if (!dom.fontFamily) return;
-  const state = getState();
-  updateFontDropdown(dom.fontFamily, state.fontFamily || 'YS Text');
-};
-
-// Инициализация всех dropdown для шрифтов в разделах
-export const initializeFontDropdowns = () => {
-  const dom = getDom();
-  const state = getState();
-  
-  // Обновляем кастомный dropdown для заголовка
-  const titleFontFamilyBtn = document.getElementById('titleFontFamilyBtn');
-  const titleFontFamilyText = document.getElementById('titleFontFamilyText');
-  const titleFontFamilyDropdown = document.getElementById('titleFontFamilyDropdown');
-  const titleWeightBtn = document.getElementById('titleWeightBtn');
-  const titleWeightText = document.getElementById('titleWeightText');
-  const titleWeightDropdown = document.getElementById('titleWeightDropdown');
-  
-  if (titleFontFamilyBtn && titleFontFamilyText && titleFontFamilyDropdown) {
-    const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
-    updateCustomFontDropdown(titleFontFamilyDropdown, titleFontFamilyText, titleFontFamily, (value) => {
-      selectTitleFontFamily(value);
-    });
-    
-    if (!titleFontFamilyBtn.onclick) {
-      titleFontFamilyBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeAllFontDropdowns();
-        titleFontFamilyDropdown.style.display = titleFontFamilyDropdown.style.display === 'none' ? 'block' : 'none';
-      };
-    }
-  }
-  
-  if (titleWeightBtn && titleWeightText && titleWeightDropdown) {
-    const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
-    const titleWeight = typeof state.titleWeight === 'number' 
-      ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
-      : (state.titleWeight || 'Regular');
-    
-    // Обновляем опции дропдауна
-    updateCustomWeightDropdown(titleWeightDropdown, titleWeightText, titleFontFamily, titleWeight, (value) => {
-      updateState('titleWeight', value);
-    });
-    
-    // Добавляем обработчики для всех опций в дропдауне (включая статические из HTML)
-    const updateTitleWeightOptions = () => {
-      titleWeightDropdown.querySelectorAll('.custom-select-option').forEach(option => {
-        option.onclick = () => {
-          titleWeightText.textContent = option.textContent;
-          titleWeightDropdown.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
-          option.classList.add('selected');
-          titleWeightDropdown.style.display = 'none';
-          closeAllFontDropdowns();
-          updateState('titleWeight', option.dataset.value);
-        };
-      });
-    };
-    updateTitleWeightOptions();
-    
-    if (!titleWeightBtn.onclick) {
-      titleWeightBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeAllFontDropdowns();
-        titleWeightDropdown.style.display = titleWeightDropdown.style.display === 'none' ? 'block' : 'none';
-      };
-    }
-  }
-  
-  // Обновляем кастомный dropdown для подзаголовка
-  const subtitleFontFamilyBtn = document.getElementById('subtitleFontFamilyBtn');
-  const subtitleFontFamilyText = document.getElementById('subtitleFontFamilyText');
-  const subtitleFontFamilyDropdown = document.getElementById('subtitleFontFamilyDropdown');
-  const subtitleWeightBtn = document.getElementById('subtitleWeightBtn');
-  const subtitleWeightText = document.getElementById('subtitleWeightText');
-  const subtitleWeightDropdown = document.getElementById('subtitleWeightDropdown');
-  
-  if (subtitleFontFamilyBtn && subtitleFontFamilyText && subtitleFontFamilyDropdown) {
-    const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
-    updateCustomFontDropdown(subtitleFontFamilyDropdown, subtitleFontFamilyText, subtitleFontFamily, (value) => {
-      selectSubtitleFontFamily(value);
-    });
-    
-    if (!subtitleFontFamilyBtn.onclick) {
-      subtitleFontFamilyBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeAllFontDropdowns();
-        subtitleFontFamilyDropdown.style.display = subtitleFontFamilyDropdown.style.display === 'none' ? 'block' : 'none';
-      };
-    }
-  }
-  
-  if (subtitleWeightBtn && subtitleWeightText && subtitleWeightDropdown) {
-    const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
-    const subtitleWeight = typeof state.subtitleWeight === 'number' 
-      ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
-      : (state.subtitleWeight || 'Regular');
-    
-    // Обновляем опции дропдауна
-    updateCustomWeightDropdown(subtitleWeightDropdown, subtitleWeightText, subtitleFontFamily, subtitleWeight, (value) => {
-      updateState('subtitleWeight', value);
-    });
-    
-    // Добавляем обработчики для всех опций в дропдауне (включая статические из HTML)
-    const updateSubtitleWeightOptions = () => {
-      subtitleWeightDropdown.querySelectorAll('.custom-select-option').forEach(option => {
-        option.onclick = () => {
-          subtitleWeightText.textContent = option.textContent;
-          subtitleWeightDropdown.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
-          option.classList.add('selected');
-          subtitleWeightDropdown.style.display = 'none';
-          closeAllFontDropdowns();
-          updateState('subtitleWeight', option.dataset.value);
-        };
-      });
-    };
-    updateSubtitleWeightOptions();
-    
-    if (!subtitleWeightBtn.onclick) {
-      subtitleWeightBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeAllFontDropdowns();
-        subtitleWeightDropdown.style.display = subtitleWeightDropdown.style.display === 'none' ? 'block' : 'none';
-      };
-    }
-  }
-  
-  // Обновляем кастомный dropdown для юридического текста
-  const legalFontFamilyBtn = document.getElementById('legalFontFamilyBtn');
-  const legalFontFamilyText = document.getElementById('legalFontFamilyText');
-  const legalFontFamilyDropdown = document.getElementById('legalFontFamilyDropdown');
-  const legalWeightBtn = document.getElementById('legalWeightBtn');
-  const legalWeightText = document.getElementById('legalWeightText');
-  const legalWeightDropdown = document.getElementById('legalWeightDropdown');
-  
-  if (legalFontFamilyBtn && legalFontFamilyText && legalFontFamilyDropdown) {
-    const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
-    updateCustomFontDropdown(legalFontFamilyDropdown, legalFontFamilyText, legalFontFamily, (value) => {
-      selectLegalFontFamily(value);
-    });
-    
-    if (!legalFontFamilyBtn.onclick) {
-      legalFontFamilyBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeAllFontDropdowns();
-        legalFontFamilyDropdown.style.display = legalFontFamilyDropdown.style.display === 'none' ? 'block' : 'none';
-      };
-    }
-  }
-  
-  if (legalWeightBtn && legalWeightText && legalWeightDropdown) {
-    const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
-    const legalWeight = typeof state.legalWeight === 'number' 
-      ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
-      : (state.legalWeight || 'Regular');
-    
-    // Обновляем опции дропдауна
-    updateCustomWeightDropdown(legalWeightDropdown, legalWeightText, legalFontFamily, legalWeight, (value) => {
-      updateState('legalWeight', value);
-    });
-    
-    // Добавляем обработчики для всех опций в дропдауне (включая статические из HTML)
-    const updateLegalWeightOptions = () => {
-      legalWeightDropdown.querySelectorAll('.custom-select-option').forEach(option => {
-        option.onclick = () => {
-          legalWeightText.textContent = option.textContent;
-          legalWeightDropdown.querySelectorAll('.custom-select-option').forEach(opt => opt.classList.remove('selected'));
-          option.classList.add('selected');
-          legalWeightDropdown.style.display = 'none';
-          closeAllFontDropdowns();
-          updateState('legalWeight', option.dataset.value);
-        };
-      });
-    };
-    updateLegalWeightOptions();
-    
-    if (!legalWeightBtn.onclick) {
-      legalWeightBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeAllFontDropdowns();
-        legalWeightDropdown.style.display = legalWeightDropdown.style.display === 'none' ? 'block' : 'none';
-      };
-    }
-  }
-  
-  // Обновляем кастомный dropdown для возраста
-  const ageFontFamilyBtn = document.getElementById('ageFontFamilyBtn');
-  const ageFontFamilyText = document.getElementById('ageFontFamilyText');
-  const ageFontFamilyDropdown = document.getElementById('ageFontFamilyDropdown');
-  
-  if (ageFontFamilyBtn && ageFontFamilyText && ageFontFamilyDropdown) {
-    const ageFontFamily = state.ageFontFamily || state.fontFamily || 'YS Text';
-    updateCustomFontDropdown(ageFontFamilyDropdown, ageFontFamilyText, ageFontFamily, (value) => {
-      selectAgeFontFamily(value);
-    });
-    
-    if (!ageFontFamilyBtn.onclick) {
-      ageFontFamilyBtn.onclick = (e) => {
-        e.stopPropagation();
-        closeAllFontDropdowns();
-        ageFontFamilyDropdown.style.display = ageFontFamilyDropdown.style.display === 'none' ? 'block' : 'none';
-      };
-    }
-  }
-  
-  // Обратная совместимость со старыми select элементами
-  if (dom.titleFontFamily) {
-    const titleFontFamily = state.titleFontFamily || state.fontFamily || 'YS Text';
-    updateFontDropdown(dom.titleFontFamily, titleFontFamily);
-    if (dom.titleWeight) {
-      const titleWeight = typeof state.titleWeight === 'number' 
-        ? FONT_WEIGHT_TO_NAME[state.titleWeight.toString()] || 'Regular' 
-        : (state.titleWeight || 'Regular');
-      updateWeightDropdown(dom.titleWeight, titleFontFamily, titleWeight);
-    }
-  }
-  
-  if (dom.subtitleFontFamily) {
-    const subtitleFontFamily = state.subtitleFontFamily || state.fontFamily || 'YS Text';
-    updateFontDropdown(dom.subtitleFontFamily, subtitleFontFamily);
-    if (dom.subtitleWeight) {
-      const subtitleWeight = typeof state.subtitleWeight === 'number' 
-        ? FONT_WEIGHT_TO_NAME[state.subtitleWeight.toString()] || 'Regular' 
-        : (state.subtitleWeight || 'Regular');
-      updateWeightDropdown(dom.subtitleWeight, subtitleFontFamily, subtitleWeight);
-    }
-  }
-  
-  if (dom.legalFontFamily) {
-    const legalFontFamily = state.legalFontFamily || state.fontFamily || 'YS Text';
-    updateFontDropdown(dom.legalFontFamily, legalFontFamily);
-    if (dom.legalWeight) {
-      const legalWeight = typeof state.legalWeight === 'number' 
-        ? FONT_WEIGHT_TO_NAME[state.legalWeight.toString()] || 'Regular' 
-        : (state.legalWeight || 'Regular');
-      updateWeightDropdown(dom.legalWeight, legalFontFamily, legalWeight);
-    }
-  }
-  
-  if (dom.ageFontFamily) {
-    const ageFontFamily = state.ageFontFamily || state.fontFamily || 'YS Text';
-    updateFontDropdown(dom.ageFontFamily, ageFontFamily);
-    if (dom.ageWeight) {
-      const ageWeight = typeof state.ageWeight === 'number' 
-        ? FONT_WEIGHT_TO_NAME[state.ageWeight.toString()] || 'Regular' 
-        : (state.ageWeight || 'Regular');
-      updateWeightDropdown(dom.ageWeight, ageFontFamily, ageWeight);
-    }
-  }
-};
-
-// Кэш для отсканированных KV
-let cachedKV = null;
-let kvScanning = false;
-
-let selectedFolder1 = null;
-let selectedFolder2 = null;
-
+// Функции для работы с KV для пар (используются в других местах)
 const renderKVColumn1 = (allKV) => {
   const column1 = document.getElementById('kvFolder1Column');
   if (!column1) return;
@@ -3319,7 +1706,8 @@ const renderKVColumn1 = (allKV) => {
     item.dataset.folder1 = folder1;
     item.textContent = folder1;
     
-    item.addEventListener('click', () => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation(); // Предотвращаем закрытие модального окна
       selectedFolder1 = folder1;
       selectedFolder2 = null;
       // Обновляем стили
@@ -3361,7 +1749,8 @@ const renderKVColumn2 = (allKV) => {
     item.dataset.folder2 = folder2;
     item.textContent = folder2;
     
-    item.addEventListener('click', () => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation(); // Предотвращаем закрытие модального окна
       selectedFolder2 = folder2;
       // Обновляем стили
       document.querySelectorAll('.kv-folder2-item').forEach(el => {
@@ -3442,7 +1831,8 @@ const renderKVColumn3 = (images) => {
     
     imgContainer.appendChild(img);
     
-    imgContainer.addEventListener('click', () => {
+    imgContainer.addEventListener('click', (e) => {
+      e.stopPropagation(); // Предотвращаем закрытие модального окна до выбора
       selectPreloadedKV(kv.file);
       // Закрываем модальное окно после выбора
       closeKVSelectModal();
@@ -3510,201 +1900,18 @@ const populateKVColumns = async (forceRefresh = false) => {
   renderKVColumn1(allKV);
 };
 
+// refreshKVColumns теперь импортируется из ./components/kvSelector.js
+// Но нам нужно обновить renderKVPairs после обновления кэша
+// Поэтому оставляем обертку, которая вызывает импортированную функцию
 export const refreshKVColumns = async () => {
-  // Очищаем все кэши КВ
-  cachedKV = null;
-  selectedFolder1 = null;
-  selectedFolder2 = null;
-  
-  // Принудительно обновляем колонки в модальном окне
-  await populateKVColumns(true);
-  
-  // Также обновляем кэш для пар заголовков/подзаголовков
-  // Это пересканирует КВ для отображения в списке пар
-  if (!kvScanning) {
-    kvScanning = true;
-    try {
-      const scannedKV = await scanKV();
-      cachedKV = { ...AVAILABLE_KV };
-      Object.keys(scannedKV).forEach(folder1 => {
-        if (!cachedKV[folder1]) {
-          cachedKV[folder1] = {};
-        }
-        Object.keys(scannedKV[folder1]).forEach(folder2 => {
-          if (!cachedKV[folder1][folder2]) {
-            cachedKV[folder1][folder2] = [];
-          }
-          scannedKV[folder1][folder2].forEach(kv => {
-            if (!cachedKV[folder1][folder2].find(k => k.file === kv.file)) {
-              cachedKV[folder1][folder2].push(kv);
-            }
-          });
-        });
-      });
-      // Перерисовываем пары после обновления кэша
-      renderKVPairs();
-    } catch (error) {
-      console.error('Ошибка при обновлении КВ:', error);
-    } finally {
-      kvScanning = false;
-    }
-  }
+  await refreshKVColumnsFromModule();
+  // Перерисовываем пары после обновления кэша
+  renderKVPairs();
 };
 
-// Глобальная переменная для хранения индекса пары, для которой открывается модальное окно
-let currentKVModalPairIndex = null;
+// openKVSelectModal и closeKVSelectModal теперь импортируются из ./components/kvSelector.js
 
-const openKVSelectModal = async (pairIndex = null) => {
-  const overlay = document.getElementById('kvSelectModalOverlay');
-  if (!overlay) return;
-  
-  // Сохраняем индекс пары, если указан
-  currentKVModalPairIndex = pairIndex;
-  
-  // Сбрасываем выбранные папки
-  selectedFolder1 = null;
-  selectedFolder2 = null;
-  
-  // При открытии заполняем колонки лениво
-  await populateKVColumns();
-  
-  // Показываем модальное окно
-  overlay.style.display = 'block';
-  document.body.style.overflow = 'hidden'; // Блокируем скролл фона
-};
-
-const closeKVSelectModal = () => {
-  const overlay = document.getElementById('kvSelectModalOverlay');
-  if (overlay) {
-    overlay.style.display = 'none';
-    document.body.style.overflow = ''; // Разблокируем скролл
-  }
-  // Сбрасываем индекс пары при закрытии
-  currentKVModalPairIndex = null;
-};
-
-export const initializeKVDropdown = async () => {
-  const dom = getDom();
-  if (!dom.kvSelect) return;
-  
-  const trigger = document.getElementById('kvSelectTrigger');
-  const textSpan = document.getElementById('kvSelectText');
-  
-  if (!trigger || !textSpan) return;
-  
-  // Удаляем старые обработчики через клонирование trigger
-  const newTrigger = trigger.cloneNode(true);
-  trigger.parentNode.replaceChild(newTrigger, trigger);
-  const updatedTrigger = document.getElementById('kvSelectTrigger');
-  
-  // Обработчик открытия модального окна
-  updatedTrigger.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    await openKVSelectModal();
-  });
-  
-  // Закрытие по Escape
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      const overlay = document.getElementById('kvSelectModalOverlay');
-      if (overlay && overlay.style.display === 'block') {
-        closeKVSelectModal();
-      }
-    }
-  });
-  
-  // Делаем функцию закрытия доступной глобально
-  window.closeKVSelectModal = closeKVSelectModal;
-  
-  // Обновляем текст триггера
-  const state = getState();
-  updateKVTriggerText(state.kvSelected || '');
-};
-
-const updateKVTriggerText = (value) => {
-  const textSpan = document.getElementById('kvSelectText');
-  if (!textSpan) return;
-  
-  if (!value) {
-    textSpan.textContent = 'Выбрать';
-    return;
-  }
-  
-  // Если есть KV, показываем "Выбрать из библиотеки"
-  textSpan.textContent = 'Выбрать из библиотеки';
-};
-
-export const selectPreloadedKV = async (kvFile) => {
-  const dom = getDom();
-  const state = getState();
-  
-  // Закрываем модальное окно выбора
-  closeKVSelectModal();
-
-  // Если модальное окно открыто для конкретной пары, обновляем только эту пару
-  if (currentKVModalPairIndex !== null) {
-    await selectPairKV(currentKVModalPairIndex, kvFile || '');
-    return;
-  }
-  
-  // Иначе обновляем KV для активной пары (обычное поведение)
-  const activeIndex = state.activePairIndex || 0;
-  const pairs = state.titleSubtitlePairs || [];
-  if (pairs[activeIndex]) {
-    updatePairKV(activeIndex, kvFile || '');
-  }
-  
-  setState({ kvSelected: kvFile || '' });
-  updateKVTriggerText(kvFile || '');
-
-  if (!kvFile) {
-    setState({ kv: null });
-    updateKVUI();
-    renderer.render();
-    // Обновляем превью в списке KV для пар
-    renderKVPairs();
-    return;
-  }
-
-  try {
-    const img = await loadImage(kvFile);
-    setState({ kv: img });
-    if (dom.kvSelect) dom.kvSelect.value = kvFile;
-    updateKVUI();
-    renderer.render();
-    // Обновляем превью в списке KV для пар
-    renderKVPairs();
-  } catch (error) {
-    console.error(error);
-    alert('Не удалось загрузить KV.');
-    setState({ kv: null });
-    updateKVUI();
-    renderer.render();
-    // Обновляем превью в списке KV для пар
-    renderKVPairs();
-  }
-};
-
-export const loadDefaultKV = async () => {
-  const dom = getDom();
-  const state = getState();
-  const defaultKV = state.kvSelected || 'assets/3d/sign/01.png';
-  
-  if (!defaultKV) return;
-  
-  try {
-    const img = await loadImage(defaultKV);
-    setKey('kv', img);
-    setState({ kvSelected: defaultKV });
-    if (dom.kvSelect) dom.kvSelect.value = defaultKV;
-    updateKVTriggerText(defaultKV);
-    updateKVUI();
-    renderer.render();
-  } catch (error) {
-    console.warn(`Failed to load default KV image: ${defaultKV}`);
-  }
-};
+// initializeKVDropdown, selectPreloadedKV, loadDefaultKV теперь импортируются из ./components/kvSelector.js
 
 // Функции для управления парами заголовок/подзаголовок
 export const updateActivePairTitle = (title) => {

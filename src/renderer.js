@@ -1,5 +1,12 @@
 import { getState, getCheckedSizes, setKey, setState } from './state/store.js';
 import { FONT_NAME_TO_WEIGHT } from './constants.js';
+import { LAYOUT_CONSTANTS } from './renderer/constants.js';
+import { hexToRgb, getAlignedXWithinArea, clamp, mergeBounds, rectanglesOverlap } from './renderer/utils.js';
+import { wrapText, measureLineWidth, drawTextWithSpacing, getTextBlockBounds, clearTextMeasurementCache } from './renderer/text.js';
+import { getLayoutType, calculateSizeMultipliers, calculateTextArea, calculateLogoBounds } from './renderer/layout.js';
+import { drawBackground } from './renderer/background.js';
+import { calculateSuperWideKV, calculateUltraWideKV, calculateHorizontalKV, calculateVerticalKV, drawKV } from './renderer/kv.js';
+import { canvasManager, getSortedSizes, categorizeSizes } from './renderer/canvas.js';
 
 // Функция для конвертации названия начертания в вес
 const getFontWeight = (weightName) => {
@@ -23,518 +30,98 @@ const applyTextTransform = (text, transformType) => {
   return text;
 };
 
-const TITLE_SUBTITLE_RATIO = 1 / 2;
-const LEGAL_DESCENT_FACTOR = 0.2;
+// Экспортируем clearTextMeasurementCache для использования в других модулях
+export { clearTextMeasurementCache };
 
-let previewCanvas = null;
-let previewCanvasNarrow = null;
-let previewCanvasWide = null;
-let previewCanvasSquare = null;
-let currentPreviewIndex = 0;
-let currentNarrowIndex = 0;
-let currentWideIndex = 0;
-let currentSquareIndex = 0;
-let rafId = null;
-let lastRenderMeta = null;
+// Canvas management перенесен в ./renderer/canvas.js
 
-// Получаем отсортированные размеры по высоте (от маленькой к большой)
-const getSortedSizes = () => {
-  const sizes = getCheckedSizes();
-  return [...sizes].sort((a, b) => a.height - b.height);
-};
-
-// Категоризация размеров
-const categorizeSizes = (sizes) => {
-  const narrow = []; // height >= width * 1.5 (вертикальные)
-  const wide = [];   // width >= height * 3 (горизонтальные)
-  const square = []; // остальные (примерно квадратные)
-  
-  sizes.forEach((size) => {
-    if (size.height >= size.width * 1.5) {
-      narrow.push(size);
-    } else if (size.width >= size.height * 3) {
-      wide.push(size);
-    } else {
-      square.push(size);
-    }
-  });
-  
-  return { narrow, wide, square };
-};
-
-const textMeasurementCache = new Map();
-
-const cacheKey = (ctx, text) => {
-  const font = ctx.font;
-  return `${font}__${text}`;
-};
-
-const measureLineWidth = (ctx, text) => {
-  if (!text) return 0;
-  const key = cacheKey(ctx, text);
-  if (textMeasurementCache.has(key)) {
-    return textMeasurementCache.get(key);
-  }
-  const width = ctx.measureText(text).width;
-  textMeasurementCache.set(key, width);
-  return width;
-};
-
-const drawTextWithSpacing = (ctx, text, x, y, letterSpacing, align) => {
-  ctx.textAlign = align;
-
-  if (!letterSpacing) {
-    ctx.fillText(text, x, y);
-    return;
-  }
-
-  const characters = Array.from(text);
-  const widths = characters.map((char) => measureLineWidth(ctx, char));
-  const totalWidth = widths.reduce((acc, width) => acc + width, 0) + letterSpacing * (characters.length - 1);
-
-  let startX = x;
-  if (align === 'center') {
-    startX = x - totalWidth / 2;
-  } else if (align === 'right') {
-    startX = x - totalWidth;
-  }
-
-  let currentX = startX;
-  characters.forEach((char, index) => {
-    ctx.fillText(char, currentX, y);
-    currentX += widths[index] + letterSpacing;
-  });
-};
-
-// Предлоги и союзы, которые не должны оставаться в конце строки
-const HANGING_PREPOSITIONS = new Set([
-  'в', 'во', 'на', 'над', 'под', 'с', 'со', 'к', 'ко', 'от', 'о', 'об', 'обо',
-  'из', 'изо', 'до', 'по', 'про', 'для', 'при', 'без', 'безо', 'через', 'сквозь',
-  'между', 'среди', 'перед', 'передо', 'за', 'у', 'около', 'возле', 'вдоль',
-  'поперёк', 'против', 'ради', 'благодаря', 'согласно', 'вопреки', 'навстречу',
-  'наперекор', 'подобно', 'соответственно', 'относительно', 'касательно',
-  'и', 'а', 'но', 'или', 'либо', 'что', 'как', 'когда', 'если', 'хотя', 'чтобы'
-]);
-
-// Проверяет, является ли слово висячим предлогом/союзом
-const isHangingPreposition = (word) => {
-  // Убираем знаки препинания для проверки
-  const cleanWord = word.replace(/[.,!?;:—–\-()«»""'']/g, '').toLowerCase();
-  return HANGING_PREPOSITIONS.has(cleanWord);
-};
-
-const wrapText = (ctx, text, maxWidth, fontSize, fontWeight, lineHeight) => {
-  if (!text) return [];
-
-  const lines = [];
-  const paragraphs = text.split(/\n+/);
-
-  paragraphs.forEach((paragraph, paragraphIndex) => {
-    const words = paragraph.split(/\s+/);
-    let currentLine = '';
-
-    words.forEach((word, wordIndex) => {
-      if (!word) return;
-      
-      // handle words longer than max width
-      if (!currentLine) {
-        // Сначала пробуем разбить по дефису, если слово содержит дефис
-        if (word.includes('-') && word.length > 1) {
-          const parts = word.split('-');
-          // Пробуем найти место разрыва
-          for (let i = parts.length - 1; i > 0; i--) {
-            const firstPart = parts.slice(0, i).join('-') + '-';
-            const firstPartWidth = measureLineWidth(ctx, firstPart);
-            
-            if (firstPartWidth <= maxWidth) {
-              // Первая часть помещается, переносим остальное на новую строку
-              lines.push(firstPart);
-              currentLine = parts.slice(i).join('-');
-              return;
-            }
-          }
-        }
-        
-        // Если не удалось разбить по дефису, разбиваем по символам
-        const chars = Array.from(word);
-        let chunk = '';
-        chars.forEach((char) => {
-          const possible = chunk + char;
-          if (measureLineWidth(ctx, possible) <= maxWidth || !chunk) {
-            chunk = possible;
-          } else {
-            if (chunk) lines.push(chunk);
-            chunk = char;
-          }
-        });
-        if (chunk) {
-          currentLine = chunk;
-        }
-        return;
-      }
-
-      const tentativeLine = `${currentLine} ${word}`;
-      const tentativeWidth = measureLineWidth(ctx, tentativeLine);
-
-      if (tentativeWidth <= maxWidth) {
-        currentLine = tentativeLine;
-        return;
-      }
-
-      // Слово не помещается на текущей строке
-      // Проверяем, можно ли разбить слово по дефису
-      if (word.includes('-') && word.length > 1) {
-        const parts = word.split('-');
-        // Пробуем найти место разрыва, где можно перенести
-        for (let i = parts.length - 1; i > 0; i--) {
-          const firstPart = parts.slice(0, i).join('-') + '-';
-          const secondPart = '-' + parts.slice(i).join('-');
-          
-          const lineWithFirstPart = currentLine ? `${currentLine} ${firstPart}` : firstPart;
-          const firstPartWidth = measureLineWidth(ctx, lineWithFirstPart);
-          
-          if (firstPartWidth <= maxWidth) {
-            // Первая часть помещается, переносим остальное на новую строку
-            lines.push(lineWithFirstPart.trim());
-            currentLine = parts.slice(i).join('-');
-            return;
-          }
-        }
-      }
-
-      // Проверяем, не остался ли висячий предлог в конце текущей строки
-      const lineWords = currentLine.trim().split(/\s+/);
-      const lastWord = lineWords[lineWords.length - 1];
-      
-      if (isHangingPreposition(lastWord) && lineWords.length > 1) {
-        // Если последнее слово - предлог, переносим его на следующую строку вместе со следующим словом
-        // Убираем предлог из текущей строки
-        lineWords.pop();
-        const lineWithoutPreposition = lineWords.join(' ');
-        
-        // Формируем новую строку с предлогом и следующим словом
-        const newLineWithPreposition = `${lastWord} ${word}`;
-        const newLineWidth = measureLineWidth(ctx, newLineWithPreposition);
-        
-        // Если новая строка с предлогом помещается, используем её
-        if (newLineWidth <= maxWidth || lineWords.length === 0) {
-          if (lineWithoutPreposition) {
-            lines.push(lineWithoutPreposition);
-          }
-          currentLine = newLineWithPreposition;
-        } else {
-          // Если не помещается даже предлог со словом, проверяем дефис
-          if (word.includes('-') && word.length > 1) {
-            const parts = word.split('-');
-            for (let i = parts.length - 1; i > 0; i--) {
-              const firstPart = parts.slice(0, i).join('-') + '-';
-              const lineWithPrepositionAndFirst = `${lastWord} ${firstPart}`;
-              const width = measureLineWidth(ctx, lineWithPrepositionAndFirst);
-              if (width <= maxWidth) {
-                if (lineWithoutPreposition) {
-                  lines.push(lineWithoutPreposition);
-                }
-                lines.push(lineWithPrepositionAndFirst.trim());
-                currentLine = parts.slice(i).join('-');
-                return;
-              }
-            }
-          }
-          // Если не помещается даже предлог со словом, оставляем как есть
-          lines.push(currentLine);
-          currentLine = word;
-        }
-      } else {
-        // Обычный перенос
-        lines.push(currentLine);
-        currentLine = word;
-      }
-    });
-
-    if (currentLine) {
-      // Финальная проверка на висячий предлог в последней строке
-      const lastWord = currentLine.trim().split(/\s+/).pop();
-      if (isHangingPreposition(lastWord) && lines.length > 0) {
-        // Переносим предлог на предыдущую строку, если это возможно
-        const prevLine = lines[lines.length - 1];
-        const newPrevLine = `${prevLine} ${lastWord}`;
-        const newPrevWidth = measureLineWidth(ctx, newPrevLine);
-        if (newPrevWidth <= maxWidth) {
-          lines[lines.length - 1] = newPrevLine;
-          const remainingWords = currentLine.trim().split(/\s+/);
-          remainingWords.pop();
-          if (remainingWords.length > 0) {
-            lines.push(remainingWords.join(' '));
-          }
-        } else {
-          lines.push(currentLine);
-        }
-      } else {
-        lines.push(currentLine);
-      }
-    }
-
-    if (paragraphIndex < paragraphs.length - 1) {
-      lines.push('');
-    }
-  });
-
-  return lines;
-};
-
-const hexToRgb = (hex) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-      }
-    : { r: 255, g: 255, b: 255 };
-};
-
-const getAlignedX = (align, canvasWidth, paddingPx) => {
-  if (align === 'left') return paddingPx;
-  if (align === 'center') return canvasWidth / 2;
-  if (align === 'right') return canvasWidth - paddingPx;
-  return paddingPx;
-};
-
-const getAlignedXWithinArea = (align, area) => {
-  if (align === 'center') return (area.left + area.right) / 2;
-  if (align === 'right') return area.right;
-  return area.left;
-};
-
-const rectanglesOverlap = (r1, r2, margin = 10) => {
-  return !(
-    r1.x + r1.width + margin < r2.x ||
-    r2.x + r2.width + margin < r1.x ||
-    r1.y + r1.height + margin < r2.y ||
-    r2.y + r2.height + margin < r1.y
-  );
-};
-
-const mergeBounds = (...bounds) =>
-  bounds
-    .filter(Boolean)
-    .reduce((acc, bound) => {
-      if (!acc) return { ...bound };
-      const minX = Math.min(acc.x, bound.x);
-      const minY = Math.min(acc.y, bound.y);
-      const maxX = Math.max(acc.x + acc.width, bound.x + bound.width);
-      const maxY = Math.max(acc.y + acc.height, bound.y + bound.height);
-      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-    }, null);
-
-const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-const getTextBlockBounds = (ctx, lines, baselineX, baselineY, fontSize, lineHeight, align, maxWidth) => {
-  if (!lines.length) return null;
-
-  let maxLineWidth = 0;
-  lines.forEach((line) => {
-    const width = measureLineWidth(ctx, line || ' ');
-    if (width > maxLineWidth) {
-      maxLineWidth = width;
-    }
-  });
-
-  let leftX = baselineX;
-  if (align === 'center') {
-    leftX = baselineX - maxLineWidth / 2;
-  } else if (align === 'right') {
-    leftX = baselineX - maxLineWidth;
-  }
-
-  const topY = baselineY - fontSize;
-  const height = fontSize + (lines.length - 1) * fontSize * lineHeight;
-
-  return {
-    x: leftX,
-    y: topY,
-    width: Math.min(maxWidth, maxLineWidth),
-    height
-  };
-};
+// Все функции для работы с текстом теперь импортируются из ./renderer/text.js
+// Все утилиты импортируются из ./renderer/utils.js
 
 const renderToCanvas = (canvas, width, height, state) => {
-  const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingQuality = 'high';
+  try {
+    if (!canvas) {
+      console.error('Canvas элемент не передан в renderToCanvas');
+      return null;
+    }
+    
+    if (!state) {
+      console.error('Состояние не передано в renderToCanvas');
+      return null;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      console.error('Не удалось получить контекст 2D для canvas');
+      return null;
+    }
+    
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Проверяем валидность размеров
+    if (!width || !height || width <= 0 || height <= 0 || !isFinite(width) || !isFinite(height)) {
+      console.error('Некорректные размеры canvas:', { width, height, canvasId: canvas.id });
+      return null;
+    }
+  
+  // Устанавливаем размеры canvas
   canvas.width = width;
   canvas.height = height;
   ctx.clearRect(0, 0, width, height);
+  
+  // Логируем размеры для отладки (только первый раз для каждого canvas)
+  const logKey = `_logged_${canvas.id}`;
+  if (!renderToCanvas[logKey]) {
+    console.log('Рендеринг canvas:', { 
+      canvasId: canvas.id, 
+      width, 
+      height,
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      state: {
+        bgColor: state.bgColor,
+        title: state.title,
+        showKV: state.showKV,
+        showLogo: state.showLogo && !!state.logo
+      }
+    });
+    renderToCanvas[logKey] = true;
+  }
 
   const paddingPx = (state.paddingPercent / 100) * Math.min(width, height);
   const minDimension = Math.min(width, height);
-  const aspectRatio = width / height;
-  const layoutMode = state.layoutMode || 'auto';
-  const horizontalThreshold = 1.35;
-  const isHorizontalLayout = layoutMode === 'horizontal' || (layoutMode === 'auto' && aspectRatio >= horizontalThreshold);
-  const isUltraWide = width >= height * 8;
-  // Супер широкие форматы (например, 728x90) - очень маленькая высота
-  const isSuperWide = isUltraWide && height < 120;
+  
+  // Определяем тип макета
+  const layoutType = getLayoutType(width, height, state.layoutMode);
+  const { isUltraWide, isSuperWide, isHorizontalLayout } = layoutType;
   
   // Увеличиваем отступы для супер широких форматов
-  const effectivePaddingPx = isSuperWide ? paddingPx * 2 : paddingPx;
+  const effectivePaddingPx = isSuperWide ? paddingPx * LAYOUT_CONSTANTS.PADDING_MULTIPLIER_SUPER_WIDE : paddingPx;
 
+  // Вычисляем множители размеров
   let logoSizePercent = state.logoSize;
-  let titleSizeMultiplier = 1;
-  let legalMultiplier = 1;
-  let ageMultiplier = 1;
-
-  if (height >= width * 1.5) {
-    logoSizePercent *= 2;
-  } else if (isUltraWide) {
-    // Ultra-wide layouts: make title and legal larger
-    // Учитываем высоту макета - для больших размеров делаем меньше, чтобы подзаголовок не залезал на legal
-    logoSizePercent *= 0.75;
-    if (height < 120) {
-      // Супер широкие форматы (728x90 и т.д.) - можно больше
-      titleSizeMultiplier = 3;
-    } else if (height < 200) {
-      // Средние широкие форматы - умеренно
-      titleSizeMultiplier = 2.2;
-    } else {
-      // Большие широкие форматы - меньше, чтобы подзаголовок помещался
-      titleSizeMultiplier = 2;
-    }
-    // Для форматов типа 1320x300 делаем legal чуть меньше
-    if (height >= 250 && height <= 350) {
-      legalMultiplier = 2;
-    } else {
-      legalMultiplier = 2.5;
-    }
-    ageMultiplier = 2;
-  } else if (width >= height * 4) {
-    // Очень широкие форматы (>= 4:1)
-    logoSizePercent *= 0.75;
-    if (height < 200) {
-      titleSizeMultiplier = 2.2;
-    } else {
-      titleSizeMultiplier = 2;
-    }
-    // Для форматов типа 1320x300 делаем legal чуть меньше
-    if (height >= 250 && height <= 350) {
-      legalMultiplier = 2;
-    } else {
-      legalMultiplier = 2.5;
-    }
-    ageMultiplier = 2;
-  } else if (width >= height * 3) {
-    // Средние широкие форматы (3:1 - 4:1)
-    logoSizePercent *= 0.75;
-    if (height < 200) {
-      titleSizeMultiplier = 1.8;
-    } else {
-      titleSizeMultiplier = 1.6;
-    }
-    // Для форматов типа 1320x300 делаем legal чуть меньше
-    if (height >= 250 && height <= 350) {
-      legalMultiplier = 1.8;
-    } else {
-      legalMultiplier = 2;
-    }
-    ageMultiplier = 2;
-  }
-
-  let leftSectionWidth;
-  let rightSectionWidth;
-  let maxTextWidth;
-  let textArea = {
-    left: paddingPx,
-    right: width - paddingPx
-  };
-  if (isUltraWide) {
-    leftSectionWidth = width;
-    rightSectionWidth = 0;
-    maxTextWidth = width - paddingPx * 2;
-  } else if (isHorizontalLayout) {
-    leftSectionWidth = width * 0.55;
-    rightSectionWidth = width - leftSectionWidth - paddingPx;
-    maxTextWidth = leftSectionWidth - paddingPx * 2;
-    textArea.right = textArea.left + maxTextWidth;
-  } else {
-    maxTextWidth = width - paddingPx * 2;
-    leftSectionWidth = width;
-    rightSectionWidth = 0;
-  }
-
-  // Рисуем фон (цвет или изображение)
-  ctx.fillStyle = state.bgColor;
-  ctx.fillRect(0, 0, width, height);
+  const multipliers = calculateSizeMultipliers(width, height, layoutType);
+  const { titleSizeMultiplier, legalMultiplier, ageMultiplier } = multipliers;
   
-  if (state.bgImage) {
-    const img = state.bgImage;
-    const imgWidth = img.width;
-    const imgHeight = img.height;
-    const imgAspect = imgWidth / imgHeight;
-    const canvasAspect = width / height;
-    
-    let drawWidth = width;
-    let drawHeight = height;
-    let drawX = 0;
-    let drawY = 0;
-    
-    const bgSize = state.bgSize || 'cover';
-    const bgPosition = state.bgPosition || 'center';
-    
-    if (bgSize === 'cover') {
-      if (imgAspect > canvasAspect) {
-        // Изображение шире - подгоняем по высоте
-        drawHeight = height;
-        drawWidth = height * imgAspect;
-      } else {
-        // Изображение выше - подгоняем по ширине
-        drawWidth = width;
-        drawHeight = width / imgAspect;
-      }
-    } else if (bgSize === 'contain') {
-      if (imgAspect > canvasAspect) {
-        // Изображение шире - подгоняем по ширине
-        drawWidth = width;
-        drawHeight = width / imgAspect;
-      } else {
-        // Изображение выше - подгоняем по высоте
-        drawHeight = height;
-        drawWidth = height * imgAspect;
-      }
-    } else if (bgSize === 'repeat') {
-      // Для repeat просто заполняем всё пространство
-      drawWidth = width;
-      drawHeight = height;
-    }
-    
-    // Позиционирование
-    if (bgSize !== 'repeat') {
-      if (bgPosition === 'center' || bgPosition === '') {
-        drawX = (width - drawWidth) / 2;
-        drawY = (height - drawHeight) / 2;
-      } else if (bgPosition === 'top') {
-        drawX = (width - drawWidth) / 2;
-        drawY = 0;
-      } else if (bgPosition === 'bottom') {
-        drawX = (width - drawWidth) / 2;
-        drawY = height - drawHeight;
-      } else if (bgPosition === 'left') {
-        drawX = 0;
-        drawY = (height - drawHeight) / 2;
-      } else if (bgPosition === 'right') {
-        drawX = width - drawWidth;
-        drawY = (height - drawHeight) / 2;
-      }
-    }
-    
-    if (bgSize === 'repeat') {
-      // Повторяем изображение по всему canvas
-      const pattern = ctx.createPattern(img, 'repeat');
-      ctx.fillStyle = pattern;
-      ctx.fillRect(0, 0, width, height);
-    } else {
-      // Рисуем изображение один раз с учетом размера и позиции
-      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-    }
+  // Определяем, является ли формат квадратным
+  const isSquare = height < width * LAYOUT_CONSTANTS.VERTICAL_THRESHOLD && 
+                   width < height * LAYOUT_CONSTANTS.HORIZONTAL_THRESHOLD;
+  
+  // Проверяем наличие партнерского логотипа
+  const hasPartnerLogo = state.partnerLogo && state.showLogo;
+  
+  // Применяем множитель к логотипу
+  if (height >= width * LAYOUT_CONSTANTS.VERTICAL_THRESHOLD) {
+    logoSizePercent *= LAYOUT_CONSTANTS.VERTICAL_LOGO_MULTIPLIER;
+  } else if (isUltraWide || width >= height * 4 || width >= height * LAYOUT_CONSTANTS.HORIZONTAL_THRESHOLD) {
+    logoSizePercent *= LAYOUT_CONSTANTS.ULTRA_WIDE_LOGO_MULTIPLIER;
+  } else if (isSquare && hasPartnerLogo) {
+    // Для квадратных форматов с партнерским логотипом умножаем размер логотипа на 1.5
+    logoSizePercent *= 1.5;
   }
+
+  // Рисуем фон (цвет или изображение) - используем модуль background
+  drawBackground(ctx, width, height, state);
 
   let legalLines = [];
   let legalSize = 0;
@@ -579,195 +166,33 @@ const renderToCanvas = (canvas, width, height, state) => {
   let legalContentBounds = null;
   let legalBounds = null;
 
-  let logoBounds = null;
-  let logoHeight = 0;
-  if (state.logo) {
-    let logoWidth = (width * logoSizePercent) / 100;
-    let logoScale = logoWidth / state.logo.width;
-    logoHeight = state.logo.height * logoScale;
+  // Вычисляем позицию логотипа - используем модуль layout
+  const logoBounds = calculateLogoBounds(state, width, height, paddingPx, layoutType, logoSizePercent);
+  const logoHeight = logoBounds ? logoBounds.height : 0;
 
-    if (isUltraWide) {
-      const availableHeight = Math.max(0, height - paddingPx * 2);
-      logoHeight = Math.min(availableHeight * 0.3, state.logo.height * logoScale);
-      logoScale = logoHeight / state.logo.height;
-      logoWidth = state.logo.width * logoScale;
-      logoBounds = {
-        x: paddingPx,
-        y: paddingPx + (availableHeight - logoHeight) / 2,
-        width: logoWidth,
-        height: logoHeight
-      };
-    } else if (isHorizontalLayout) {
-      logoBounds = { x: paddingPx, y: paddingPx, width: logoWidth, height: logoHeight };
-    } else {
-      let logoX;
-      let logoY;
-      // If text is centered, logo should also be centered
-      const effectiveLogoPos = (state.titleAlign === 'center') ? 'center' : state.logoPos;
-      
-      if (state.titleVPos === 'top') {
-        if (effectiveLogoPos === 'left') {
-          logoX = paddingPx;
-          logoY = paddingPx;
-        } else if (effectiveLogoPos === 'center') {
-          logoX = (width - logoWidth) / 2;
-          logoY = paddingPx;
-        } else {
-          logoX = paddingPx;
-          logoY = paddingPx;
-        }
-      } else if (state.titleVPos === 'center') {
-        if (effectiveLogoPos === 'center') {
-          logoX = (width - logoWidth) / 2;
-          logoY = paddingPx;
-        } else if (effectiveLogoPos === 'left') {
-          logoX = paddingPx;
-          logoY = paddingPx;
-        } else {
-          logoX = (width - logoWidth) / 2;
-          logoY = paddingPx;
-        }
-      } else {
-        if (effectiveLogoPos === 'left') {
-          logoX = paddingPx;
-          logoY = paddingPx;
-        } else if (effectiveLogoPos === 'center') {
-          logoX = (width - logoWidth) / 2;
-          logoY = paddingPx;
-        } else {
-          logoX = paddingPx;
-          logoY = paddingPx;
-        }
-      }
-      logoBounds = { x: logoX, y: logoY, width: logoWidth, height: logoHeight };
-    }
-  }
-
+  // Вычисляем позицию KV и область для текста - используем модули
   let kvPlannedMeta = null;
-
-  if (isSuperWide && state.showKV && state.kv) {
-    // Для супер широких форматов: KV после логотипа, все свободное место для заголовка
-    const availableHeight = Math.max(0, height - effectivePaddingPx * 2);
-    const logoRight = logoBounds ? logoBounds.x + logoBounds.width : effectivePaddingPx;
-    const gap = Math.max(effectivePaddingPx * 0.5, width * 0.01);
-    const minKvSize = 30; // Минимальный размер для KV (уменьшен для более мягкой проверки)
-    
-    // Используем максимально возможную высоту для KV
-    let kvScale = availableHeight > 0 ? availableHeight / state.kv.height : 0;
-    let kvW = state.kv.width * kvScale;
-    let kvH = state.kv.height * kvScale;
-    const maxKvWidth = Math.max(minKvSize, width * 0.25);
-    if (kvW > maxKvWidth) {
-      kvScale = maxKvWidth / state.kv.width;
-      kvW = maxKvWidth;
-      kvH = state.kv.height * kvScale;
-    }
-    
-    // Проверяем, что KV достаточно большой для отображения
-    // Используем более мягкую проверку: хотя бы одна сторона должна быть >= minKvSize
-    if ((kvW >= minKvSize || kvH >= minKvSize) && kvScale > 0) {
-    const kvX = logoRight + gap;
-    const kvY = effectivePaddingPx + (availableHeight - kvH) / 2;
-    kvPlannedMeta = { kvX, kvY, kvW, kvH, kvScale, paddingPx: effectivePaddingPx };
-
-    // Текст занимает все оставшееся место после KV
-    const textStart = kvX + kvW + gap;
-    textArea.left = textStart;
-    textArea.right = width - effectivePaddingPx;
-    } else {
-      // Если места недостаточно, не размещаем KV
-      textArea.left = logoRight + gap;
-      textArea.right = width - effectivePaddingPx;
-    }
-  } else if (isUltraWide && state.showKV && state.kv) {
-    const availableHeight = Math.max(0, height - paddingPx * 2);
-    const minKvSize = 30; // Минимальный размер для KV (уменьшен для более мягкой проверки)
-    // Используем максимально возможную высоту для KV
-    let kvScale = availableHeight > 0 ? availableHeight / state.kv.height : 0;
-    let kvW = state.kv.width * kvScale;
-    let kvH = state.kv.height * kvScale;
-    const maxKvWidth = Math.max(minKvSize, width * 0.25);
-    if (kvW > maxKvWidth) {
-      kvScale = maxKvWidth / state.kv.width;
-      kvW = maxKvWidth;
-      kvH = state.kv.height * kvScale;
-    }
-    
-    // Проверяем, что KV достаточно большой для отображения
-    // Используем более мягкую проверку: хотя бы одна сторона должна быть >= minKvSize
-    if ((kvW >= minKvSize || kvH >= minKvSize) && kvScale > 0) {
-    const kvX = width / 2 - kvW / 2;
-    const kvY = paddingPx + (availableHeight - kvH) / 2;
-    kvPlannedMeta = { kvX, kvY, kvW, kvH, kvScale, paddingPx };
-
-    const textStart = kvX + kvW + Math.max(paddingPx, width * 0.02);
-    textArea.left = Math.min(width - paddingPx - 200, Math.max(textStart, paddingPx));
-    textArea.right = width - paddingPx;
-    if (textArea.right - textArea.left < 200) {
-      textArea.left = Math.max(paddingPx, textArea.right - 200);
-      }
-    } else {
-      // Если места недостаточно, не размещаем KV
-      const logoRight = logoBounds ? logoBounds.x + logoBounds.width : paddingPx;
-      textArea.left = logoRight + paddingPx;
-      textArea.right = width - paddingPx;
-    }
-  } else if (isSuperWide) {
-    // Для супер широких форматов без KV: текст начинается после логотипа
-    const logoRight = logoBounds ? logoBounds.x + logoBounds.width : effectivePaddingPx;
-    textArea.left = logoRight + Math.max(effectivePaddingPx * 0.5, width * 0.01);
-    textArea.right = width - effectivePaddingPx;
-  } else if (isUltraWide) {
-    const logoRight = logoBounds ? logoBounds.x + logoBounds.width : paddingPx;
-    textArea.left = logoRight + paddingPx;
-    textArea.right = width - paddingPx;
-  } else if (isHorizontalLayout && state.showKV && state.kv) {
-    const minTextRatio = width >= height * 3 ? 0.68 : 0.5;
-    const widthAfterPadding = Math.max(0, width - paddingPx * 2);
-    const minTextWidth = Math.max(widthAfterPadding * minTextRatio, 200);
-    const gap = Math.max(paddingPx, width * 0.02);
-    const availableHeight = Math.max(0, height - paddingPx * 2);
-    const minKvSize = 30; // Минимальный размер для KV (уменьшен для более мягкой проверки)
-
-    let kvMeta = null;
-    let textWidth = widthAfterPadding;
-
-    const maxKvWidth = Math.max(0, widthAfterPadding - minTextWidth - gap);
-    if (maxKvWidth >= minKvSize) {
-      const scaleByHeight = availableHeight > 0 ? availableHeight / state.kv.height : 0;
-      let kvW = state.kv.width * scaleByHeight;
-      let kvH = availableHeight;
-      if (kvW > maxKvWidth) {
-        const scaleByWidth = maxKvWidth / state.kv.width;
-        kvW = maxKvWidth;
-        kvH = state.kv.height * scaleByWidth;
-      }
-
-      // Проверяем минимальный размер KV
-      // Используем более мягкую проверку: хотя бы одна сторона должна быть >= minKvSize
-      if (kvW >= minKvSize || kvH >= minKvSize) {
-        const kvScale = kvW / state.kv.width;
-        const kvX = width - paddingPx - kvW;
-        const kvY = paddingPx + Math.max(0, (availableHeight - kvH) / 2);
-        kvMeta = { kvX, kvY, kvW, kvH, kvScale, paddingPx };
-        textWidth = Math.max(minTextWidth, widthAfterPadding - kvW - gap);
-      }
-    }
-
-    textWidth = Math.max(minTextWidth, Math.min(textWidth, widthAfterPadding));
-    textArea.left = paddingPx;
-    textArea.right = paddingPx + textWidth;
-
-    if (kvMeta) {
-      kvPlannedMeta = kvMeta;
-    }
+  let textArea;
+  let maxTextWidth;
+  
+  // Проверяем, что KV загружен и валиден перед использованием
+  const isKVValid = state.kv && state.kv.complete && state.kv.naturalWidth > 0 && state.kv.naturalHeight > 0;
+  
+  // Сначала вычисляем KV для разных типов макетов
+  if (isSuperWide && state.showKV && isKVValid) {
+    kvPlannedMeta = calculateSuperWideKV(state, width, height, effectivePaddingPx, logoBounds, legalBlockHeight);
+  } else if (isUltraWide && state.showKV && isKVValid) {
+    kvPlannedMeta = calculateUltraWideKV(state, width, height, paddingPx, legalBlockHeight);
+  } else if (layoutType.isHorizontalLayout && state.showKV && isKVValid) {
+    const result = calculateHorizontalKV(state, width, height, paddingPx, legalBlockHeight);
+    kvPlannedMeta = result.kvMeta;
+    maxTextWidth = result.textWidth;
   }
-
-  if (textArea.right <= textArea.left) {
-    textArea.right = width - effectivePaddingPx;
-    textArea.left = effectivePaddingPx;
-  }
-  maxTextWidth = Math.max(50, textArea.right - textArea.left);
+  
+  // Вычисляем область для текста - используем модуль layout
+  const textAreaResult = calculateTextArea(width, height, paddingPx, layoutType, logoBounds, kvPlannedMeta);
+  textArea = textAreaResult.textArea;
+  maxTextWidth = textAreaResult.maxTextWidth || Math.max(50, textArea.right - textArea.left);
 
   // Common baseline for legal and age - both should be on the same line at the bottom
   // Age is always at the bottom right, legal text takes remaining space on the left
@@ -778,14 +203,16 @@ const renderToCanvas = (canvas, width, height, state) => {
   if (isHorizontalLayout && state.showKV && state.kv && !kvPlannedMeta) {
     // Estimate KV position - it will be on the right side
     const widthAfterPadding = Math.max(0, width - paddingPx * 2);
-    const minTextRatio = width >= height * 3 ? 0.68 : 0.5;
-    const minTextWidth = Math.max(widthAfterPadding * minTextRatio, 200);
+    const minTextRatio = width >= height * LAYOUT_CONSTANTS.HORIZONTAL_THRESHOLD ? LAYOUT_CONSTANTS.MIN_TEXT_RATIO_WIDE : LAYOUT_CONSTANTS.MIN_TEXT_RATIO_NORMAL;
+      const minTextWidth = Math.max(widthAfterPadding * minTextRatio, LAYOUT_CONSTANTS.MIN_TEXT_WIDTH);
     const gap = Math.max(paddingPx, width * 0.02);
     const availableHeight = Math.max(0, height - paddingPx * 2);
     const maxKvWidth = Math.max(0, widthAfterPadding - minTextWidth - gap);
     if (maxKvWidth > 10) {
-      const scaleByHeight = availableHeight > 0 ? availableHeight / state.kv.height : 0;
-      let kvW = state.kv.width * scaleByHeight;
+      const kvWidth = state.kv.naturalWidth || state.kv.width;
+      const kvHeight = state.kv.naturalHeight || state.kv.height;
+      const scaleByHeight = availableHeight > 0 ? availableHeight / kvHeight : 0;
+      let kvW = kvWidth * scaleByHeight;
       if (kvW > maxKvWidth) {
         kvW = maxKvWidth;
       }
@@ -800,9 +227,29 @@ const renderToCanvas = (canvas, width, height, state) => {
   
   if ((state.showLegal && legalLines.length > 0) || (state.showAge && state.age)) {
     // Legal всегда занимает всю ширину макета (минус отступы и место для age)
+    // Для широких форматов age будет справа от legal, поэтому не вычитаем его ширину
     const ageWidth = (state.showAge && state.age && ageTextWidth > 0) ? ageTextWidth + ageGapPx : 0;
+    
+    // Определяем, является ли формат широким с большой высотой (типа 1920x1080)
+    const aspectRatio = width / height;
+    const isWideWithLargeHeight = (isHorizontalLayout || isUltraWide) && height >= 800 && aspectRatio >= 1.5 && aspectRatio <= 2.5;
+    
     // Legal занимает всю ширину макета по нижнему краю на любом макете
-    const fullLegalWidth = width - effectivePaddingPx * 2 - ageWidth;
+    let fullLegalWidth = width - effectivePaddingPx * 2;
+    if (!(isHorizontalLayout || isUltraWide || isSuperWide) || isWideWithLargeHeight) {
+      // Для вертикальных форматов и форматов типа 1920x1080 вычитаем место для age
+      fullLegalWidth -= ageWidth;
+    }
+    
+    // Для широких форматов учитываем KV, чтобы legal не заходил на него
+    // Исключение: для форматов типа 1920x1080 legal занимает всю ширину, не ограничиваясь KV
+    if (kvPlannedMeta && (isHorizontalLayout || isUltraWide) && !isSuperWide && !isWideWithLargeHeight) {
+      const kvLeft = kvPlannedMeta.kvX;
+      const gap = Math.max(paddingPx * 0.5, width * 0.01);
+      const maxLegalWidthWithKV = Math.max(0, kvLeft - effectivePaddingPx - gap - ageWidth);
+      fullLegalWidth = Math.min(fullLegalWidth, maxLegalWidthWithKV);
+    }
+    
     let legalMaxWidthForFlex = Math.max(50, fullLegalWidth);
     
     // Calculate legal text block - last line should be at commonBaselineY
@@ -812,7 +259,7 @@ const renderToCanvas = (canvas, width, height, state) => {
       const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
       const legalTop = commonBaselineY - legalHeight;
       
-      // Пересчитываем legalLines с учетом полной ширины
+      // Пересчитываем legalLines с учетом полной ширины (с учетом KV для широких форматов)
       const legalWeight = getFontWeight(state.legalWeight);
       legalLines = wrapText(ctx, state.legal, legalMaxWidthForFlex, legalSize, legalWeight, state.legalLineHeight);
       
@@ -837,10 +284,61 @@ const renderToCanvas = (canvas, width, height, state) => {
     if (state.showAge && state.age && ageTextWidth > 0) {
       const ageBaseline = commonBaselineY;
       const ageY = ageBaseline - ageSizePx;
-      const ageXRight = width - effectivePaddingPx;
+      
+      // Определяем, является ли формат широким с большой высотой (типа 1920x1080)
+      const aspectRatio = width / height;
+      const isWideWithLargeHeight = (isHorizontalLayout || isUltraWide) && height >= 800 && aspectRatio >= 1.5 && aspectRatio <= 2.5;
+      
+      // Для широких форматов age размещается справа от legal, а не в правом нижнем углу
+      // Для супер-широких форматов age в правом углу, как у остальных
+      // Для форматов типа 1920x1080 age в правом углу, так как legal занимает всю ширину
+      let ageX;
+      if (isSuperWide) {
+        // Для супер-широких форматов age в правом нижнем углу
+        ageX = width - effectivePaddingPx - ageTextWidth;
+      } else if (isWideWithLargeHeight) {
+        // Для форматов типа 1920x1080, когда legal занимает всю ширину, age в правом нижнем углу
+        ageX = width - effectivePaddingPx - ageTextWidth;
+      } else if (isHorizontalLayout || isUltraWide) {
+        // Age справа от legal
+        // Вычисляем реальную ширину legal текста
+        let actualLegalWidth = 0;
+        if (legalLines.length > 0 && legalTextBounds) {
+          const legalWeight = getFontWeight(state.legalWeight);
+          ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
+          legalLines.forEach(line => {
+            const lineWidth = measureLineWidth(ctx, line);
+            if (lineWidth > actualLegalWidth) {
+              actualLegalWidth = lineWidth;
+            }
+          });
+        }
+        const legalRight = legalTextBounds ? (legalTextBounds.x + actualLegalWidth) : effectivePaddingPx;
+        // Используем ageGapPx для расстояния между legal и age
+        ageX = legalRight + ageGapPx;
+        
+        // Для широких форматов проверяем, что age не заходит на KV и не выходит за границы
+        if (kvPlannedMeta) {
+          const kvLeft = kvPlannedMeta.kvX;
+          const gap = Math.max(paddingPx * 0.5, width * 0.01);
+          const maxAgeX = Math.max(0, kvLeft - gap - ageTextWidth);
+          const maxAgeXByCanvas = width - effectivePaddingPx - ageTextWidth;
+          const finalMaxAgeX = Math.min(maxAgeX, maxAgeXByCanvas);
+          
+          if (ageX + ageTextWidth > kvLeft - gap || ageX + ageTextWidth > width - effectivePaddingPx) {
+            ageX = Math.max(legalRight + ageGapPx, finalMaxAgeX);
+          }
+        }
+        
+        // Убеждаемся, что age не выходит за границы макета
+        ageX = Math.max(effectivePaddingPx, Math.min(ageX, width - effectivePaddingPx - ageTextWidth));
+      } else {
+        // Для вертикальных форматов age в правом нижнем углу
+        ageX = width - effectivePaddingPx - ageTextWidth;
+      }
       
       ageBoundsRect = {
-        x: ageXRight - ageTextWidth,
+        x: ageX,
         y: ageY,
         width: ageTextWidth,
         height: ageSizePx
@@ -898,6 +396,9 @@ const renderToCanvas = (canvas, width, height, state) => {
   // Используем то же соотношение, что и для базовых размеров, умноженное на titleSizeMultiplier
   // Это гарантирует, что при изменении titleSizeMultiplier или state.titleSize подзаголовок будет масштабироваться вместе с заголовком
   const subtitleSize = baseSubtitleSize * titleSizeMultiplier;
+  
+  // Используем константу для соотношения заголовка и подзаголовка
+  const TITLE_SUBTITLE_RATIO = LAYOUT_CONSTANTS.TITLE_SUBTITLE_RATIO;
 
   // Hide subtitle on wide formats (height < 150px) if option is enabled
   const shouldShowSubtitle = state.showSubtitle && state.subtitle && !(state.hideSubtitleOnWide && height < 150);
@@ -933,8 +434,8 @@ const renderToCanvas = (canvas, width, height, state) => {
   }
 
   // Total text height includes title, subtitle, and gap between them
-  // For ultra-wide formats, reduce gap by 3% (closer to title)
-  const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+  // For ultra-wide formats, reduce gap (closer to title)
+  const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - LAYOUT_CONSTANTS.SUBTITLE_GAP_REDUCTION_ULTRA_WIDE : state.subtitleGap;
   const subtitleGapPx = shouldShowSubtitle && subtitleLines.length > 0 ? (effectiveSubtitleGap / 100) * height : 0;
   const totalTextHeight = titleBlockHeight + subtitleGapPx + subtitleBlockHeight;
 
@@ -956,7 +457,7 @@ const renderToCanvas = (canvas, width, height, state) => {
       const bottomPadding = paddingPx + legalBlockHeight + paddingPx * 0.5;
       startY = Math.min(startY, height - bottomPadding - totalTextHeight + titleSize);
     }
-    if (state.logo && logoBounds) {
+    if (state.showLogo && state.logo && logoBounds) {
       const logoBottom = logoBounds.y + logoBounds.height;
       const logoStart = logoBottom + paddingPx + titleSize;
       startY = Math.max(startY, logoStart);
@@ -964,20 +465,20 @@ const renderToCanvas = (canvas, width, height, state) => {
     startY = Math.max(paddingPx + titleSize, startY);
   } else {
     if (state.titleVPos === 'top') {
-      if (state.logo && logoBounds) {
+      if (state.showLogo && state.logo && logoBounds) {
         startY = logoBounds.y + logoBounds.height + paddingPx + titleSize;
       } else {
         startY = paddingPx + titleSize;
       }
-      const minStart = logoBounds ? logoBounds.y + logoBounds.height + titleSize : paddingPx + titleSize;
+      const minStart = (state.showLogo && logoBounds) ? logoBounds.y + logoBounds.height + titleSize : paddingPx + titleSize;
       startY = Math.max(minStart, startY);
     } else if (state.titleVPos === 'center') {
       const availableHeight = height - legalBlockHeight - paddingPx * 2;
       startY = (availableHeight - totalTextHeight) / 2 + paddingPx + titleSize;
     } else {
       const legalTop = height - paddingPx - legalBlockHeight;
-      // For ultra-wide formats, reduce gap by 3% (closer to title)
-      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+      // For ultra-wide formats, reduce gap (closer to title)
+      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - LAYOUT_CONSTANTS.SUBTITLE_GAP_REDUCTION_ULTRA_WIDE : state.subtitleGap;
       const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
       // Use user-defined gap, with minimum safety gap to avoid overlap
       const gapFromSubtitle = subtitleLines.length > 0 ? subtitleGapPx : titleSize * state.titleLineHeight * 0.3;
@@ -1015,8 +516,8 @@ const renderToCanvas = (canvas, width, height, state) => {
 
     if (shouldShowSubtitle && subtitleLines.length > 0) {
       // Calculate subtitle Y position based on title block
-      // For ultra-wide formats, reduce gap by 3% (closer to title)
-      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+      // For ultra-wide formats, reduce gap (closer to title)
+      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - LAYOUT_CONSTANTS.SUBTITLE_GAP_REDUCTION_ULTRA_WIDE : state.subtitleGap;
       const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
       subtitleYLocal = baseY + titleBlockHeight + subtitleGapPx;
       
@@ -1039,8 +540,8 @@ const renderToCanvas = (canvas, width, height, state) => {
 
     if (!isHorizontalLayout && legalBlockHeight > 0) {
       const legalTop = height - paddingPx - legalBlockHeight;
-      // For ultra-wide formats, reduce gap by 3% (closer to title)
-      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+      // For ultra-wide formats, reduce gap (closer to title)
+      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - LAYOUT_CONSTANTS.SUBTITLE_GAP_REDUCTION_ULTRA_WIDE : state.subtitleGap;
       const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
       const desiredGap = Math.max(
         paddingPx * 0.5,
@@ -1060,6 +561,11 @@ const renderToCanvas = (canvas, width, height, state) => {
       }
     }
 
+  // Проверяем, что есть текст для отрисовки
+  if (titleLines.length === 0) {
+    console.warn('Нет строк заголовка для отрисовки');
+  }
+  
   titleLines.forEach((line, index) => {
     const lineY = startY + index * titleSize * state.titleLineHeight;
     if (state.titleLetterSpacing) {
@@ -1068,6 +574,19 @@ const renderToCanvas = (canvas, width, height, state) => {
       ctx.fillText(line, titleX, lineY);
     }
   });
+  
+  // Логируем информацию о тексте (только один раз)
+  if (!renderToCanvas._textLogged && titleLines.length > 0) {
+    console.log('Текст заголовка отрисован:', {
+      lines: titleLines.length,
+      firstLine: titleLines[0],
+      color: state.titleColor,
+      fontSize: titleSize,
+      font: ctx.font,
+      position: { x: titleX, y: startY }
+    });
+    renderToCanvas._textLogged = true;
+  }
 
   // Draw subtitle if it's enabled and has content
   if (shouldShowSubtitle && subtitleLines.length > 0) {
@@ -1075,8 +594,8 @@ const renderToCanvas = (canvas, width, height, state) => {
     let actualSubtitleY = subtitleY;
     if (actualSubtitleY === null || actualSubtitleY === undefined) {
       // Calculate subtitle Y position if it wasn't calculated
-      // For ultra-wide formats, reduce gap by 3% (closer to title)
-      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - 3 : state.subtitleGap;
+      // For ultra-wide formats, reduce gap (closer to title)
+      const effectiveSubtitleGap = isUltraWide ? state.subtitleGap - LAYOUT_CONSTANTS.SUBTITLE_GAP_REDUCTION_ULTRA_WIDE : state.subtitleGap;
       const subtitleGapPx = (effectiveSubtitleGap / 100) * height;
       actualSubtitleY = startY + titleBlockHeight + subtitleGapPx;
     }
@@ -1156,7 +675,8 @@ const renderToCanvas = (canvas, width, height, state) => {
     subtitleBounds ? subtitleBounds.y + subtitleBounds.height : 0
   );
 
-  if (state.showKV && state.kv && !kvPlannedMeta) {
+  // Используем проверку валидности KV
+  if (state.showKV && isKVValid && !kvPlannedMeta) {
     if (!isUltraWide && !isHorizontalLayout) {
       const safeGapY = paddingPx * 0.5;
       const availableWidth = Math.max(0, width - paddingPx * 2);
@@ -1174,14 +694,16 @@ const renderToCanvas = (canvas, width, height, state) => {
       const bottomAreaEnd = Math.max(bottomAreaStart, legalTop - safeGapForLegal);
       const bottomAreaHeight = Math.max(0, bottomAreaEnd - bottomAreaStart);
 
-      const minKvSize = 30; // Минимальный размер для KV (уменьшен для более мягкой проверки)
+      const minKvSize = LAYOUT_CONSTANTS.MIN_KV_SIZE;
       const computeFit = (availHeight, areaStart, areaEnd) => {
         if (availableWidth <= 0 || availHeight <= 0) return null;
         // Используем максимально возможный масштаб для заполнения доступного пространства
-        const scale = Math.min(availableWidth / state.kv.width, availHeight / state.kv.height);
+        const kvWidth = state.kv.naturalWidth || state.kv.width;
+        const kvHeight = state.kv.naturalHeight || state.kv.height;
+        const scale = Math.min(availableWidth / kvWidth, availHeight / kvHeight);
         if (!(scale > 0) || !Number.isFinite(scale)) return null;
-        const kvW = state.kv.width * scale;
-        const kvH = state.kv.height * scale;
+        const kvW = kvWidth * scale;
+        const kvH = kvHeight * scale;
         
         // Проверяем минимальный размер KV - если слишком маленький, не размещаем
         // Используем более мягкую проверку: хотя бы одна сторона должна быть >= minKvSize
@@ -1231,11 +753,108 @@ const renderToCanvas = (canvas, width, height, state) => {
 
     // Draw legal text - last line should be at commonBaselineY (height - effectivePaddingPx)
     const commonBaselineY = height - effectivePaddingPx;
-    const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
     const drawX = effectivePaddingPx;
     
-    // Legal всегда занимает всю ширину макета (минус отступы и место для age)
-    const maxLegalWidth = width - effectivePaddingPx * 2 - (state.showAge && state.age && ageTextWidth > 0 ? ageTextWidth + ageGapPx : 0);
+    // Определяем, является ли формат широким с большой высотой (типа 1920x1080)
+    const aspectRatioForLegal = width / height;
+    const isWideWithLargeHeightForLegal = (isHorizontalLayout || isUltraWide) && height >= 800 && aspectRatioForLegal >= 1.5 && aspectRatioForLegal <= 2.5;
+    
+    // Для широких форматов учитываем KV, чтобы legal не залезал на него
+    // Для широких форматов age будет справа от legal, поэтому не вычитаем его ширину из maxLegalWidth
+    // Для очень широких форматов (супер-широких) legal и age занимают всю ширину, как у остальных
+    // Для форматов типа 1920x1080 legal занимает всю ширину
+    let maxLegalWidth = width - effectivePaddingPx * 2;
+    if (!(isHorizontalLayout || isUltraWide || isSuperWide) || isWideWithLargeHeightForLegal) {
+      // Для вертикальных форматов и форматов типа 1920x1080 age в правом углу, вычитаем его ширину
+      maxLegalWidth -= (state.showAge && state.age && ageTextWidth > 0 ? ageTextWidth + ageGapPx : 0);
+    } else if (isSuperWide) {
+      // Для супер-широких форматов age в правом углу, вычитаем его ширину
+      maxLegalWidth -= (state.showAge && state.age && ageTextWidth > 0 ? ageTextWidth + ageGapPx : 0);
+    }
+    
+    // Если есть KV справа (для широких и ультра-широких форматов), ограничиваем ширину legal
+    // Исключение: для форматов типа 1920x1080 legal занимает всю ширину, не ограничиваясь KV
+    if (kvPlannedMeta && (isHorizontalLayout || isUltraWide) && !isSuperWide && !isWideWithLargeHeightForLegal) {
+      // KV находится справа, legal должен быть слева и не заходить на KV
+      // Учитываем место для age справа от legal
+      const ageWidth = (state.showAge && state.age && ageTextWidth > 0) ? ageTextWidth + ageGapPx : 0;
+      const kvLeft = kvPlannedMeta.kvX;
+      const gap = Math.max(paddingPx * 0.5, width * 0.01);
+      const maxLegalWidthWithKV = Math.max(0, kvLeft - effectivePaddingPx - gap - ageWidth);
+      maxLegalWidth = Math.min(maxLegalWidth, maxLegalWidthWithKV);
+      
+      // Пересчитываем legalLines с учетом ограниченной ширины
+      const legalText = applyTextTransform(state.legal, state.legalTransform);
+      legalLines = wrapText(ctx, legalText, maxLegalWidth, legalSize, legalWeight, state.legalLineHeight);
+      
+      // Обновляем legalBounds с правильной шириной
+      const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
+      const legalHeight = legalLines.length * legalSize * state.legalLineHeight;
+      const legalTop = commonBaselineY - legalHeight;
+      
+      legalContentBounds = {
+        x: effectivePaddingPx,
+        y: Math.max(effectivePaddingPx, legalTop),
+        width: maxLegalWidth,
+        height: legalHeight
+      };
+      
+      legalTextBounds = {
+        x: effectivePaddingPx,
+        y: legalContentBounds.y,
+        width: maxLegalWidth,
+        height: legalHeight
+      };
+      
+      legalBounds = { ...legalContentBounds };
+      
+      // Пересчитываем ageBoundsRect для широких форматов после обновления legalBounds
+      if (state.showAge && state.age && ageTextWidth > 0) {
+        const ageBaseline = commonBaselineY;
+        const ageY = ageBaseline - ageSizePx;
+        
+        // Вычисляем реальную ширину legal текста (самую широкую строку)
+        let actualLegalWidth = 0;
+        if (legalLines.length > 0) {
+          const legalWeight = getFontWeight(state.legalWeight);
+          ctx.font = `${legalWeight} ${legalSize}px ${state.legalFontFamily || state.fontFamily}`;
+          legalLines.forEach(line => {
+            const lineWidth = measureLineWidth(ctx, line);
+            if (lineWidth > actualLegalWidth) {
+              actualLegalWidth = lineWidth;
+            }
+          });
+        }
+        
+        // Age справа от legal с учетом gap
+        const legalRight = legalTextBounds ? (legalTextBounds.x + actualLegalWidth) : effectivePaddingPx;
+        const currentAgeGapPx = ageGapPx;
+        let ageX = legalRight + currentAgeGapPx;
+        
+        // Проверяем, что age не заходит на KV и не выходит за границы макета
+        const kvLeft = kvPlannedMeta.kvX;
+        const gap = Math.max(paddingPx * 0.5, width * 0.01);
+        const maxAgeX = Math.max(0, kvLeft - gap - ageTextWidth);
+        const maxAgeXByCanvas = width - effectivePaddingPx - ageTextWidth;
+        const finalMaxAgeX = Math.min(maxAgeX, maxAgeXByCanvas);
+        
+        if (ageX + ageTextWidth > kvLeft - gap || ageX + ageTextWidth > width - effectivePaddingPx) {
+          ageX = Math.max(legalRight + currentAgeGapPx, finalMaxAgeX);
+        }
+        
+        // Убеждаемся, что age не выходит за левую границу
+        ageX = Math.max(effectivePaddingPx, ageX);
+        
+        ageBoundsRect = {
+          x: ageX,
+          y: ageY,
+          width: ageTextWidth,
+          height: ageSizePx
+        };
+      }
+    }
+    
+    const firstLineBaselineY = commonBaselineY - (legalLines.length - 1) * legalSize * state.legalLineHeight;
     
     // Use clipping to ensure text doesn't go beyond the allowed area
     ctx.save();
@@ -1298,13 +917,15 @@ const renderToCanvas = (canvas, width, height, state) => {
           const availableHeight = Math.max(0, maxAllowedBottom - paddingPx - safeGap);
           if (availableHeight > 10) {
             const availableWidthForKV = Math.max(0, width - paddingPx * 2);
+            const kvWidth = state.kv.naturalWidth || state.kv.width;
+            const kvHeight = state.kv.naturalHeight || state.kv.height;
             const newScale = Math.min(
               kvPlannedMeta.kvScale || 1,
-              availableHeight / state.kv.height,
-              availableWidthForKV / state.kv.width
+              availableHeight / kvHeight,
+              availableWidthForKV / kvWidth
             );
-            kvPlannedMeta.kvW = state.kv.width * newScale;
-            kvPlannedMeta.kvH = state.kv.height * newScale;
+            kvPlannedMeta.kvW = kvWidth * newScale;
+            kvPlannedMeta.kvH = kvHeight * newScale;
             kvPlannedMeta.kvScale = newScale;
             kvPlannedMeta.kvX = paddingPx + Math.max(0, (availableWidthForKV - kvPlannedMeta.kvW) / 2);
             kvPlannedMeta.kvY = Math.max(paddingPx, maxAllowedBottom - kvPlannedMeta.kvH);
@@ -1346,7 +967,20 @@ const renderToCanvas = (canvas, width, height, state) => {
       ctx.clip();
     }
     
-    ctx.drawImage(state.kv, kvPlannedMeta.kvX, kvPlannedMeta.kvY, kvPlannedMeta.kvW, kvPlannedMeta.kvH);
+    // Проверяем, что изображение загружено и валидно
+    if (state.kv.complete && state.kv.naturalWidth > 0 && state.kv.naturalHeight > 0) {
+      try {
+        ctx.drawImage(state.kv, kvPlannedMeta.kvX, kvPlannedMeta.kvY, kvPlannedMeta.kvW, kvPlannedMeta.kvH);
+      } catch (error) {
+        console.error('Ошибка отрисовки KV:', error);
+      }
+    } else {
+      console.warn('KV не загружен или невалиден:', {
+        complete: state.kv.complete,
+        naturalWidth: state.kv.naturalWidth,
+        naturalHeight: state.kv.naturalHeight
+      });
+    }
     
     if (state.kvBorderRadius > 0) {
       ctx.restore();
@@ -1355,8 +989,51 @@ const renderToCanvas = (canvas, width, height, state) => {
     kvRenderMeta = kvPlannedMeta;
   }
 
-  if (state.logo && logoBounds) {
-    ctx.drawImage(state.logo, logoBounds.x, logoBounds.y, logoBounds.width, logoBounds.height);
+  if (state.showLogo && state.logo && logoBounds) {
+    // Проверяем, что изображение загружено и валидно
+    if (state.logo.complete && state.logo.naturalWidth > 0 && state.logo.naturalHeight > 0) {
+      try {
+        ctx.drawImage(state.logo, logoBounds.x, logoBounds.y, logoBounds.width, logoBounds.height);
+        
+        // Рисуем партнерский логотип, если есть
+        if (logoBounds.hasPartnerLogo && state.partnerLogo && state.partnerLogo.complete) {
+          const separatorX = logoBounds.x + logoBounds.width;
+          const separatorY = logoBounds.y;
+          const separatorHeight = logoBounds.height;
+          
+          // Рисуем разделитель "|" (чуть длиннее и с большими отступами)
+          // Используем цвет текста для разделителя
+          ctx.strokeStyle = state.titleColor || '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(separatorX + 6, separatorY + separatorHeight * 0.15);
+          ctx.lineTo(separatorX + 6, separatorY + separatorHeight * 0.85);
+          ctx.stroke();
+          
+          // Рассчитываем размеры партнерского логотипа
+          const partnerLogoScale = logoBounds.height / state.partnerLogo.height;
+          const partnerLogoWidth = state.partnerLogo.width * partnerLogoScale;
+          const partnerLogoX = separatorX + 12; // Отступ после разделителя (увеличен)
+          
+          // Рисуем партнерский логотип
+          ctx.drawImage(
+            state.partnerLogo,
+            partnerLogoX,
+            logoBounds.y,
+            partnerLogoWidth,
+            logoBounds.height
+          );
+        }
+      } catch (error) {
+        console.error('Ошибка отрисовки логотипа:', error);
+      }
+    } else {
+      console.warn('Логотип не загружен или невалиден:', {
+        complete: state.logo.complete,
+        naturalWidth: state.logo.naturalWidth,
+        naturalHeight: state.logo.naturalHeight
+      });
+    }
   }
 
   if (state.showGuides) {
@@ -1377,7 +1054,8 @@ const renderToCanvas = (canvas, width, height, state) => {
     }
     if (logoBounds) {
       ctx.fillStyle = '#9775fa';
-      ctx.fillRect(logoBounds.x, logoBounds.y, logoBounds.width, logoBounds.height);
+      const logoDisplayWidth = logoBounds.totalWidth || logoBounds.width;
+      ctx.fillRect(logoBounds.x, logoBounds.y, logoDisplayWidth, logoBounds.height);
     }
     if (kvRenderMeta) {
       ctx.fillStyle = '#51cf66';
@@ -1408,14 +1086,16 @@ const renderToCanvas = (canvas, width, height, state) => {
     // Проверяем, что места действительно недостаточно
     const availableWidth = Math.max(0, width - paddingPx * 2);
     const availableHeight = Math.max(0, height - paddingPx * 2);
-    const criticalMinSize = 10; // Критически минимальный размер - почти 0
+    const criticalMinSize = LAYOUT_CONSTANTS.CRITICAL_MIN_KV_SIZE;
     
     // Вычисляем максимально возможный размер KV при текущих условиях
-    const scaleByWidth = availableWidth > 0 ? availableWidth / state.kv.width : 0;
-    const scaleByHeight = availableHeight > 0 ? availableHeight / state.kv.height : 0;
+    const kvWidth = state.kv.naturalWidth || state.kv.width;
+    const kvHeight = state.kv.naturalHeight || state.kv.height;
+    const scaleByWidth = availableWidth > 0 ? availableWidth / kvWidth : 0;
+    const scaleByHeight = availableHeight > 0 ? availableHeight / kvHeight : 0;
     const maxScale = Math.min(scaleByWidth, scaleByHeight);
-    const maxKvW = state.kv.width * maxScale;
-    const maxKvH = state.kv.height * maxScale;
+    const maxKvW = kvWidth * maxScale;
+    const maxKvH = kvHeight * maxScale;
     
     // Выключаем KV только если максимально возможный размер стал почти 0
     // Это происходит когда текст занимает почти все место из-за увеличения кегля
@@ -1431,107 +1111,53 @@ const renderToCanvas = (canvas, width, height, state) => {
     }
   }
 
-  return {
-    kvRenderMeta,
-    canvasWidth: width,
-    canvasHeight: height
-  };
-};
-
-const doRender = async () => {
-  const sizes = getSortedSizes();
-  if (!sizes.length) return;
-
-  const state = getState();
-  const categorized = categorizeSizes(sizes);
-
-  // Рендерим узкий формат
-  if (previewCanvasNarrow && categorized.narrow.length > 0) {
-    if (currentNarrowIndex >= categorized.narrow.length) {
-      currentNarrowIndex = 0;
-    }
-    const narrowSize = categorized.narrow[currentNarrowIndex];
-    renderToCanvas(previewCanvasNarrow, narrowSize.width, narrowSize.height, state);
-  }
-
-  // Рендерим широкий формат
-  if (previewCanvasWide && categorized.wide.length > 0) {
-    if (currentWideIndex >= categorized.wide.length) {
-      currentWideIndex = 0;
-    }
-    const wideSize = categorized.wide[currentWideIndex];
-    lastRenderMeta = renderToCanvas(previewCanvasWide, wideSize.width, wideSize.height, state);
-    // Используем размер широкого формата для kvCanvas (для совместимости)
-    setKey('kvCanvasWidth', wideSize.width);
-    setKey('kvCanvasHeight', wideSize.height);
-  }
-
-  // Рендерим квадратный формат
-  if (previewCanvasSquare && categorized.square.length > 0) {
-    if (currentSquareIndex >= categorized.square.length) {
-      currentSquareIndex = 0;
-    }
-    const squareSize = categorized.square[currentSquareIndex];
-    renderToCanvas(previewCanvasSquare, squareSize.width, squareSize.height, state);
-  }
-
-  // Обратная совместимость со старым canvas
-  if (previewCanvas) {
-    if (currentPreviewIndex >= sizes.length) {
-      currentPreviewIndex = 0;
-    }
-    const size = sizes[currentPreviewIndex];
-    lastRenderMeta = renderToCanvas(previewCanvas, size.width, size.height, state);
-    setKey('kvCanvasWidth', size.width);
-    setKey('kvCanvasHeight', size.height);
+    return {
+      kvRenderMeta,
+      canvasWidth: width,
+      canvasHeight: height
+    };
+  } catch (error) {
+    console.error('Критическая ошибка в renderToCanvas:', error);
+    console.error('Параметры:', { canvasId: canvas?.id, width, height });
+    console.error('Стек ошибки:', error.stack);
+    // Возвращаем null вместо проброса ошибки
+    return null;
   }
 };
+
+// Функция doRender перенесена в canvasManager
+// Используем canvasManager.doRender() напрямую
+
+// Устанавливаем функцию рендеринга в canvasManager
+canvasManager.setRenderFunction(renderToCanvas);
 
 export const renderer = {
   initialize(canvas) {
-    previewCanvas = canvas;
+    canvasManager.initialize(canvas);
   },
   initializeMulti(canvasNarrow, canvasWide, canvasSquare) {
-    previewCanvasNarrow = canvasNarrow;
-    previewCanvasWide = canvasWide;
-    previewCanvasSquare = canvasSquare;
+    canvasManager.initializeMulti(canvasNarrow, canvasWide, canvasSquare);
   },
   render() {
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-    }
-    rafId = requestAnimationFrame(doRender);
+    canvasManager.render(getState, setKey);
   },
   renderSync() {
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
-    doRender();
+    canvasManager.renderSync(getState, setKey);
   },
   getCurrentIndex() {
-    return currentPreviewIndex;
+    return canvasManager.getCurrentIndex();
   },
   setCurrentIndex(index) {
-    currentPreviewIndex = Number(index) || 0;
-    this.render();
+    canvasManager.setCurrentIndex(index, getState, setKey);
   },
   setCategoryIndex(category, index, shouldRender = true) {
-    const idx = Number(index) || 0;
-    if (category === 'narrow') {
-      currentNarrowIndex = idx;
-    } else if (category === 'wide') {
-      currentWideIndex = idx;
-    } else if (category === 'square') {
-      currentSquareIndex = idx;
-    }
-    if (shouldRender) {
-      this.render();
-    }
+    canvasManager.setCategoryIndex(category, index, shouldRender, getState, setKey);
   },
   getCategorizedSizes() {
-    const sizes = getSortedSizes();
-    return categorizeSizes(sizes);
+    return canvasManager.getCategorizedSizes();
+  },
+  getCategoryIndices() {
+    return canvasManager.getCategoryIndices();
   },
   getCheckedSizes() {
     return getCheckedSizes();
@@ -1540,12 +1166,12 @@ export const renderer = {
     return getSortedSizes();
   },
   getRenderMeta() {
-    return lastRenderMeta;
+    return canvasManager.getRenderMeta();
   }
 };
 
 renderer.__unsafe_getRenderToCanvas = () => ({ renderToCanvas });
 
-export const clearTextMeasurementCache = () => textMeasurementCache.clear();
+// clearTextMeasurementCache экспортируется из ./renderer/text.js
 
 

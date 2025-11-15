@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Multi-Artboard Layout Generator</title>
+  <link rel="icon" href="data:,">
       <!-- Performance optimizations -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -25,7 +26,7 @@
       <h1>Генератор макетов Практикума</h1>
       <div class="header-actions">
         <div class="theme-toggle">
-          <button class="theme-toggle-btn" id="themeToggle" onclick="toggleTheme()" title="Переключить тему">
+          <button class="theme-toggle-btn" id="themeToggle" data-function="toggleTheme" title="Переключить тему">
             <span class="theme-icon">🌙</span>
           </button>
         </div>
@@ -34,22 +35,22 @@
     <div class="main">
       <!-- Icons Panel -->
       <div class="tabs-panel">
-        <div class="tab active" onclick="showSection('layout')" data-section="layout">
+        <div class="tab active" data-section="layout">
           <span>Макет</span>
         </div>
-        <div class="tab" onclick="showSection('logo')" data-section="logo">
+        <div class="tab" data-section="logo">
           <span>Логотип</span>
         </div>
-        <div class="tab" onclick="showSection('title')" data-section="title">
+        <div class="tab" data-section="title">
           <span>Заголовок</span>
         </div>
-        <div class="tab" onclick="showSection('subtitle')" data-section="subtitle">
+        <div class="tab" data-section="subtitle">
           <span>Подзаголовок</span>
         </div>
-        <div class="tab" onclick="showSection('legal')" data-section="legal">
+        <div class="tab" data-section="legal">
           <span>Лигал</span>
         </div>
-        <div class="tab" onclick="showSection('kv')" data-section="kv">
+        <div class="tab" data-section="kv">
           <span>KV</span>
         </div>
         <div class="theme-text-muted" style="margin-top: auto; padding: 16px; text-align: center; font-size: 12px;">
@@ -63,41 +64,29 @@
         <div class="panel-section active" id="panel-section-layout">
             <div class="form-group">
               <label>Отступ от края</label>
-              <input type="range" id="paddingPercent" value="5" min="2" max="8" oninput="updatePadding(this.value)">
+              <input type="range" id="paddingPercent" value="5" min="2" max="8" data-state-key="paddingPercent" data-update-handler="updatePadding">
               <div class="slider-value">
                 <span>2%</span>
                 <span id="paddingValue">5%</span>
                 <span>8%</span>
               </div>
             </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" id="showBlocks" onchange="updateState('showBlocks', this.checked)">
-                <label for="showBlocks">Блоки</label>
-              </div>
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" id="showGuides" checked onchange="updateState('showGuides', this.checked)">
-                <label for="showGuides">Направляющие</label>
-              </div>
-            </div>
             <div class="form-group form-group-section">
             <label>Фон</label>
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
-              <input type="color" id="bgColor" value="#1e1e1e" onchange="updateColorFromPicker('bgColor', this.value)" style="flex: 0 0 60px;">
-              <input type="text" id="bgColorHex" value="#1e1e1e" placeholder="#1e1e1e" onchange="updateColorFromHex('bgColor', this.value)" style="flex: 1;">
+              <input type="color" id="bgColor" value="#1e1e1e" data-state-key="bgColor" data-update-handler="updateColorFromPicker" data-handler-param="bgColor" style="flex: 0 0 60px;">
+              <input type="text" id="bgColorHex" value="#1e1e1e" placeholder="#1e1e1e" data-state-key="bgColor" data-update-handler="updateColorFromHex" data-handler-param="bgColor" style="flex: 1;">
             </div>
             <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
-              <button class="btn" onclick="applyPresetBgColor('#027EF2')" style="background: #027EF2; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#027EF2"></button>
-              <button class="btn" onclick="applyPresetBgColor('#98D2FE')" style="background: #98D2FE; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#98D2FE"></button>
-              <button class="btn" onclick="applyPresetBgColor('#07AB4B')" style="background: #07AB4B; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#07AB4B"></button>
-              <button class="btn" onclick="applyPresetBgColor('#E84033')" style="background: #E84033; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#E84033"></button>
-              <button class="btn" onclick="applyPresetBgColor('#FF6C26')" style="background: #FF6C26; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#FF6C26"></button>
-              <button class="btn" onclick="applyPresetBgColor('#FFD20A')" style="background: #FFD20A; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#FFD20A"></button>
-              <button class="btn" onclick="applyPresetBgColor('#726BFF')" style="background: #726BFF; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#726BFF"></button>
-              <button class="btn" onclick="applyPresetBgColor('#1E1E1E')" style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
-              <button class="btn" onclick="applyPresetBgColor('#FFFFFF')" style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#027EF2"]' style="background: #027EF2; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#027EF2"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#98D2FE"]' style="background: #98D2FE; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#98D2FE"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#07AB4B"]' style="background: #07AB4B; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#07AB4B"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#E84033"]' style="background: #E84033; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#E84033"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#FF6C26"]' style="background: #FF6C26; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#FF6C26"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#FFD20A"]' style="background: #FFD20A; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#FFD20A"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#726BFF"]' style="background: #726BFF; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#726BFF"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#1E1E1E"]' style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
+              <button class="btn" data-function="applyPresetBgColor" data-params='["#FFFFFF"]' style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
             </div>
           </div>
           <div class="form-group" id="bgPreview" style="display: none;">
@@ -107,29 +96,29 @@
             </div>
           </div>
           <div class="form-group">
-            <button class="btn btn-full" onclick="document.getElementById('bgUpload').click()">Загрузить изображение</button>
-            <input type="file" id="bgUpload" accept="image/*" style="display: none;" onchange="handleBgUpload(event)">
+            <button class="btn btn-full" data-action="trigger-file-input" data-input-id="bgUpload">Загрузить изображение</button>
+            <input type="file" id="bgUpload" accept="image/*" style="display: none;" data-handler="handleBgUpload">
           </div>
           <div class="form-group" id="bgActions" style="display: none;">
             <div class="input-group">
-              <button class="btn" onclick="document.getElementById('bgUpload').click()">Заменить</button>
-              <button class="btn" onclick="clearBg()">Очистить</button>
+              <button class="btn" data-action="trigger-file-input" data-input-id="bgUpload">Заменить</button>
+              <button class="btn" data-function="clearBg">Очистить</button>
             </div>
           </div>
           <div class="form-group" id="bgImageOptions" style="display: none;">
             <label>Стиль размещения</label>
             <div class="chips chips-3" style="margin-bottom: 12px;">
-              <div class="chip active" data-group="bg-size" data-value="cover" onclick="selectBgSize('cover')">Cover</div>
-              <div class="chip" data-group="bg-size" data-value="contain" onclick="selectBgSize('contain')">Contain</div>
-              <div class="chip" data-group="bg-size" data-value="repeat" onclick="selectBgSize('repeat')">Repeat</div>
+              <div class="chip active" data-group="bg-size" data-value="cover">Cover</div>
+              <div class="chip" data-group="bg-size" data-value="contain">Contain</div>
+              <div class="chip" data-group="bg-size" data-value="repeat">Repeat</div>
             </div>
             <label>Позиция</label>
             <div class="chips chips-3" style="margin-top: 8px;">
-              <div class="chip active" data-group="bg-position" data-value="center" onclick="selectBgPosition('center')">Центр</div>
-              <div class="chip" data-group="bg-position" data-value="top" onclick="selectBgPosition('top')">Верх</div>
-              <div class="chip" data-group="bg-position" data-value="bottom" onclick="selectBgPosition('bottom')">Низ</div>
-              <div class="chip" data-group="bg-position" data-value="left" onclick="selectBgPosition('left')">Слева</div>
-              <div class="chip" data-group="bg-position" data-value="right" onclick="selectBgPosition('right')">Справа</div>
+              <div class="chip active" data-group="bg-position" data-value="center">Центр</div>
+              <div class="chip" data-group="bg-position" data-value="top">Верх</div>
+              <div class="chip" data-group="bg-position" data-value="bottom">Низ</div>
+              <div class="chip" data-group="bg-position" data-value="left">Слева</div>
+              <div class="chip" data-group="bg-position" data-value="right">Справа</div>
             </div>
           </div>
         </div>
@@ -137,6 +126,12 @@
         
         <!-- Logo Section -->
         <div class="panel-section" id="panel-section-logo">
+          <div class="form-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="showLogo" checked data-state-key="showLogo">
+              <label for="showLogo">Показывать логотип</label>
+            </div>
+          </div>
           <div class="form-group">
             <div class="toggle-switch" id="logoLangToggle" data-value="ru" data-options="2">
               <div class="toggle-switch-slider"></div>
@@ -151,13 +146,13 @@
               <img id="logoPreviewImg" src="" class="preview-img" style="display: none;">
               <span id="logoPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
             </div>
-            <div id="logoSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" onclick="closeLogoSelectModal()">
-              <div id="logoSelectPanel" class="theme-bg-secondary" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" onclick="event.stopPropagation()">
+            <div id="logoSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" data-action="close-modal" data-modal="logoSelectModal">
+              <div id="logoSelectPanel" class="theme-bg-secondary" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" data-action="stop-propagation">
                 <div class="modal-header">
                   <span class="modal-title">Выбрать логотип</span>
                   <div class="modal-actions">
-                    <button class="btn" onclick="refreshLogoColumns(); event.stopPropagation();">Обновить</button>
-                    <button class="btn" onclick="closeLogoSelectModal(); event.stopPropagation();">✕</button>
+                    <button class="btn" data-function="refreshLogoColumns" data-action="stop-propagation">Обновить</button>
+                    <button class="btn" data-function="closeLogoSelectModal" data-action="stop-propagation">✕</button>
                   </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 150px 150px 150px 1fr; height: calc(70vh - 50px); max-height: 550px;">
@@ -177,18 +172,18 @@
               </div>
             </div>
             <button class="btn btn-full mb-sm" id="logoSelectTrigger"><span id="logoSelectText">Выбрать</span></button>
-            <select id="logoSelect" style="display: none;" onchange="selectPreloadedLogo(this.value)">
+            <select id="logoSelect" style="display: none;" data-state-key="logoSelected" data-update-handler="selectPreloadedLogo">
               <option value="" selected>— Нет —</option>
             </select>
             <div style="display: flex; gap: 8px; width: 100%;">
-              <button class="btn" onclick="document.getElementById('logoUpload').click()" style="flex: 1;">Загрузить</button>
-              <button class="btn btn-danger" id="logoRemoveBtn" onclick="clearLogo()" style="flex: 1;" disabled>Удалить</button>
-              <input type="file" id="logoUpload" accept="image/*,.svg" style="display: none;" onchange="handleLogoUpload(event)">
+              <button class="btn" data-action="trigger-file-input" data-input-id="logoUpload" style="flex: 1;">Загрузить</button>
+              <button class="btn btn-danger" id="logoRemoveBtn" data-function="clearLogo" style="flex: 1;" disabled>Удалить</button>
+              <input type="file" id="logoUpload" accept="image/*,.svg" style="display: none;" data-handler="handleLogoUpload">
             </div>
           </div>
           <div class="form-group">
             <label>Размер</label>
-            <input type="range" id="logoSize" value="40" min="5" max="60" step="1" oninput="updateLogoSize(this.value)">
+            <input type="range" id="logoSize" value="40" min="5" max="60" step="1" data-state-key="logoSize" data-update-handler="updateLogoSize">
             <div class="slider-value">
               <span>5%</span>
               <span id="logoSizeValue">40%</span>
@@ -206,6 +201,21 @@
             </div>
             
           </div>
+          <div class="form-group" id="partnerLogoSection" style="display: none;">
+            <label>Логотип партнера</label>
+            <div id="partnerLogoPreviewContainer" class="preview-container">
+              <img id="partnerLogoPreviewImg" src="" class="preview-img" style="display: none;">
+              <span id="partnerLogoPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
+            </div>
+            <div style="display: flex; gap: 8px; width: 100%;">
+              <button class="btn" data-action="trigger-file-input" data-input-id="partnerLogoUpload" style="flex: 1;">Заменить</button>
+              <button class="btn btn-danger" id="partnerLogoRemoveBtn" data-function="clearPartnerLogo" style="flex: 1;">Удалить</button>
+              <input type="file" id="partnerLogoUpload" accept="image/*,.svg" style="display: none;" data-handler="handlePartnerLogoUpload">
+            </div>
+          </div>
+          <div class="form-group">
+            <button class="btn btn-full" id="addPartnerLogoBtn" data-function="showPartnerLogoSection">+ Добавить логотип</button>
+          </div>
         </div>
         <!-- End Logo Section -->
         
@@ -216,7 +226,7 @@
             </div>
             <div class="form-group" id="titlePairEditor" style="display: none;">
               <label>Текст заголовка (для активной пары)</label>
-              <textarea id="title" oninput="updateActivePairTitle(this.value)">Курс «Frontend-разработчик» от Практикума</textarea>
+              <textarea id="title" data-state-key="title" data-update-handler="updateActivePairTitle">Курс «Frontend-разработчик» от Практикума</textarea>
               <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
                 
                 <div class="toggle-switch" id="titleTransformToggle" data-value="none" data-options="3">
@@ -243,12 +253,12 @@
           <div class="form-group">
             
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
-              <input type="color" id="titleColor" value="#ffffff" onchange="updateColorFromPicker('titleColor', this.value)" style="flex: 0 0 60px;">
-              <input type="text" id="titleColorHex" value="#ffffff" placeholder="#ffffff" onchange="updateColorFromHex('titleColor', this.value)" style="flex: 1;">
+              <input type="color" id="titleColor" value="#ffffff" data-state-key="titleColor" data-update-handler="updateColorFromPicker" data-handler-param="titleColor" style="flex: 0 0 60px;">
+              <input type="text" id="titleColorHex" value="#ffffff" placeholder="#ffffff" data-state-key="titleColor" data-update-handler="updateColorFromHex" data-handler-param="titleColor" style="flex: 1;">
             </div>
             <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
-              <button class="btn" onclick="updateColorFromPicker('titleColor', '#FFFFFF')" style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
-              <button class="btn" onclick="updateColorFromPicker('titleColor', '#1E1E1E')" style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
+              <button class="btn" data-function="updateColorFromPicker" data-params='["titleColor", "#FFFFFF"]' style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" data-function="updateColorFromPicker" data-params='["titleColor", "#1E1E1E"]' style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
             </div>
           </div>
           <div class="form-group">
@@ -275,7 +285,7 @@
           </div>
           <div class="form-group">
             <label>Размер шрифта</label>
-            <input type="range" id="titleSize" value="7" min="6" max="10" step="0.1" oninput="updateTitleSize(this.value)">
+            <input type="range" id="titleSize" value="7" min="6" max="10" step="0.1" data-state-key="titleSize" data-update-handler="updateTitleSize">
             <div class="slider-value">
               <span>6%</span>
               <span id="titleSizeValue">7%</span>
@@ -293,12 +303,12 @@
                 </div>
                 <div class="custom-select-dropdown" id="titleFontFamilyDropdown"></div>
               </div>
-              <button class="btn" onclick="document.getElementById('titleFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
-              <input type="file" id="titleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleTitleFontUpload(event)">
+              <button class="btn" data-action="trigger-file-input" data-input-id="titleFontUpload" style="flex: 0 0 auto;">Загрузить</button>
+              <input type="file" id="titleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" data-handler="handleTitleFontUpload">
             </div>
             <div id="titleCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="titleCustomFontName"></span>
-              <button class="btn btn-small" onclick="clearTitleCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+              <button class="btn btn-small" data-function="clearTitleCustomFont" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
             </div>
           </div>
           <div class="form-group">
@@ -323,22 +333,11 @@
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
-            <input type="number" id="titleLetterSpacing" value="0" step="0.5" oninput="updateState('titleLetterSpacing', parseFloat(this.value))" style="width: 80px;">
+            <input type="number" id="titleLetterSpacing" value="0" step="0.5" data-state-key="titleLetterSpacing" style="width: 80px;">
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межстрочный интервал</label>
-            <input type="number" id="titleLineHeight" value="1.1" min="1.0" max="3.0" step="0.1" oninput="updateState('titleLineHeight', parseFloat(this.value))" style="width: 80px;">
-          </div>
-          <div class="form-group">
-        
-            <div class="toggle-switch" id="titleTransformToggleMain" data-value="none" data-options="3">
-              <div class="toggle-switch-slider"></div>
-              <div class="toggle-switch-track">
-                <div class="toggle-switch-option active" data-value="uppercase">ААА</div>
-                <div class="toggle-switch-option" data-value="lowercase">ааа</div>
-                <div class="toggle-switch-option" data-value="none">—</div>
-              </div>
-            </div>
+            <input type="number" id="titleLineHeight" value="1.1" min="1.0" max="3.0" step="0.1" data-state-key="titleLineHeight" style="width: 80px;">
           </div>
         </div>
         <!-- End Title Section -->
@@ -347,13 +346,13 @@
         <div class="panel-section" id="panel-section-subtitle">
             <div class="form-group">
             <div class="checkbox-group">
-              <input type="checkbox" id="showSubtitle" checked onchange="updateState('showSubtitle', this.checked)">
+              <input type="checkbox" id="showSubtitle" checked data-state-key="showSubtitle">
               <label style="margin: 0">Показывать подзаголовок</label>
             </div>
           </div>
           <div class="form-group">
             <div class="checkbox-group">
-              <input type="checkbox" id="hideSubtitleOnWide" onchange="updateState('hideSubtitleOnWide', this.checked)">
+              <input type="checkbox" id="hideSubtitleOnWide" data-state-key="hideSubtitleOnWide">
               <label style="margin: 0">Скрывать подзаголовок на широких форматах</label>
             </div>
             <div class="hint">Скрывает подзаголовок на макетах с высотой меньше 150px</div>
@@ -363,7 +362,7 @@
             </div>
             <div class="form-group" id="subtitlePairEditor" style="display: none;">
               <label>Текст подзаголовка (для активной пары)</label>
-              <textarea id="subtitle" oninput="updateActivePairSubtitle(this.value)">Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев</textarea>
+              <textarea id="subtitle" data-state-key="subtitle" data-update-handler="updateActivePairSubtitle">Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев</textarea>
               <div class="form-group" style="margin-top: 12px; margin-bottom: 0;">
                
                 <div class="toggle-switch" id="subtitleTransformToggle" data-value="none" data-options="3">
@@ -390,17 +389,17 @@
           <div class="form-group">
             
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
-              <input type="color" id="subtitleColor" value="#e0e0e0" onchange="updateColorFromPicker('subtitleColor', this.value)" style="flex: 0 0 60px;">
-              <input type="text" id="subtitleColorHex" value="#e0e0e0" placeholder="#e0e0e0" onchange="updateColorFromHex('subtitleColor', this.value)" style="flex: 1;">
+              <input type="color" id="subtitleColor" value="#e0e0e0" data-state-key="subtitleColor" data-update-handler="updateColorFromPicker" data-handler-param="subtitleColor" style="flex: 0 0 60px;">
+              <input type="text" id="subtitleColorHex" value="#e0e0e0" placeholder="#e0e0e0" data-state-key="subtitleColor" data-update-handler="updateColorFromHex" data-handler-param="subtitleColor" style="flex: 1;">
             </div>
             <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
-              <button class="btn" onclick="updateColorFromPicker('subtitleColor', '#FFFFFF')" style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
-              <button class="btn" onclick="updateColorFromPicker('subtitleColor', '#1E1E1E')" style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
+              <button class="btn" data-function="updateColorFromPicker" data-params='["subtitleColor", "#FFFFFF"]' style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" data-function="updateColorFromPicker" data-params='["subtitleColor", "#1E1E1E"]' style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
             </div>
           </div>
           <div class="form-group">
             <label>Непрозрачность</label>
-            <input type="range" id="subtitleOpacity" value="90" min="0" max="100" oninput="updateSubtitleOpacity(this.value)">
+            <input type="range" id="subtitleOpacity" value="90" min="0" max="100" data-state-key="subtitleOpacity" data-update-handler="updateSubtitleOpacity">
             <div class="slider-value">
               <span>0%</span>
               <span id="subtitleOpacityValue">90%</span>
@@ -409,7 +408,7 @@
           </div>
           <div class="form-group">
             <label>Размер шрифта</label>
-            <input type="range" id="subtitleSize" value="4" min="1" max="12" step="0.1" oninput="updateSubtitleSize(this.value)">
+            <input type="range" id="subtitleSize" value="4" min="1" max="12" step="0.1" data-state-key="subtitleSize" data-update-handler="updateSubtitleSize">
             <div class="slider-value">
               <span>1%</span>
               <span id="subtitleSizeValue">4%</span>
@@ -427,12 +426,12 @@
                 </div>
                 <div class="custom-select-dropdown" id="subtitleFontFamilyDropdown"></div>
               </div>
-              <button class="btn" onclick="document.getElementById('subtitleFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
-              <input type="file" id="subtitleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleSubtitleFontUpload(event)">
+              <button class="btn" data-action="trigger-file-input" data-input-id="subtitleFontUpload" style="flex: 0 0 auto;">Загрузить</button>
+              <input type="file" id="subtitleFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" data-handler="handleSubtitleFontUpload">
             </div>
             <div id="subtitleCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="subtitleCustomFontName"></span>
-              <button class="btn btn-small" onclick="clearSubtitleCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+              <button class="btn btn-small" data-function="clearSubtitleCustomFont" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
             </div>
           </div>
           <div class="form-group">
@@ -457,15 +456,15 @@
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
-            <input type="number" id="subtitleLetterSpacing" value="0" step="0.5" oninput="updateState('subtitleLetterSpacing', parseFloat(this.value))" style="width: 80px;">
+            <input type="number" id="subtitleLetterSpacing" value="0" step="0.5" data-state-key="subtitleLetterSpacing" style="width: 80px;">
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межстрочный интервал</label>
-            <input type="number" id="subtitleLineHeight" value="1.2" min="1.0" max="3.0" step="0.1" oninput="updateState('subtitleLineHeight', parseFloat(this.value))" style="width: 80px;">
+            <input type="number" id="subtitleLineHeight" value="1.2" min="1.0" max="3.0" step="0.1" data-state-key="subtitleLineHeight" style="width: 80px;">
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Отступ от заголовка (%)</label>
-            <input type="number" id="subtitleGap" value="-1.5" min="-20" max="20" step="0.5" oninput="updateState('subtitleGap', parseFloat(this.value))" style="width: 80px;">
+            <input type="number" id="subtitleGap" value="-1.5" min="-20" max="20" step="0.5" data-state-key="subtitleGap" style="width: 80px;">
           </div>
         </div>
         <!-- End Subtitle Section -->
@@ -474,13 +473,13 @@
         <div class="panel-section" id="panel-section-legal">
             <div class="form-group">
               <div class="checkbox-group">
-                <input type="checkbox" id="showLegal" checked onchange="updateState('showLegal', this.checked)">
+                <input type="checkbox" id="showLegal" checked data-state-key="showLegal">
                 <label style="margin: 0">Показывать юридический текст</label>
               </div>
             </div>
           <div class="form-group">
             
-            <textarea id="legal" oninput="updateState('legal', this.value)">Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/</textarea>
+            <textarea id="legal" data-state-key="legal">Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/</textarea>
             <div class="form-group" style="margin-top: 12px;">
               
               <div class="toggle-switch" id="legalTransformToggle" data-value="none" data-options="3">
@@ -496,17 +495,17 @@
           <div class="form-group">
             
             <div class="input-group" style="display: flex; gap: 8px; align-items: center;">
-              <input type="color" id="legalColor" value="#ffffff" onchange="updateColorFromPicker('legalColor', this.value)" style="flex: 0 0 60px;">
-              <input type="text" id="legalColorHex" value="#ffffff" placeholder="#ffffff" onchange="updateColorFromHex('legalColor', this.value)" style="flex: 1;">
+              <input type="color" id="legalColor" value="#ffffff" data-state-key="legalColor" data-update-handler="updateColorFromPicker" data-handler-param="legalColor" style="flex: 0 0 60px;">
+              <input type="text" id="legalColorHex" value="#ffffff" placeholder="#ffffff" data-state-key="legalColor" data-update-handler="updateColorFromHex" data-handler-param="legalColor" style="flex: 1;">
             </div>
             <div class="gap-sm mt-md" style="display: flex; flex-wrap: wrap;">
-              <button class="btn" onclick="updateColorFromPicker('legalColor', '#FFFFFF')" style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
-              <button class="btn" onclick="updateColorFromPicker('legalColor', '#1E1E1E')" style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
+              <button class="btn" data-function="updateColorFromPicker" data-params='["legalColor", "#FFFFFF"]' style="background: #FFFFFF; width: 32px; height: 32px; padding: 0; border-radius: 6px; border: none;" title="#FFFFFF"></button>
+              <button class="btn" data-function="updateColorFromPicker" data-params='["legalColor", "#1E1E1E"]' style="background: #1E1E1E; width: 32px; height: 32px; padding: 0; border-radius: 6px;" title="#1E1E1E"></button>
             </div>
           </div>
           <div class="form-group">
             <label>Непрозрачность</label>
-            <input type="range" id="legalOpacity" value="60" min="0" max="100" oninput="updateLegalOpacity(this.value)">
+            <input type="range" id="legalOpacity" value="60" min="0" max="100" data-state-key="legalOpacity" data-update-handler="updateLegalOpacity">
             <div class="slider-value">
               <span>0%</span>
               <span id="legalOpacityValue">60%</span>
@@ -515,7 +514,7 @@
           </div>
           <div class="form-group">
             <label>Размер шрифта</label>
-            <input type="range" id="legalSize" value="2" min="0.3" max="5" step="0.1" oninput="updateLegalSize(this.value)">
+            <input type="range" id="legalSize" value="2" min="0.3" max="5" step="0.1" data-state-key="legalSize" data-update-handler="updateLegalSize">
             <div class="slider-value">
               <span>0.3%</span>
               <span id="legalSizeValue">2%</span>
@@ -532,12 +531,12 @@
                 </div>
                 <div class="custom-select-dropdown" id="legalFontFamilyDropdown"></div>
               </div>
-              <button class="btn" onclick="document.getElementById('legalFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
-              <input type="file" id="legalFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleLegalFontUpload(event)">
+              <button class="btn" data-action="trigger-file-input" data-input-id="legalFontUpload" style="flex: 0 0 auto;">Загрузить</button>
+              <input type="file" id="legalFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" data-handler="handleLegalFontUpload">
             </div>
             <div id="legalCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
               <span id="legalCustomFontName"></span>
-              <button class="btn btn-small" onclick="clearLegalCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+              <button class="btn btn-small" data-function="clearLegalCustomFont" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
             </div>
           </div>
           <div class="form-group">
@@ -562,27 +561,27 @@
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межбуквенное расстояние (px)</label>
-            <input type="number" id="legalLetterSpacing" value="0" step="0.5" oninput="updateState('legalLetterSpacing', parseFloat(this.value))" style="width: 80px;">
+            <input type="number" id="legalLetterSpacing" value="0" step="0.5" data-state-key="legalLetterSpacing" style="width: 80px;">
           </div>
           <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
             <label style="margin: 0; flex: 1;">Межстрочный интервал</label>
-            <input type="number" id="legalLineHeight" value="1.4" min="1.0" max="3.0" step="0.1" oninput="updateState('legalLineHeight', parseFloat(this.value))" style="width: 80px;">
+            <input type="number" id="legalLineHeight" value="1.4" min="1.0" max="3.0" step="0.1" data-state-key="legalLineHeight" style="width: 80px;">
           </div>
           
           <div class="form-group-section">
             <div class="form-group">
               <div class="checkbox-group">
-                <input type="checkbox" id="showAge" checked onchange="updateState('showAge', this.checked)">
+                <input type="checkbox" id="showAge" checked data-state-key="showAge">
                 <label style="margin: 0">Показывать возраст</label>
               </div>
             </div>
             <div class="form-group">
               
-              <input type="text" id="age" value="18+" oninput="updateState('age', this.value)">
+              <input type="text" id="age" value="18+" data-state-key="age">
             </div>
             <div class="form-group">
               <label>Размер шрифта</label>
-              <input type="range" id="ageSize" value="4" min="1" max="12" step="0.1" oninput="updateAgeSize(this.value)">
+              <input type="range" id="ageSize" value="4" min="1" max="12" step="0.1" data-state-key="ageSize" data-update-handler="updateAgeSize">
               <div class="slider-value">
                 <span>1%</span>
                 <span id="ageSizeValue">4%</span>
@@ -600,17 +599,17 @@
                   </div>
                   <div class="custom-select-dropdown" id="ageFontFamilyDropdown"></div>
                 </div>
-                <button class="btn" onclick="document.getElementById('ageFontUpload').click()" style="flex: 0 0 auto;">Загрузить</button>
-                <input type="file" id="ageFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" onchange="handleAgeFontUpload(event)">
+                <button class="btn" data-action="trigger-file-input" data-input-id="ageFontUpload" style="flex: 0 0 auto;">Загрузить</button>
+                <input type="file" id="ageFontUpload" accept=".woff,.woff2,.ttf,.otf" style="display: none;" data-handler="handleAgeFontUpload">
               </div>
               <div id="ageCustomFontInfo" class="theme-text-muted" style="display: none; margin-top: 8px; font-size: 12px;">
                 <span id="ageCustomFontName"></span>
-                <button class="btn btn-small" onclick="clearAgeCustomFont()" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
+                <button class="btn btn-small" data-function="clearAgeCustomFont" style="margin-left: 8px; padding: 2px 8px;">Удалить</button>
               </div>
             </div>
             <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
               <label style="margin: 0; flex: 1;">Отступ от юридического текста (%)</label>
-              <input type="number" id="ageGapPercent" value="1" min="0" max="20" step="0.5" oninput="updateState('ageGapPercent', parseFloat(this.value))" style="width: 80px;">
+              <input type="number" id="ageGapPercent" value="1" min="0" max="20" step="0.5" data-state-key="ageGapPercent" style="width: 80px;">
             </div>
 
           </div>
@@ -621,13 +620,13 @@
         <div class="panel-section" id="panel-section-kv">
             <div class="form-group">
             <div class="checkbox-group">
-              <input type="checkbox" id="showKV" checked onchange="updateState('showKV', this.checked)">
+              <input type="checkbox" id="showKV" checked data-state-key="showKV">
               <label style="margin: 0">Показывать KV</label>
             </div>
           </div>
           <div class="form-group">
             <label>Скругление углов</label>
-            <input type="range" id="kvBorderRadius" value="0" min="0" max="20" step="1" oninput="updateKVBorderRadius(this.value)">
+            <input type="range" id="kvBorderRadius" value="0" min="0" max="20" step="1" data-state-key="kvBorderRadius" data-update-handler="updateKVBorderRadius">
             <div class="slider-value">
               <span>0%</span>
               <span id="kvBorderRadiusValue">0%</span>
@@ -641,13 +640,13 @@
                 <img id="kvPreviewImg" src="" class="preview-img" style="display: none;">
                 <span id="kvPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
               </div>
-              <div id="kvSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" onclick="closeKVSelectModal()">
-                <div id="kvSelectPanel" class="theme-bg-secondary" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" onclick="event.stopPropagation()">
+              <div id="kvSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" data-action="close-modal" data-modal="kvSelectModal">
+                <div id="kvSelectPanel" class="theme-bg-secondary" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" data-action="stop-propagation">
                   <div class="modal-header">
                     <span class="modal-title">Выбрать KV</span>
                     <div class="modal-actions">
-                      <button class="btn" onclick="refreshKVColumns(); event.stopPropagation();">Обновить</button>
-                      <button class="btn" onclick="closeKVSelectModal(); event.stopPropagation();">✕</button>
+                      <button class="btn" data-function="refreshKVColumns" data-action="stop-propagation">Обновить</button>
+                      <button class="btn" data-function="closeKVSelectModal" data-action="stop-propagation">✕</button>
                     </div>
                   </div>
                   <div style="display: grid; grid-template-columns: 150px 150px 1fr; height: calc(70vh - 50px); max-height: 550px;">
@@ -664,13 +663,13 @@
                 </div>
               </div>
               <button class="btn btn-full mb-sm" id="kvSelectTrigger"><span id="kvSelectText">Выбрать</span></button>
-              <select id="kvSelect" style="display: none;" onchange="selectPreloadedKV(this.value)">
+              <select id="kvSelect" style="display: none;" data-state-key="kvSelected" data-update-handler="selectPreloadedKV">
                 <option value="" selected>— Нет —</option>
               </select>
               <div style="display: flex; gap: 8px; width: 100%;">
-                <button class="btn" onclick="document.getElementById('kvUpload').click()" style="flex: 1;">Загрузить</button>
-                <button class="btn btn-danger" id="kvRemoveBtn" onclick="clearKV()" style="flex: 1;" disabled>Удалить</button>
-                <input type="file" id="kvUpload" accept="image/*" style="display: none;" onchange="handleKVUpload(event)">
+                <button class="btn" data-action="trigger-file-input" data-input-id="kvUpload" style="flex: 1;">Загрузить</button>
+                <button class="btn btn-danger" id="kvRemoveBtn" data-function="clearKV" style="flex: 1;" disabled>Удалить</button>
+                <input type="file" id="kvUpload" accept="image/*" style="display: none;" data-handler="handleKVUpload">
               </div>
             </div>
           </div>
@@ -744,7 +743,7 @@
       <div class="panel">
         <div class="form-group">
           <label>Название архива</label>
-          <input type="text" id="namePrefix" value="layout" oninput="updateState('namePrefix', this.value)">
+          <input type="text" id="namePrefix" value="layout" data-state-key="namePrefix">
         </div>
         <div class="form-group">
           <label>Масштаб</label>
@@ -758,19 +757,19 @@
             </div>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 12px;">
-            <button class="btn primary" onclick="exportAllPNG()" style="flex: 1;">Архив PNG</button>
-            <button class="btn" onclick="exportAllJPG()" style="flex: 1;">Архив JPG</button>
+            <button class="btn primary" data-function="exportAllPNG" style="flex: 1;">Архив PNG</button>
+            <button class="btn" data-function="exportAllJPG" style="flex: 1;">Архив JPG</button>
           </div>
         </div>
         <div class="form-group-section">
           
           <div class="form-group">
             <div class="gap-sm mb-sm" style="display: flex; align-items: center;">
-                <input type="number" id="customWidth" class="theme-input" placeholder="Ширина" min="1" oninput="updateAddSizeButtonState()" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+                <input type="number" id="customWidth" class="theme-input" placeholder="Ширина" min="1" data-action="update-add-size-button" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
                 <span class="theme-text-muted" style="font-size: 16px; padding: 0 4px;">×</span>
-                <input type="number" id="customHeight" class="theme-input" placeholder="Высота" min="1" oninput="updateAddSizeButtonState()" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+                <input type="number" id="customHeight" class="theme-input" placeholder="Высота" min="1" data-action="update-add-size-button" style="flex: 1; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
             </div>
-            <button class="btn btn-full" id="addSizeButton" onclick="addCustomSizeFromInput()" disabled>+ Добавить размер</button>
+            <button class="btn btn-full" id="addSizeButton" data-function="addCustomSizeFromInput" disabled>+ Добавить размер</button>
           </div>
           <div class="form-group-section" id="customSizesSection" style="display: none;">
             <label>Пользовательские</label>
@@ -781,8 +780,8 @@
             <div id="content-preset-sizes">
               <div class="form-group">
                 <div class="gap-sm mb-md" style="display: flex;">
-                  <button class="btn btn-full" onclick="selectAllSizes()">Выбрать все</button>
-                  <button class="btn btn-full" onclick="deselectAllSizes()">Снять выбор</button>
+                  <button class="btn btn-full" data-function="selectAllSizes">Выбрать все</button>
+                  <button class="btn btn-full" data-function="deselectAllSizes">Снять выбор</button>
                 </div>
               </div>
               <div class="form-group">
@@ -797,8 +796,8 @@
           <label>Настройки</label>
           <div id="content-settings">
             <div class="form-group" style="display: flex; gap: 8px;">
-              <button class="btn btn-full" onclick="saveSettings()" style="flex: 1;">Сохранить</button>
-              <button class="btn btn-full" onclick="loadSettings()" style="flex: 1;">Загрузить</button>
+              <button class="btn btn-full" data-function="saveSettings" style="flex: 1;">Сохранить</button>
+              <button class="btn btn-full" data-function="loadSettings" style="flex: 1;">Загрузить</button>
             </div>
             <div class="hint">Настройки сохраняются в состоянии приложения (без изображений)</div>
           </div>

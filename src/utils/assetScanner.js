@@ -376,11 +376,13 @@ export const scanKV = async () => {
   const kvStructure = {};
   
   // Расширенный список возможных папок первого уровня
-  const firstLevelFolders = ['3d', '2d', 'icons', 'illustrations', 'photos', 'images', 'graphics', 'textures', 'vectors', 'backgrounds', 'elements', 'patterns'];
+  // Убрали 'patterns' и 'elements' из первого уровня, так как реально используется только assets/3d/
+  const firstLevelFolders = ['3d', '2d', 'icons', 'illustrations', 'photos', 'images', 'graphics', 'textures', 'vectors', 'backgrounds'];
   
   // Расширенный список возможных папок второго уровня
   // Включаем все известные папки, включая новые: logos, numbers, other, tech, yandex
-  const secondLevelFolders = ['sign', 'icons', 'backgrounds', 'elements', 'patterns', 'shapes', 'vectors', 'textures', 'photos', 'illustrations', 'logos', 'numbers', 'other', 'tech', 'yandex'];
+  // Убрали 'elements' из второго уровня, так как такой папки нет в проекте
+  const secondLevelFolders = ['sign', 'icons', 'backgrounds', 'patterns', 'shapes', 'vectors', 'textures', 'photos', 'illustrations', 'logos', 'numbers', 'other', 'tech', 'yandex'];
   
   // Функция для сканирования файлов в папке
   const scanFolder = async (folder1, folder2) => {
