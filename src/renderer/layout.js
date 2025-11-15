@@ -33,7 +33,12 @@ export const calculateSizeMultipliers = (width, height, layoutType) => {
   
   // Функция для получения множителя (кастомный или дефолтный)
   const getMultiplier = (formatType, key, defaultValue) => {
-    return customMultipliers?.[formatType]?.[key] ?? defaultValue;
+    const value = customMultipliers?.[formatType]?.[key];
+    // Если значение undefined или null, используем дефолтное значение
+    if (value === undefined || value === null) {
+      return defaultValue;
+    }
+    return value;
   };
   
   let logoSizeMultiplier = 1;

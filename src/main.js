@@ -11,7 +11,6 @@ import {
   updateLogoSize,
   updateTitleSize,
   updateSubtitleSize,
-    updateTitleSubtitleRatio,
   updateLegalSize,
   updateAgeSize,
   updateKVBorderRadius,
@@ -81,6 +80,11 @@ import {
   openKVSelectModal,
   closeKVSelectModal,
   selectPreloadedKV,
+  selectPreloadedBG,
+  selectPairBG,
+  refreshBGColumns,
+  closeBGSelectModal,
+  openBGSelectModal,
     loadDefaultKV,
     initializeStateSubscribers,
     refreshMediaPreviews,
@@ -198,12 +202,16 @@ const exposeGlobals = () => {
     updateLogoSize,
     updateTitleSize,
     updateSubtitleSize,
-    updateTitleSubtitleRatio,
     updateAgeSize,
+    updateLegalSize,
     updateKVBorderRadius,
     updateTextGradientOpacity,
     selectPreloadedLogo,
     selectPreloadedKV,
+    selectPreloadedBG,
+    selectPairBG,
+    refreshBGColumns,
+    closeBGSelectModal,
     handleLogoUpload,
     handlePartnerLogoUpload,
     handleKVUpload,
@@ -258,11 +266,14 @@ const exposeGlobals = () => {
     updatePairSubtitleDirect,
     refreshLogoColumns,
     refreshKVColumns,
+    refreshBGColumns,
     refreshAllAssets,
     openLogoSelectModal,
     closeLogoSelectModal,
     openKVSelectModal,
     closeKVSelectModal,
+    openBGSelectModal,
+    closeBGSelectModal,
     handleTitleFontUpload,
     handleSubtitleFontUpload,
     handleLegalFontUpload,
@@ -367,6 +378,31 @@ const initialize = async () => {
     updatePresetSizesFromConfig();
     // Убеждаемся, что есть выбранные размеры
     ensurePresetSelection();
+    
+    // Загружаем сохраненные значения по умолчанию из localStorage
+    try {
+      const savedDefaults = localStorage.getItem('default-values');
+      if (savedDefaults) {
+        const defaults = JSON.parse(savedDefaults);
+        // Применяем сохраненные значения по умолчанию к state
+        Object.keys(defaults).forEach(key => {
+          setKey(key, defaults[key]);
+        });
+      }
+    } catch (e) {
+      console.warn('Ошибка при загрузке сохраненных значений по умолчанию:', e);
+    }
+    
+    // Загружаем сохраненные множители из localStorage
+    try {
+      const savedMultipliers = localStorage.getItem('format-multipliers');
+      if (savedMultipliers) {
+        const multipliers = JSON.parse(savedMultipliers);
+        setKey('formatMultipliers', multipliers);
+      }
+    } catch (e) {
+      console.warn('Ошибка при загрузке сохраненных множителей:', e);
+    }
     
     // Загружаем шрифты из папки font/
     const fonts = await scanFonts();

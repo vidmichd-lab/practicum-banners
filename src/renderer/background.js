@@ -20,6 +20,11 @@ export const drawBackground = (ctx, width, height, state) => {
   // Если есть изображение фона, рисуем его
   if (state.bgImage) {
     const img = state.bgImage;
+    // Проверяем, что это объект Image, а не строка (путь)
+    if (typeof img === 'string') {
+      // Это строка (путь), изображение еще не загружено - не рисуем
+      return;
+    }
     // Проверяем, что изображение загружено
     if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) {
       console.warn('Фоновое изображение не загружено или невалидно');

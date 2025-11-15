@@ -376,12 +376,42 @@ export const scanKV = async () => {
   const kvStructure = {};
   
   // Список реальных папок первого уровня (только те, что существуют в проекте)
-  // В проекте есть только assets/3d/
-  const firstLevelFolders = ['3d'];
+  // В проекте есть assets/3d/ и assets/photo/
+  const firstLevelFolders = ['3d', 'photo'];
   
-  // Список реальных папок второго уровня (только те, что существуют в assets/3d/)
-  // Включаем все известные папки: sign, icons, logos, numbers, other, shapes, tech, yandex
-  const secondLevelFolders = ['sign', 'icons', 'logos', 'numbers', 'other', 'shapes', 'tech', 'yandex'];
+  // Список известных папок второго уровня для проверки
+  // Для 3d: sign, icons, logos, numbers, other, shapes, tech, yandex
+  // Для photo: pro, ai_reskill, old_reskill и другие
+  const knownSecondLevelFolders3d = ['sign', 'icons', 'logos', 'numbers', 'other', 'shapes', 'tech', 'yandex'];
+  const knownSecondLevelFoldersPhoto = ['pro', 'ai_reskill', 'old_reskill'];
+  
+  // Функция для проверки существования папки (проверяем наличие хотя бы одного файла)
+  const checkFolderExists = async (folder1, folder2) => {
+    // Если folder1 пустой, проверяем assets/folder2/
+    const basePath = folder1 ? `assets/${folder1}/${folder2}` : `assets/${folder2}`;
+    
+    // Проверяем первые несколько файлов, чтобы понять, существует ли папка
+    // Проверяем числовые файлы (01-10)
+    for (let i = 1; i <= 10; i++) {
+      const num = i.toString().padStart(2, '0');
+      const pngExists = await checkFileExists(`${basePath}/${num}.png`);
+      const jpgExists = await checkFileExists(`${basePath}/${num}.jpg`);
+      if (pngExists || jpgExists) {
+        return true;
+      }
+    }
+    // Также проверяем некоторые распространенные имена файлов
+    const commonNames = ['01', '1', 'image', 'img', 'photo', 'pic', 'picture'];
+    for (const name of commonNames) {
+      const pngExists = await checkFileExists(`${basePath}/${name}.png`);
+      const jpgExists = await checkFileExists(`${basePath}/${name}.jpg`);
+      const jpegExists = await checkFileExists(`${basePath}/${name}.jpeg`);
+      if (pngExists || jpgExists || jpegExists) {
+        return true;
+      }
+    }
+    return false;
+  };
   
   // Функция для сканирования файлов в папке
   const scanFolder = async (folder1, folder2) => {
@@ -395,7 +425,8 @@ export const scanKV = async () => {
       const num = i.toString().padStart(2, '0');
       quickCheckPromises.push(
         checkFileExists(`assets/${folder1}/${folder2}/${num}.png`),
-        checkFileExists(`assets/${folder1}/${folder2}/${num}.jpg`)
+        checkFileExists(`assets/${folder1}/${folder2}/${num}.jpg`),
+        checkFileExists(`assets/${folder1}/${folder2}/${num}.jpeg`)
       );
     }
     
@@ -403,8 +434,9 @@ export const scanKV = async () => {
     
     // Проверяем результаты быстрой проверки
     for (let i = 0; i < 10; i++) {
-      const pngExists = quickCheckResults[i * 2];
-      const jpgExists = quickCheckResults[i * 2 + 1];
+      const pngExists = quickCheckResults[i * 3];
+      const jpgExists = quickCheckResults[i * 3 + 1];
+      const jpegExists = quickCheckResults[i * 3 + 2];
       const num = (i + 1).toString().padStart(2, '0');
       
       if (pngExists) {
@@ -412,6 +444,9 @@ export const scanKV = async () => {
         foundAny = true;
       } else if (jpgExists) {
         folderFiles.push({ name: num, file: `assets/${folder1}/${folder2}/${num}.jpg` });
+        foundAny = true;
+      } else if (jpegExists) {
+        folderFiles.push({ name: num, file: `assets/${folder1}/${folder2}/${num}.jpeg` });
         foundAny = true;
       }
     }
@@ -427,20 +462,24 @@ export const scanKV = async () => {
           const num = i.toString().padStart(2, '0');
           batchPromises.push(
             checkFileExists(`assets/${folder1}/${folder2}/${num}.png`).then(exists => ({ num, exists, ext: 'png' })),
-            checkFileExists(`assets/${folder1}/${folder2}/${num}.jpg`).then(exists => ({ num, exists, ext: 'jpg' }))
+            checkFileExists(`assets/${folder1}/${folder2}/${num}.jpg`).then(exists => ({ num, exists, ext: 'jpg' })),
+            checkFileExists(`assets/${folder1}/${folder2}/${num}.jpeg`).then(exists => ({ num, exists, ext: 'jpeg' }))
           );
         }
         
         const batchResults = await Promise.all(batchPromises);
         
-        for (let i = 0; i < batchResults.length; i += 2) {
+        for (let i = 0; i < batchResults.length; i += 3) {
           const pngResult = batchResults[i];
           const jpgResult = batchResults[i + 1];
+          const jpegResult = batchResults[i + 2];
           
           if (pngResult.exists) {
             folderFiles.push({ name: pngResult.num, file: `assets/${folder1}/${folder2}/${pngResult.num}.png` });
           } else if (jpgResult.exists) {
             folderFiles.push({ name: jpgResult.num, file: `assets/${folder1}/${folder2}/${jpgResult.num}.jpg` });
+          } else if (jpegResult.exists) {
+            folderFiles.push({ name: jpegResult.num, file: `assets/${folder1}/${folder2}/${jpegResult.num}.jpeg` });
           }
         }
       }
@@ -449,8 +488,48 @@ export const scanKV = async () => {
     return folderFiles;
   };
   
-  // Сканируем все комбинации папок
+  // Сканируем каждую папку первого уровня
   for (const folder1 of firstLevelFolders) {
+    const discoveredFolders = new Set();
+    
+    // Выбираем список известных папок в зависимости от папки первого уровня
+    const knownSecondLevelFolders = folder1 === 'photo' 
+      ? knownSecondLevelFoldersPhoto 
+      : knownSecondLevelFolders3d;
+    
+    // Проверяем известные папки параллельно для ускорения
+    const checkPromises = knownSecondLevelFolders.map(async (folder2) => {
+      const exists = await checkFolderExists(folder1, folder2);
+      if (exists) {
+        discoveredFolders.add(folder2);
+      }
+    });
+    
+    await Promise.all(checkPromises);
+    
+    // Также пробуем проверить другие возможные имена папок
+    // Проверяем распространенные имена папок, которые могут быть добавлены
+    const additionalFoldersToCheck = [
+      'backgrounds', 'bg', 'images', 'img', 'pictures', 'pics', 
+      'textures', 'patterns', 'overlays', 'frames', 'borders',
+      'elements', 'graphics', 'illustrations', 'vectors'
+    ];
+    
+    const additionalCheckPromises = additionalFoldersToCheck.map(async (folder2) => {
+      // Проверяем только если папка еще не обнаружена
+      if (!discoveredFolders.has(folder2)) {
+        const exists = await checkFolderExists(folder1, folder2);
+        if (exists) {
+          discoveredFolders.add(folder2);
+        }
+      }
+    });
+    
+    await Promise.all(additionalCheckPromises);
+    
+    const secondLevelFolders = Array.from(discoveredFolders);
+    
+    // Сканируем все папки второго уровня для этой папки первого уровня
     for (const folder2 of secondLevelFolders) {
       const folderFiles = await scanFolder(folder1, folder2);
       
@@ -464,6 +543,13 @@ export const scanKV = async () => {
   }
   
   return kvStructure;
+};
+
+// Сканирование фоновых изображений из папки assets/ с динамическим обнаружением структуры
+// Использует ту же структуру, что и KV (assets/3d/...)
+export const scanBG = async () => {
+  // Используем ту же логику, что и scanKV, так как структура папок идентична
+  return await scanKV();
 };
 
 // Маппинг названий начертаний на веса шрифтов

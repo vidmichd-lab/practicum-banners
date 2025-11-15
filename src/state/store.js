@@ -10,6 +10,7 @@ const createTitleSubtitlePair = (index = 0) => ({
   title: index === 0 ? 'Курс «Frontend-разработчик» от Практикума' : '',
   subtitle: index === 0 ? 'Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев' : '',
   kvSelected: index === 0 ? 'assets/3d/sign/01.png' : '', // KV для этой пары
+  bgImageSelected: null, // Фоновое изображение для этой пары
 });
 
 const createInitialState = () => {
@@ -52,6 +53,7 @@ const createInitialState = () => {
     title: 'Курс «Frontend-разработчик» от Практикума',
     subtitle: 'Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев',
     legal: 'Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/',
+    legalKZ: '*Жарнама / Реклама. ТОО "Y. Izdeu men Jarnama", регистрационный номер:170240015454 Сайт: https://practicum.yandex.kz/.',
     legalColor: '#ffffff',
     legalOpacity: 60,
     legalAlign: 'left',
@@ -89,6 +91,7 @@ const createInitialState = () => {
     bgPosition: 'center',
     bgVPosition: 'center', // 'top', 'center', 'bottom' - вертикальная позиция фона
     textGradientOpacity: 100, // Прозрачность градиентной подложки под текстом (0-100)
+    centerTextOverlayOpacity: 20, // Прозрачность подложки для центрированного текста (0-100)
     logoPos: 'left',
     fontFamily: 'YS Text', // Общая гарнитура (для обратной совместимости)
     fontFamilyFile: null,
@@ -182,7 +185,19 @@ const applyDerivedState = (state, delta) => {
     next.titleSize = parseFloat((state.subtitleSize / ratio).toFixed(2));
   }
 
-  // Синхронизируем активную пару с полями title/subtitle/kvSelected для обратной совместимости
+  // Автоматически обновляем лигал при изменении языка логотипа
+  if ('logoLanguage' in delta) {
+    const logoLanguage = delta.logoLanguage || state.logoLanguage || 'ru';
+    if (logoLanguage === 'kz') {
+      const legalKZ = state.legalKZ || '*Жарнама / Реклама. ТОО "Y. Izdeu men Jarnama", регистрационный номер:170240015454 Сайт: https://practicum.yandex.kz/.';
+      next.legal = legalKZ;
+    } else if (logoLanguage === 'ru') {
+      const legalRU = 'Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/';
+      next.legal = legalRU;
+    }
+  }
+
+  // Синхронизируем активную пару с полями title/subtitle/kvSelected/bgImageSelected для обратной совместимости
   if (next.titleSubtitlePairs && next.titleSubtitlePairs.length > 0) {
     const activeIndex = next.activePairIndex || 0;
     const activePair = next.titleSubtitlePairs[activeIndex];
@@ -192,6 +207,46 @@ const applyDerivedState = (state, delta) => {
       // Синхронизируем KV из активной пары
       if (activePair.kvSelected !== undefined) {
         next.kvSelected = activePair.kvSelected || '';
+      }
+      // Синхронизируем фоновое изображение из активной пары
+      if (activePair.bgImageSelected !== undefined) {
+        // Если bgImage уже является объектом Image и соответствует bgImageSelected, не перезаписываем
+        const currentBgImage = next.bgImage;
+        const bgImageSelected = activePair.bgImageSelected;
+        
+        if (bgImageSelected === null || bgImageSelected === '') {
+          next.bgImage = null;
+        } else if (typeof bgImageSelected === 'string') {
+          // Если bgImageSelected - строка (путь), проверяем, не является ли текущий bgImage уже загруженным объектом Image с этим путем
+          if (currentBgImage && typeof currentBgImage === 'object' && currentBgImage.src) {
+            // Нормализуем пути для сравнения (убираем протокол и хост для относительных путей)
+            const normalizePath = (path) => {
+              try {
+                const url = new URL(path, window.location.href);
+                return url.pathname + url.search + url.hash;
+              } catch {
+                return path;
+              }
+            };
+            const currentPath = normalizePath(currentBgImage.src);
+            const selectedPath = normalizePath(bgImageSelected);
+            
+            // Если текущий bgImage - объект Image и его путь соответствует bgImageSelected, оставляем его
+            if (currentPath === selectedPath || currentBgImage.src === bgImageSelected || 
+                currentBgImage.src.endsWith(bgImageSelected) || currentPath.endsWith(selectedPath)) {
+              // Не перезаписываем - оставляем загруженный объект Image
+            } else {
+              // Путь изменился, нужно будет загрузить новое изображение (но не здесь, это сделает UI)
+              next.bgImage = bgImageSelected;
+            }
+          } else {
+            // Текущий bgImage не является объектом Image, устанавливаем строку
+            next.bgImage = bgImageSelected;
+          }
+        } else {
+          // bgImageSelected уже является объектом Image
+          next.bgImage = bgImageSelected;
+        }
       }
     }
   }
@@ -290,6 +345,15 @@ export const updatePairKV = (index, kvSelected) => {
   const newPairs = [...state.titleSubtitlePairs];
   if (newPairs[index]) {
     newPairs[index] = { ...newPairs[index], kvSelected: kvSelected || '' };
+    setState({ titleSubtitlePairs: newPairs });
+  }
+};
+
+export const updatePairBgImage = (index, bgImage) => {
+  const state = getState();
+  const newPairs = [...state.titleSubtitlePairs];
+  if (newPairs[index]) {
+    newPairs[index] = { ...newPairs[index], bgImageSelected: bgImage || null };
     setState({ titleSubtitlePairs: newPairs });
   }
 };
@@ -408,6 +472,16 @@ export const applySavedSettings = (snapshot) => {
   }
   if (snapshot.ageWeight !== undefined) {
     snapshot.ageWeight = convertWeight(snapshot.ageWeight);
+  }
+  
+  // Устанавливаем правильный лигал в зависимости от языка логотипа
+  const logoLanguage = snapshot.logoLanguage || current.logoLanguage || 'ru';
+  if (logoLanguage === 'kz') {
+    const legalKZ = snapshot.legalKZ || current.legalKZ || '*Жарнама / Реклама. ТОО "Y. Izdeu men Jarnama", регистрационный номер:170240015454 Сайт: https://practicum.yandex.kz/.';
+    snapshot.legal = legalKZ;
+  } else if (logoLanguage === 'ru') {
+    const legalRU = 'Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/';
+    snapshot.legal = legalRU;
   }
   
   store.state = applyDerivedState({ ...current, ...snapshot }, snapshot);

@@ -104,6 +104,29 @@
               <img id="bgPreviewImg" src="" class="preview-img" style="display: none;">
               <span id="bgPreviewPlaceholder" class="preview-placeholder">— Нет —</span>
             </div>
+            <div id="bgSelectModalOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 10000; backdrop-filter: blur(2px);" data-action="close-modal" data-modal="bgSelectModal">
+              <div id="bgSelectPanel" class="theme-bg-secondary" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; max-width: 900px; max-height: 80vh; border: none; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 10001;" data-action="stop-propagation">
+                <div class="modal-header">
+                  <span class="modal-title">Выбрать фоновое изображение</span>
+                  <div class="modal-actions">
+                    <button class="btn" data-function="refreshBGColumns" data-action="stop-propagation" title="Обновить"><span class="material-icons">refresh</span></button>
+                    <button class="btn" data-function="closeBGSelectModal" data-action="stop-propagation" title="Закрыть"><span class="material-icons">close</span></button>
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 150px 150px 1fr; height: calc(70vh - 50px); max-height: 550px;">
+                  <!-- Колонка 1: Верхнеуровневые папки -->
+                  <div id="bgFolder1Column" class="modal-column">
+                  </div>
+                  <!-- Колонка 2: Подпапки -->
+                  <div id="bgFolder2Column" class="modal-column">
+                  </div>
+                  <!-- Колонка 3: Превью картинок -->
+                  <div id="bgImagesColumn" class="modal-column">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-full mb-sm" id="bgSelectTrigger"><span id="bgSelectText">Выбрать из библиотеки</span></button>
             <div style="display: flex; gap: 8px; width: 100%; margin-top: 8px;">
               <button class="btn" data-action="trigger-file-input" data-input-id="bgUpload" style="flex: 1;" id="bgUploadBtn"><span class="material-icons" style="font-size: 18px; margin-right: 4px;">image</span>Загрузить</button>
               <button class="btn" data-action="trigger-file-input" data-input-id="bgUpload" id="bgReplaceBtn" style="display: none; flex: 1;" title="Заменить"><span class="material-icons" style="font-size: 18px; margin-right: 4px;">refresh</span>Заменить</button>
@@ -431,18 +454,6 @@
               <span>12%</span>
             </div>
             
-          </div>
-          <div class="form-group">
-            <label>Коэффициент зависимости от заголовка</label>
-            <input type="range" id="titleSubtitleRatio" value="0.5" min="0.1" max="1" step="0.01" data-state-key="titleSubtitleRatio" data-update-handler="updateTitleSubtitleRatio">
-            <div class="slider-value">
-              <span>0.1</span>
-              <span id="titleSubtitleRatioValue">0.5</span>
-              <span>1.0</span>
-            </div>
-            <div class="theme-text-muted" style="font-size: 12px; margin-top: 4px;">Коэффициент определяет, во сколько раз подзаголовок меньше заголовка (0.5 = в 2 раза меньше)</div>
-          </div>
-          <div class="form-group">
           </div>
           <div class="form-group">
             
@@ -847,6 +858,7 @@
 
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

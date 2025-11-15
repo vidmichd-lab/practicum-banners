@@ -80,6 +80,10 @@ export const initializePresetSizes = async () => {
 // Примечание: файлы теперь сканируются динамически через scanKV()
 export const AVAILABLE_KV = {};
 
+// Структура фоновых изображений на основе папки assets/3d/
+// Примечание: файлы теперь сканируются динамически через scanBG()
+export const AVAILABLE_BG = {};
+
 // Предзагруженные цвета для фона
 export const PRESET_BACKGROUND_COLORS = [
   '#027EF2',

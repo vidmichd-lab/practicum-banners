@@ -10,12 +10,15 @@ import {
   importSizesConfig,
   resetSizesConfig 
 } from '../../utils/sizesConfig.js';
-import { updatePresetSizesFromConfig, getState, setKey } from '../../state/store.js';
+import { updatePresetSizesFromConfig, getState, setKey, setState, batch } from '../../state/store.js';
 import { renderPresetSizes, updatePreviewSizeSelect, updateSizesSummary } from './sizeManager.js';
 import { renderer } from '../../renderer.js';
 import { openLogoSelectModal, closeLogoSelectModal, selectPreloadedLogo } from './logoSelector.js';
 import { openKVSelectModal, closeKVSelectModal, selectPreloadedKV } from './kvSelector.js';
 import { handleLogoUpload, handleKVUpload, handleBgUpload, handlePartnerLogoUpload } from '../ui.js';
+import { updateBgColor, applyPresetBgColor, openBGSelectModal } from './backgroundSelector.js';
+import { PRESET_BACKGROUND_COLORS } from '../../constants.js';
+import { autoSelectLogoByTextColor } from '../ui.js';
 
 let adminModal = null;
 let isAdminOpen = false;
@@ -30,6 +33,7 @@ const renderDefaultsTab = () => {
   const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color') || '#2a2a2a';
   const bgPrimary = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary') || '#0d0d0d';
   const textPrimary = getComputedStyle(document.documentElement).getPropertyValue('--text-primary') || '#e9e9e9';
+  const textSecondary = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#999999';
   
   // Сохраняем исходные значения при первом рендере
   if (!originalDefaults) {
@@ -53,6 +57,7 @@ const renderDefaultsTab = () => {
       titleVPos: state.titleVPos || 'top',
       titleSize: state.titleSize ?? 8,
       subtitleSize: state.subtitleSize ?? 4,
+      titleSubtitleRatio: state.titleSubtitleRatio ?? 0.5,
       legalSize: state.legalSize ?? 2,
       ageSize: state.ageSize ?? 4,
       logoSize: state.logoSize ?? 40,
@@ -85,10 +90,46 @@ const renderDefaultsTab = () => {
   const hasLogo = !!(state.logoSelected && state.logoSelected !== originalDefaults.logoSelected);
   const hasKV = !!(state.kvSelected && state.kvSelected !== originalDefaults.kvSelected);
   
+  // Функция для преобразования hex в rgba
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+  
+  // Цвета для группировки элементов
+  const colorTitle = '#FF6B6B';
+  const colorSubtitle = '#4ECDC4';
+  const colorLegal = '#95E1D3';
+  const colorAge = '#F38181';
+  const colorLogo = '#AA96DA';
+  const colorKV = '#FCBAD3';
+  const colorBg = '#FFD93D';
+  
   return `
     <div style="display: flex; flex-direction: column; gap: 20px;">
-      <div class="form-group">
-        <label style="font-weight: 600; margin-bottom: 8px;">Логотип по умолчанию</label>
+      <div style="padding: 14px; background: rgba(33, 150, 243, 0.12); border-left: 4px solid #2196F3; border-radius: 6px; margin-bottom: 4px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <span class="material-icons" style="font-size: 20px; color: #2196F3; flex-shrink: 0; margin-top: 2px;">info</span>
+          <div>
+            <div style="font-weight: 600; color: ${textPrimary}; margin-bottom: 4px; font-size: 14px;">Значения по умолчанию</div>
+            <div style="font-size: 12px; color: ${textSecondary}; line-height: 1.5;">Эти значения используются при создании нового проекта или сбросе настроек. Элементы сгруппированы по типам для удобства навигации.</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="border: 1px solid ${borderColor}; border-radius: 8px; padding: 16px; background: rgba(255, 255, 255, 0.02);">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${borderColor};">
+          <span class="material-icons" style="color: #FF9800; font-size: 20px;">image</span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Медиа-элементы</h3>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="form-group">
+            <label style="font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+              <span class="material-icons" style="font-size: 18px; color: ${textSecondary};">account_circle</span>
+              Логотип по умолчанию
+            </label>
         <div id="defaultLogoPreview" class="preview-container" style="width: 100%; height: 60px; background: ${bgPrimary}; border: 1px solid ${borderColor}; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; cursor: pointer; position: relative;">
           <img id="defaultLogoPreviewImg" src="${state.logoSelected || ''}" style="max-width: 100%; max-height: 100%; display: none;">
           <span id="defaultLogoPreviewPlaceholder" style="color: ${textPrimary}; opacity: 0.5;">— Нет —</span>
@@ -173,8 +214,16 @@ const renderDefaultsTab = () => {
         </div>
       </div>
       
-      <div style="border-top: 1px solid ${borderColor}; padding-top: 20px; margin-top: 10px;">
-        <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Настройки заголовка</h3>
+      <div style="border: 1px solid ${hexToRgba(colorTitle, 0.4)}; border-left: 4px solid ${colorTitle}; border-radius: 8px; padding: 16px; background: ${hexToRgba(colorTitle, 0.08)}; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorTitle, 0.3)};">
+          <div style="width: 32px; height: 32px; border-radius: 6px; background: ${hexToRgba(colorTitle, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorTitle}; font-size: 20px;">title</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Настройки заголовка</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Основной текст макета</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Размер (%)</label>
@@ -221,8 +270,16 @@ const renderDefaultsTab = () => {
         </div>
       </div>
       
-      <div style="border-top: 1px solid ${borderColor}; padding-top: 20px; margin-top: 10px;">
-        <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Настройки подзаголовка</h3>
+      <div style="border: 1px solid ${hexToRgba(colorSubtitle, 0.4)}; border-left: 4px solid ${colorSubtitle}; border-radius: 8px; padding: 16px; background: ${hexToRgba(colorSubtitle, 0.08)}; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorSubtitle, 0.3)};">
+          <div style="width: 32px; height: 32px; border-radius: 6px; background: ${hexToRgba(colorSubtitle, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorSubtitle}; font-size: 20px;">subtitles</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Настройки подзаголовка</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Дополнительный текст под заголовком</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Цвет</label>
@@ -238,6 +295,16 @@ const renderDefaultsTab = () => {
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Размер (%)</label>
             <input type="number" id="defaultSubtitleSize" value="${state.subtitleSize ?? 4}" step="0.1" min="1" max="20" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Коэффициент зависимости от заголовка</label>
+            <input type="range" id="defaultTitleSubtitleRatio" value="${state.titleSubtitleRatio ?? 0.5}" step="0.01" min="0.1" max="1" style="width: 100%;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: ${textSecondary}; margin-top: 4px;">
+              <span>0.1</span>
+              <span id="defaultTitleSubtitleRatioValue">${(state.titleSubtitleRatio ?? 0.5).toFixed(2)}</span>
+              <span>1.0</span>
+            </div>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 4px;">Коэффициент определяет, во сколько раз подзаголовок меньше заголовка (0.5 = в 2 раза меньше)</div>
           </div>
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Вес шрифта</label>
@@ -276,8 +343,16 @@ const renderDefaultsTab = () => {
         </div>
       </div>
       
-      <div style="border-top: 1px solid ${borderColor}; padding-top: 20px; margin-top: 10px;">
-        <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Настройки юридического текста</h3>
+      <div style="border: 1px solid ${hexToRgba(colorLegal, 0.4)}; border-left: 4px solid ${colorLegal}; border-radius: 8px; padding: 16px; background: ${hexToRgba(colorLegal, 0.08)}; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorLegal, 0.3)};">
+          <div style="width: 32px; height: 32px; border-radius: 6px; background: ${hexToRgba(colorLegal, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorLegal}; font-size: 20px;">gavel</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Настройки юридического текста</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Юридическая информация внизу макета</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Цвет</label>
@@ -327,8 +402,16 @@ const renderDefaultsTab = () => {
         </div>
       </div>
       
-      <div style="border-top: 1px solid ${borderColor}; padding-top: 20px; margin-top: 10px;">
-        <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Настройки возраста</h3>
+      <div style="border: 1px solid ${hexToRgba(colorAge, 0.4)}; border-left: 4px solid ${colorAge}; border-radius: 8px; padding: 16px; background: ${hexToRgba(colorAge, 0.08)}; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorAge, 0.3)};">
+          <div style="width: 32px; height: 32px; border-radius: 6px; background: ${hexToRgba(colorAge, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorAge}; font-size: 20px;">child_care</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Настройки возраста</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Возрастное ограничение (18+, 16+ и т.д.)</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Размер (%)</label>
@@ -355,8 +438,16 @@ const renderDefaultsTab = () => {
         </div>
       </div>
       
-      <div style="border-top: 1px solid ${borderColor}; padding-top: 20px; margin-top: 10px;">
-        <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Настройки логотипа</h3>
+      <div style="border: 1px solid ${hexToRgba(colorLogo, 0.4)}; border-left: 4px solid ${colorLogo}; border-radius: 8px; padding: 16px; background: ${hexToRgba(colorLogo, 0.08)}; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorLogo, 0.3)};">
+          <div style="width: 32px; height: 32px; border-radius: 6px; background: ${hexToRgba(colorLogo, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorLogo}; font-size: 20px;">account_circle</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Настройки логотипа</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Логотип Практикума</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Размер (%)</label>
@@ -380,8 +471,16 @@ const renderDefaultsTab = () => {
         </div>
       </div>
       
-      <div style="border-top: 1px solid ${borderColor}; padding-top: 20px; margin-top: 10px;">
-        <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Настройки KV</h3>
+      <div style="border: 1px solid ${hexToRgba(colorKV, 0.4)}; border-left: 4px solid ${colorKV}; border-radius: 8px; padding: 16px; background: ${hexToRgba(colorKV, 0.08)}; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorKV, 0.3)};">
+          <div style="width: 32px; height: 32px; border-radius: 6px; background: ${hexToRgba(colorKV, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorKV}; font-size: 20px;">image</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Настройки KV</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Key Visual — основное изображение</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Скругление углов (px)</label>
@@ -398,8 +497,16 @@ const renderDefaultsTab = () => {
         </div>
       </div>
       
-      <div style="border-top: 1px solid ${borderColor}; padding-top: 20px; margin-top: 10px;">
-        <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Дополнительные настройки</h3>
+      <div style="border: 1px solid ${hexToRgba(colorBg, 0.4)}; border-left: 4px solid ${colorBg}; border-radius: 8px; padding: 16px; background: ${hexToRgba(colorBg, 0.08)}; margin-top: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorBg, 0.3)};">
+          <div style="width: 32px; height: 32px; border-radius: 6px; background: ${hexToRgba(colorBg, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorBg}; font-size: 20px;">settings</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Дополнительные настройки</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Общие параметры макета и фона</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Отступы (%)</label>
@@ -441,107 +548,193 @@ const renderDefaultsTab = () => {
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Прозрачность градиента под текстом (%)</label>
             <input type="number" id="defaultTextGradientOpacity" value="${state.textGradientOpacity ?? 100}" step="1" min="0" max="100" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Прозрачность подложки для центрированного текста (%)</label>
+            <input type="number" id="defaultCenterTextOverlayOpacity" value="${state.centerTextOverlayOpacity ?? 20}" step="1" min="0" max="100" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
         </div>
       </div>
-    </div>
-  `;
-};
-
-/**
- * Рендерит вкладку с настройками множителей форматов
- */
-const renderMultipliersTab = () => {
-  const state = getState();
-  const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color') || '#2a2a2a';
-  const bgPrimary = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary') || '#0d0d0d';
-  const textPrimary = getComputedStyle(document.documentElement).getPropertyValue('--text-primary') || '#e9e9e9';
-  
-  // Получаем множители из state или используем дефолтные
-  const multipliers = state.formatMultipliers || {
-    vertical: { logo: 2, title: 1, subtitle: 1, legal: 1, age: 1 },
-    ultraWide: { logo: 0.75, titleSmall: 3, titleMedium: 2.2, titleLarge: 2, subtitleSmall: 3, subtitleMedium: 2.2, subtitleLarge: 2, legalNormal: 2.5, legalMedium: 2, age: 2 },
-    veryWide: { logo: 0.75, titleMedium: 2.2, titleLarge: 2, titleExtraLarge: 2, subtitleMedium: 2.2, subtitleLarge: 2, subtitleExtraLarge: 2, legalNormal: 2.5, legalMedium: 2, legalExtraLarge: 2.5, age: 2 },
-    horizontal: { logo: 0.75, titleSmall: 1.8, titleLarge: 1.6, titleWideSmall: 1.2, titleWideMedium: 1.4, subtitleSmall: 1.8, subtitleLarge: 1.6, subtitleWideSmall: 1.2, subtitleWideMedium: 1.4, legalSmall: 1.8, legalLarge: 2, legalWide450: 1.2, legalWide500: 1.1, legalWideOther: 1.15, age: 2, ageWide: null },
-    square: { title: 0.9, subtitle: 0.9 },
-    tall: { title: 1.3, subtitle: 1.3 }
-  };
-  
-  return `
-    <div style="display: flex; flex-direction: column; gap: 24px;">
-      <div style="padding: 16px; background: ${bgPrimary}; border: 1px solid ${borderColor}; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Вертикальные форматы (height >= width × 1.5)</h3>
+      </div>
+      
+      ${(() => {
+        // Содержимое из вкладки множителей
+        const multipliers = state.formatMultipliers || {
+          vertical: { logo: 2, title: 1, subtitle: 1, legal: 1, age: 1 },
+          ultraWide: { logo: 0.75, titleSmall: 3, titleMedium: 2.2, titleLarge: 2, subtitleSmall: 3, subtitleMedium: 2.2, subtitleLarge: 2, legalNormal: 2.5, legalMedium: 2, age: 2 },
+          veryWide: { logo: 0.75, titleMedium: 2.2, titleLarge: 2, titleExtraLarge: 2, subtitleMedium: 2.2, subtitleLarge: 2, subtitleExtraLarge: 2, legalNormal: 2.5, legalMedium: 2, legalExtraLarge: 2.5, age: 2 },
+          horizontal: { logo: 0.75, titleSmall: 1.8, titleLarge: 1.6, titleWideSmall: 1.2, titleWideMedium: 1.4, subtitleSmall: 1.8, subtitleLarge: 1.6, subtitleWideSmall: 1.2, subtitleWideMedium: 1.4, legalSmall: 1.8, legalLarge: 2, legalWide450: 1.2, legalWide500: 1.1, legalWideOther: 1.15, age: 2, ageWide: null },
+          square: { title: 0.9, subtitle: 0.9 },
+          tall: { title: 1.3, subtitle: 1.3 }
+        };
+        
+        // Цвета для разных типов форматов
+        const colorVertical = '#FF9800';
+        const colorUltraWide = '#2196F3';
+        const colorVeryWide = '#9C27B0';
+        const colorHorizontal = '#4CAF50';
+        const colorSquare = '#FFC107';
+        const colorTall = '#E91E63';
+        
+        // Цвета для элементов
+        const colorLogo = '#AA96DA';
+        const colorTitle = '#FF6B6B';
+        const colorSubtitle = '#4ECDC4';
+        const colorLegal = '#95E1D3';
+        const colorAge = '#F38181';
+        
+        return `
+      <div style="padding: 14px; background: rgba(33, 150, 243, 0.12); border-left: 4px solid #2196F3; border-radius: 6px; margin-top: 20px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <span class="material-icons" style="font-size: 20px; color: #2196F3; flex-shrink: 0; margin-top: 2px;">zoom_in</span>
+          <div>
+            <div style="font-weight: 600; color: ${textPrimary}; margin-bottom: 4px; font-size: 14px;">Множители форматов</div>
+            <div style="font-size: 12px; color: ${textSecondary}; line-height: 1.5;">Множители применяются к размерам элементов в зависимости от типа формата. Схожие элементы выделены одинаковыми цветами для удобства навигации.</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 16px; background: ${hexToRgba(colorVertical, 0.08)}; border: 1px solid ${hexToRgba(colorVertical, 0.4)}; border-left: 4px solid ${colorVertical}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorVertical, 0.3)};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: ${hexToRgba(colorVertical, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorVertical}; font-size: 22px;">crop_portrait</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Вертикальные форматы</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">height >= width × 1.5 (вертикальные баннеры)</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Логотип</label>
+          <div class="form-group" style="border-left: 3px solid ${colorLogo}; padding-left: 10px; background: ${hexToRgba(colorLogo, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLogo};"></span>
+              Логотип
+            </label>
             <input type="number" id="multiplier-vertical-logo" value="${multipliers.vertical.logo}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок</label>
+          <div class="form-group" style="border-left: 3px solid ${colorTitle}; padding-left: 10px; background: ${hexToRgba(colorTitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorTitle};"></span>
+              Заголовок
+            </label>
             <input type="number" id="multiplier-vertical-title" value="${multipliers.vertical.title}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок</label>
+          <div class="form-group" style="border-left: 3px solid ${colorSubtitle}; padding-left: 10px; background: ${hexToRgba(colorSubtitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorSubtitle};"></span>
+              Подзаголовок
+            </label>
             <input type="number" id="multiplier-vertical-subtitle" value="${multipliers.vertical.subtitle ?? 1}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический текст</label>
+          <div class="form-group" style="border-left: 3px solid ${colorLegal}; padding-left: 10px; background: ${hexToRgba(colorLegal, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLegal};"></span>
+              Юридический текст
+            </label>
             <input type="number" id="multiplier-vertical-legal" value="${multipliers.vertical.legal}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Возраст</label>
+          <div class="form-group" style="border-left: 3px solid ${colorAge}; padding-left: 10px; background: ${hexToRgba(colorAge, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorAge};"></span>
+              Возраст
+            </label>
             <input type="number" id="multiplier-vertical-age" value="${multipliers.vertical.age}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
         </div>
       </div>
       
-      <div style="padding: 16px; background: ${bgPrimary}; border: 1px solid ${borderColor}; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Ультра-широкие форматы (width >= height × 8)</h3>
+      <div style="padding: 16px; background: ${hexToRgba(colorUltraWide, 0.08)}; border: 1px solid ${hexToRgba(colorUltraWide, 0.4)}; border-left: 4px solid ${colorUltraWide}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorUltraWide, 0.3)};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: ${hexToRgba(colorUltraWide, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorUltraWide}; font-size: 22px;">crop_landscape</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Ультра-широкие форматы</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">width >= height × 8 (очень широкие баннеры)</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Логотип</label>
+          <div class="form-group" style="border-left: 3px solid ${colorLogo}; padding-left: 10px; background: ${hexToRgba(colorLogo, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLogo};"></span>
+              Логотип
+            </label>
             <input type="number" id="multiplier-ultraWide-logo" value="${multipliers.ultraWide.logo}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (height < 120)</label>
+          <div class="form-group" style="border-left: 3px solid ${colorTitle}; padding-left: 10px; background: ${hexToRgba(colorTitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorTitle};"></span>
+              Заголовок (height < 120)
+            </label>
             <input type="number" id="multiplier-ultraWide-titleSmall" value="${multipliers.ultraWide.titleSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (height < 120)</label>
+          <div class="form-group" style="border-left: 3px solid ${colorSubtitle}; padding-left: 10px; background: ${hexToRgba(colorSubtitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorSubtitle};"></span>
+              Подзаголовок (height < 120)
+            </label>
             <input type="number" id="multiplier-ultraWide-subtitleSmall" value="${multipliers.ultraWide.subtitleSmall ?? multipliers.ultraWide.titleSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (height < 200)</label>
+          <div class="form-group" style="border-left: 3px solid ${colorTitle}; padding-left: 10px; background: ${hexToRgba(colorTitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorTitle};"></span>
+              Заголовок (height < 200)
+            </label>
             <input type="number" id="multiplier-ultraWide-titleMedium" value="${multipliers.ultraWide.titleMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (height < 200)</label>
+          <div class="form-group" style="border-left: 3px solid ${colorSubtitle}; padding-left: 10px; background: ${hexToRgba(colorSubtitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorSubtitle};"></span>
+              Подзаголовок (height < 200)
+            </label>
             <input type="number" id="multiplier-ultraWide-subtitleMedium" value="${multipliers.ultraWide.subtitleMedium ?? multipliers.ultraWide.titleMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (height >= 200)</label>
+          <div class="form-group" style="border-left: 3px solid ${colorTitle}; padding-left: 10px; background: ${hexToRgba(colorTitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorTitle};"></span>
+              Заголовок (height >= 200)
+            </label>
             <input type="number" id="multiplier-ultraWide-titleLarge" value="${multipliers.ultraWide.titleLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (height >= 200)</label>
+          <div class="form-group" style="border-left: 3px solid ${colorSubtitle}; padding-left: 10px; background: ${hexToRgba(colorSubtitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorSubtitle};"></span>
+              Подзаголовок (height >= 200)
+            </label>
             <input type="number" id="multiplier-ultraWide-subtitleLarge" value="${multipliers.ultraWide.subtitleLarge ?? multipliers.ultraWide.titleLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (обычный)</label>
+          <div class="form-group" style="border-left: 3px solid ${colorLegal}; padding-left: 10px; background: ${hexToRgba(colorLegal, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLegal};"></span>
+              Юридический (обычный)
+            </label>
             <input type="number" id="multiplier-ultraWide-legalNormal" value="${multipliers.ultraWide.legalNormal}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (height 250-350)</label>
+          <div class="form-group" style="border-left: 3px solid ${colorLegal}; padding-left: 10px; background: ${hexToRgba(colorLegal, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLegal};"></span>
+              Юридический (height 250-350)
+            </label>
             <input type="number" id="multiplier-ultraWide-legalMedium" value="${multipliers.ultraWide.legalMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
-          <div class="form-group">
-            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Возраст</label>
+          <div class="form-group" style="border-left: 3px solid ${colorAge}; padding-left: 10px; background: ${hexToRgba(colorAge, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorAge};"></span>
+              Возраст
+            </label>
             <input type="number" id="multiplier-ultraWide-age" value="${multipliers.ultraWide.age}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
           </div>
         </div>
       </div>
       
-      <div style="padding: 16px; background: ${bgPrimary}; border: 1px solid ${borderColor}; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Очень широкие форматы (width >= height × 4)</h3>
+      <div style="padding: 16px; background: ${hexToRgba(colorVeryWide, 0.08)}; border: 1px solid ${hexToRgba(colorVeryWide, 0.4)}; border-left: 4px solid ${colorVeryWide}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorVeryWide, 0.3)};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: ${hexToRgba(colorVeryWide, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorVeryWide}; font-size: 22px;">crop_landscape</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Очень широкие форматы</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">width >= height × 4 (широкие баннеры)</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Логотип</label>
@@ -590,8 +783,16 @@ const renderMultipliersTab = () => {
         </div>
       </div>
       
-      <div style="padding: 16px; background: ${bgPrimary}; border: 1px solid ${borderColor}; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Горизонтальные форматы (width >= height × 1.5)</h3>
+      <div style="padding: 16px; background: ${hexToRgba(colorHorizontal, 0.08)}; border: 1px solid ${hexToRgba(colorHorizontal, 0.4)}; border-left: 4px solid ${colorHorizontal}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorHorizontal, 0.3)};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: ${hexToRgba(colorHorizontal, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorHorizontal}; font-size: 22px;">crop_landscape</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Горизонтальные форматы</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">width >= height × 1.5 (горизонтальные баннеры)</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Логотип</label>
@@ -656,8 +857,517 @@ const renderMultipliersTab = () => {
         </div>
       </div>
       
-      <div style="padding: 16px; background: ${bgPrimary}; border: 1px solid ${borderColor}; border-radius: 8px;">
-        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">Дополнительные настройки</h3>
+      <div style="padding: 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid ${hexToRgba(borderColor, 0.4)}; border-left: 4px solid ${borderColor}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${borderColor};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${textSecondary}; font-size: 22px;">tune</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Дополнительные настройки</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Специальные форматы</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Квадратные форматы: Заголовок</label>
+            <input type="number" id="multiplier-square-title" value="${multipliers.square.title}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Квадратные форматы: Подзаголовок</label>
+            <input type="number" id="multiplier-square-subtitle" value="${multipliers.square.subtitle ?? multipliers.square.title}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Высокие макеты (height/width >= 2): Заголовок</label>
+            <input type="number" id="multiplier-tall-title" value="${multipliers.tall.title}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Высокие макеты (height/width >= 2): Подзаголовок</label>
+            <input type="number" id="multiplier-tall-subtitle" value="${multipliers.tall.subtitle ?? multipliers.tall.title}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 12px; background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); border-radius: 8px; color: ${textPrimary}; font-size: 13px;">
+        <strong>💡 Подсказка:</strong> Изменения применяются автоматически при изменении значений. Множители влияют на размеры элементов в зависимости от типа формата.
+      </div>
+        `;
+      })()}
+      
+      ${(() => {
+        // Содержимое из вкладки фонов
+        let savedBackgrounds = JSON.parse(localStorage.getItem('adminBackgrounds') || '[]');
+        
+        // Функция для вычисления настроек цвета
+        const getColorSettings = (color) => {
+          // Вычисляем цвет текста на основе яркости фона
+          const hex = color.replace('#', '');
+          const r = parseInt(hex.substr(0, 2), 16);
+          const g = parseInt(hex.substr(2, 2), 16);
+          const b = parseInt(hex.substr(4, 2), 16);
+          const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+          
+          // Специальная проверка для цвета #FF6C26 - всегда белый текст и белый логотип
+          let textColor = '#ffffff';
+          let logoFolder = 'white';
+          
+          if (color === '#FF6C26') {
+            textColor = '#ffffff';
+            logoFolder = 'white';
+          } else {
+            textColor = luminance > 0.5 ? '#1e1e1e' : '#ffffff';
+            logoFolder = luminance > 0.5 ? 'black' : 'white';
+          }
+          
+          return {
+            bgColor: color,
+            bgImage: null,
+            textColor: textColor,
+            logoFolder: logoFolder
+          };
+        };
+        
+        // Проверяем, есть ли все предустановленные цвета в сохраненных фонах
+        const existingColors = savedBackgrounds.map(bg => bg.bgColor?.toUpperCase()).filter(Boolean);
+        const missingPresetColors = PRESET_BACKGROUND_COLORS.filter(color => 
+          !existingColors.includes(color.toUpperCase())
+        );
+        
+        // Добавляем недостающие предустановленные цвета
+        if (missingPresetColors.length > 0) {
+          const newBackgrounds = missingPresetColors.map(color => getColorSettings(color));
+          savedBackgrounds = [...savedBackgrounds, ...newBackgrounds];
+          // Сохраняем обновленный список
+          localStorage.setItem('adminBackgrounds', JSON.stringify(savedBackgrounds));
+        }
+        
+        // Если вообще нет сохраненных фонов, создаем все из предустановленных цветов
+        if (savedBackgrounds.length === 0) {
+          savedBackgrounds = PRESET_BACKGROUND_COLORS.map(color => getColorSettings(color));
+          localStorage.setItem('adminBackgrounds', JSON.stringify(savedBackgrounds));
+        }
+        
+        const colorBg = '#FF6C26';
+        
+        return `
+          <div style="border-top: 2px solid ${borderColor}; margin-top: 32px; padding-top: 32px;">
+            <div style="padding: 14px; background: rgba(33, 150, 243, 0.12); border-left: 4px solid #2196F3; border-radius: 6px; margin-bottom: 20px;">
+              <div style="display: flex; align-items: flex-start; gap: 10px;">
+                <span class="material-icons" style="font-size: 20px; color: #2196F3; flex-shrink: 0; margin-top: 2px;">palette</span>
+                <div>
+                  <div style="font-weight: 600; color: ${textPrimary}; margin-bottom: 4px; font-size: 14px;">Управление фонами</div>
+                  <div style="font-size: 12px; color: ${textSecondary}; line-height: 1.5;">Настройте фоны, цвета текста и логотипы для каждого фона. При выборе фона автоматически применяются соответствующие настройки текста и логотипа.</div>
+                </div>
+              </div>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+              <button class="btn btn-primary" id="adminAddBackground" style="display: flex; align-items: center; gap: 6px;">
+                <span class="material-icons" style="font-size: 18px;">add</span>
+                Добавить фон
+              </button>
+            </div>
+            
+            <div id="adminBackgroundsList" style="display: flex; flex-direction: column; gap: 16px;">
+              ${savedBackgrounds.map((bg, index) => `
+                <div class="admin-background-item" data-bg-index="${index}" style="border: 1px solid ${borderColor}; border-radius: 8px; padding: 16px; background: ${bgPrimary};">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <div style="width: 60px; height: 60px; border-radius: 8px; background: ${bg.bgColor || '#1e1e1e'}; border: 1px solid ${borderColor}; position: relative; overflow: hidden;">
+                        ${bg.bgImage ? `<img src="${bg.bgImage}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
+                      </div>
+                      <div>
+                        <div style="font-weight: 600; color: ${textPrimary}; margin-bottom: 4px;">Фон #${index + 1}</div>
+                        <div style="font-size: 12px; color: ${textSecondary};">
+                          ${bg.bgImage ? 'Изображение' : `Цвет: ${bg.bgColor || '#1e1e1e'}`}
+                        </div>
+                      </div>
+                    </div>
+                    <button class="btn btn-danger" data-remove-bg="${index}" style="padding: 8px;">
+                      <span class="material-icons" style="font-size: 18px;">delete</span>
+                    </button>
+                  </div>
+                  
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+                    <div class="form-group">
+                      <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Фон</label>
+                      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                        <input type="color" class="admin-bg-color" data-bg-index="${index}" value="${bg.bgColor || '#1e1e1e'}" style="width: 60px; height: 40px; border: 1px solid ${borderColor}; border-radius: 8px; cursor: pointer;">
+                        <input type="text" class="admin-bg-color-hex" data-bg-index="${index}" value="${bg.bgColor || '#1e1e1e'}" placeholder="#1e1e1e" style="flex: 1; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+                      </div>
+                      <button class="btn" data-upload-bg="${index}" style="width: 100%; margin-bottom: 8px;">
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px;">upload</span>
+                        Загрузить изображение
+                      </button>
+                      <input type="file" class="admin-bg-upload-file" data-bg-index="${index}" accept="image/*" style="display: none;">
+                      <button class="btn" data-select-bg="${index}" style="width: 100%; margin-bottom: 8px;">
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px;">image</span>
+                        Выбрать из библиотеки
+                      </button>
+                      ${bg.bgImage ? `<button class="btn btn-danger" data-clear-bg="${index}" style="width: 100%;">
+                        <span class="material-icons" style="font-size: 18px; margin-right: 4px;">delete</span>
+                        Удалить изображение
+                      </button>` : ''}
+                    </div>
+                    
+                    <div class="form-group">
+                      <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Цвет текста</label>
+                      <div style="display: flex; gap: 8px;">
+                        <input type="color" class="admin-text-color" data-bg-index="${index}" value="${bg.textColor || '#ffffff'}" style="width: 60px; height: 40px; border: 1px solid ${borderColor}; border-radius: 8px; cursor: pointer;">
+                        <input type="text" class="admin-text-color-hex" data-bg-index="${index}" value="${bg.textColor || '#ffffff'}" placeholder="#ffffff" style="flex: 1; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+                      </div>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Логотип</label>
+                      <select class="admin-logo-folder" data-bg-index="${index}" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+                        <option value="white" ${bg.logoFolder === 'white' ? 'selected' : ''}>Белый</option>
+                        <option value="black" ${bg.logoFolder === 'black' || !bg.logoFolder ? 'selected' : ''}>Черный</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      })()}
+    </div>
+  `;
+};
+
+/**
+ * Рендерит вкладку с настройками множителей форматов
+ */
+const renderMultipliersTab = () => {
+  try {
+    const state = getState();
+    const root = document.documentElement;
+    const computedStyle = getComputedStyle(root);
+    const borderColor = computedStyle.getPropertyValue('--border-color') || '#2a2a2a';
+    const bgPrimary = computedStyle.getPropertyValue('--bg-primary') || '#0d0d0d';
+    const textPrimary = computedStyle.getPropertyValue('--text-primary') || '#e9e9e9';
+    const textSecondary = computedStyle.getPropertyValue('--text-secondary') || '#999999';
+    
+    // Получаем множители из state или используем дефолтные
+    const multipliers = state.formatMultipliers || {
+      vertical: { logo: 2, title: 1, subtitle: 1, legal: 1, age: 1 },
+      ultraWide: { logo: 0.75, titleSmall: 3, titleMedium: 2.2, titleLarge: 2, subtitleSmall: 3, subtitleMedium: 2.2, subtitleLarge: 2, legalNormal: 2.5, legalMedium: 2, age: 2 },
+      veryWide: { logo: 0.75, titleMedium: 2.2, titleLarge: 2, titleExtraLarge: 2, subtitleMedium: 2.2, subtitleLarge: 2, subtitleExtraLarge: 2, legalNormal: 2.5, legalMedium: 2, legalExtraLarge: 2.5, age: 2 },
+      horizontal: { logo: 0.75, titleSmall: 1.8, titleLarge: 1.6, titleWideSmall: 1.2, titleWideMedium: 1.4, subtitleSmall: 1.8, subtitleLarge: 1.6, subtitleWideSmall: 1.2, subtitleWideMedium: 1.4, legalSmall: 1.8, legalLarge: 2, legalWide450: 1.2, legalWide500: 1.1, legalWideOther: 1.15, age: 2, ageWide: null },
+      square: { title: 0.9, subtitle: 0.9 },
+      tall: { title: 1.3, subtitle: 1.3 }
+    };
+    
+    // Функция для преобразования hex в rgba
+    const hexToRgba = (hex, alpha) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+    
+    // Цвета для разных типов форматов
+    const colorVertical = '#FF9800';
+    const colorUltraWide = '#2196F3';
+    const colorVeryWide = '#9C27B0';
+    const colorHorizontal = '#4CAF50';
+    const colorSquare = '#FFC107';
+    const colorTall = '#E91E63';
+    
+    // Цвета для элементов
+    const colorLogo = '#AA96DA';
+    const colorTitle = '#FF6B6B';
+    const colorSubtitle = '#4ECDC4';
+    const colorLegal = '#95E1D3';
+    const colorAge = '#F38181';
+    
+    return `
+    <div style="display: flex; flex-direction: column; gap: 20px; width: 100%; min-width: 0;">
+      <div style="padding: 14px; background: rgba(33, 150, 243, 0.12); border-left: 4px solid #2196F3; border-radius: 6px; margin-bottom: 4px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+          <span class="material-icons" style="font-size: 20px; color: #2196F3; flex-shrink: 0; margin-top: 2px;">zoom_in</span>
+          <div>
+            <div style="font-weight: 600; color: ${textPrimary}; margin-bottom: 4px; font-size: 14px;">Множители форматов</div>
+            <div style="font-size: 12px; color: ${textSecondary}; line-height: 1.5;">Множители применяются к размерам элементов в зависимости от типа формата. Схожие элементы выделены одинаковыми цветами для удобства навигации.</div>
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 16px; background: ${hexToRgba(colorVertical, 0.08)}; border: 1px solid ${hexToRgba(colorVertical, 0.4)}; border-left: 4px solid ${colorVertical}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorVertical, 0.3)};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: ${hexToRgba(colorVertical, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorVertical}; font-size: 22px;">crop_portrait</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Вертикальные форматы</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">height >= width × 1.5 (вертикальные баннеры)</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+          <div class="form-group" style="border-left: 3px solid ${colorLogo}; padding-left: 10px; background: ${hexToRgba(colorLogo, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLogo};"></span>
+              Логотип
+            </label>
+            <input type="number" id="multiplier-vertical-logo" value="${multipliers.vertical.logo}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorTitle}; padding-left: 10px; background: ${hexToRgba(colorTitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorTitle};"></span>
+              Заголовок
+            </label>
+            <input type="number" id="multiplier-vertical-title" value="${multipliers.vertical.title}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorSubtitle}; padding-left: 10px; background: ${hexToRgba(colorSubtitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorSubtitle};"></span>
+              Подзаголовок
+            </label>
+            <input type="number" id="multiplier-vertical-subtitle" value="${multipliers.vertical.subtitle ?? 1}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorLegal}; padding-left: 10px; background: ${hexToRgba(colorLegal, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLegal};"></span>
+              Юридический текст
+            </label>
+            <input type="number" id="multiplier-vertical-legal" value="${multipliers.vertical.legal}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorAge}; padding-left: 10px; background: ${hexToRgba(colorAge, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorAge};"></span>
+              Возраст
+            </label>
+            <input type="number" id="multiplier-vertical-age" value="${multipliers.vertical.age}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 16px; background: ${hexToRgba(colorUltraWide, 0.08)}; border: 1px solid ${hexToRgba(colorUltraWide, 0.4)}; border-left: 4px solid ${colorUltraWide}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorUltraWide, 0.3)};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: ${hexToRgba(colorUltraWide, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorUltraWide}; font-size: 22px;">crop_landscape</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Ультра-широкие форматы</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">width >= height × 8 (очень широкие баннеры)</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+          <div class="form-group" style="border-left: 3px solid ${colorLogo}; padding-left: 10px; background: ${hexToRgba(colorLogo, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLogo};"></span>
+              Логотип
+            </label>
+            <input type="number" id="multiplier-ultraWide-logo" value="${multipliers.ultraWide.logo}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorTitle}; padding-left: 10px; background: ${hexToRgba(colorTitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorTitle};"></span>
+              Заголовок (height < 120)
+            </label>
+            <input type="number" id="multiplier-ultraWide-titleSmall" value="${multipliers.ultraWide.titleSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorSubtitle}; padding-left: 10px; background: ${hexToRgba(colorSubtitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorSubtitle};"></span>
+              Подзаголовок (height < 120)
+            </label>
+            <input type="number" id="multiplier-ultraWide-subtitleSmall" value="${multipliers.ultraWide.subtitleSmall ?? multipliers.ultraWide.titleSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorTitle}; padding-left: 10px; background: ${hexToRgba(colorTitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorTitle};"></span>
+              Заголовок (height < 200)
+            </label>
+            <input type="number" id="multiplier-ultraWide-titleMedium" value="${multipliers.ultraWide.titleMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorSubtitle}; padding-left: 10px; background: ${hexToRgba(colorSubtitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorSubtitle};"></span>
+              Подзаголовок (height < 200)
+            </label>
+            <input type="number" id="multiplier-ultraWide-subtitleMedium" value="${multipliers.ultraWide.subtitleMedium ?? multipliers.ultraWide.titleMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorTitle}; padding-left: 10px; background: ${hexToRgba(colorTitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorTitle};"></span>
+              Заголовок (height >= 200)
+            </label>
+            <input type="number" id="multiplier-ultraWide-titleLarge" value="${multipliers.ultraWide.titleLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorSubtitle}; padding-left: 10px; background: ${hexToRgba(colorSubtitle, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorSubtitle};"></span>
+              Подзаголовок (height >= 200)
+            </label>
+            <input type="number" id="multiplier-ultraWide-subtitleLarge" value="${multipliers.ultraWide.subtitleLarge ?? multipliers.ultraWide.titleLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorLegal}; padding-left: 10px; background: ${hexToRgba(colorLegal, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLegal};"></span>
+              Юридический (обычный)
+            </label>
+            <input type="number" id="multiplier-ultraWide-legalNormal" value="${multipliers.ultraWide.legalNormal}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorLegal}; padding-left: 10px; background: ${hexToRgba(colorLegal, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorLegal};"></span>
+              Юридический (height 250-350)
+            </label>
+            <input type="number" id="multiplier-ultraWide-legalMedium" value="${multipliers.ultraWide.legalMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group" style="border-left: 3px solid ${colorAge}; padding-left: 10px; background: ${hexToRgba(colorAge, 0.08)};">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: ${colorAge};"></span>
+              Возраст
+            </label>
+            <input type="number" id="multiplier-ultraWide-age" value="${multipliers.ultraWide.age}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 16px; background: ${hexToRgba(colorVeryWide, 0.08)}; border: 1px solid ${hexToRgba(colorVeryWide, 0.4)}; border-left: 4px solid ${colorVeryWide}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorVeryWide, 0.3)};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: ${hexToRgba(colorVeryWide, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorVeryWide}; font-size: 22px;">crop_landscape</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Очень широкие форматы</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">width >= height × 4 (широкие баннеры)</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Логотип</label>
+            <input type="number" id="multiplier-veryWide-logo" value="${multipliers.veryWide.logo}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (height < 200)</label>
+            <input type="number" id="multiplier-veryWide-titleMedium" value="${multipliers.veryWide.titleMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (height < 200)</label>
+            <input type="number" id="multiplier-veryWide-subtitleMedium" value="${multipliers.veryWide.subtitleMedium ?? multipliers.veryWide.titleMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (height >= 200)</label>
+            <input type="number" id="multiplier-veryWide-titleLarge" value="${multipliers.veryWide.titleLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (height >= 200)</label>
+            <input type="number" id="multiplier-veryWide-subtitleLarge" value="${multipliers.veryWide.subtitleLarge ?? multipliers.veryWide.titleLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (width >= 2000, height 400-800)</label>
+            <input type="number" id="multiplier-veryWide-titleExtraLarge" value="${multipliers.veryWide.titleExtraLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (width >= 2000, height 400-800)</label>
+            <input type="number" id="multiplier-veryWide-subtitleExtraLarge" value="${multipliers.veryWide.subtitleExtraLarge ?? multipliers.veryWide.titleExtraLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (обычный)</label>
+            <input type="number" id="multiplier-veryWide-legalNormal" value="${multipliers.veryWide.legalNormal}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (height 250-350)</label>
+            <input type="number" id="multiplier-veryWide-legalMedium" value="${multipliers.veryWide.legalMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (width >= 2000, height 400-800)</label>
+            <input type="number" id="multiplier-veryWide-legalExtraLarge" value="${multipliers.veryWide.legalExtraLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Возраст</label>
+            <input type="number" id="multiplier-veryWide-age" value="${multipliers.veryWide.age}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 16px; background: ${hexToRgba(colorHorizontal, 0.08)}; border: 1px solid ${hexToRgba(colorHorizontal, 0.4)}; border-left: 4px solid ${colorHorizontal}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${hexToRgba(colorHorizontal, 0.3)};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: ${hexToRgba(colorHorizontal, 0.2)}; display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${colorHorizontal}; font-size: 22px;">crop_landscape</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Горизонтальные форматы</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">width >= height × 1.5 (горизонтальные баннеры)</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Логотип</label>
+            <input type="number" id="multiplier-horizontal-logo" value="${multipliers.horizontal.logo}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (height < 200)</label>
+            <input type="number" id="multiplier-horizontal-titleSmall" value="${multipliers.horizontal.titleSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (height < 200)</label>
+            <input type="number" id="multiplier-horizontal-subtitleSmall" value="${multipliers.horizontal.subtitleSmall ?? multipliers.horizontal.titleSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (height >= 200)</label>
+            <input type="number" id="multiplier-horizontal-titleLarge" value="${multipliers.horizontal.titleLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (height >= 200)</label>
+            <input type="number" id="multiplier-horizontal-subtitleLarge" value="${multipliers.horizontal.subtitleLarge ?? multipliers.horizontal.titleLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (широкий, height >= 800)</label>
+            <input type="number" id="multiplier-horizontal-titleWideSmall" value="${multipliers.horizontal.titleWideSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (широкий, height >= 800)</label>
+            <input type="number" id="multiplier-horizontal-subtitleWideSmall" value="${multipliers.horizontal.subtitleWideSmall ?? multipliers.horizontal.titleWideSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Заголовок (широкий, height 500-800)</label>
+            <input type="number" id="multiplier-horizontal-titleWideMedium" value="${multipliers.horizontal.titleWideMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Подзаголовок (широкий, height 500-800)</label>
+            <input type="number" id="multiplier-horizontal-subtitleWideMedium" value="${multipliers.horizontal.subtitleWideMedium ?? multipliers.horizontal.titleWideMedium}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (height 250-350)</label>
+            <input type="number" id="multiplier-horizontal-legalSmall" value="${multipliers.horizontal.legalSmall}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (height > 350)</label>
+            <input type="number" id="multiplier-horizontal-legalLarge" value="${multipliers.horizontal.legalLarge}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (широкий, height 450-500)</label>
+            <input type="number" id="multiplier-horizontal-legalWide450" value="${multipliers.horizontal.legalWide450}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (широкий, height 500-1080)</label>
+            <input type="number" id="multiplier-horizontal-legalWide500" value="${multipliers.horizontal.legalWide500}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Юридический (широкий, другое)</label>
+            <input type="number" id="multiplier-horizontal-legalWideOther" value="${multipliers.horizontal.legalWideOther}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+          <div class="form-group">
+            <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Возраст</label>
+            <input type="number" id="multiplier-horizontal-age" value="${multipliers.horizontal.age}" step="0.1" min="0.1" max="10" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 6px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+          </div>
+        </div>
+      </div>
+      
+      <div style="padding: 16px; background: rgba(255, 255, 255, 0.02); border: 1px solid ${hexToRgba(borderColor, 0.4)}; border-left: 4px solid ${borderColor}; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${borderColor};">
+          <div style="width: 36px; height: 36px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); display: flex; align-items: center; justify-content: center;">
+            <span class="material-icons" style="color: ${textSecondary}; font-size: 22px;">tune</span>
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: ${textPrimary};">Дополнительные настройки</h3>
+            <div style="font-size: 11px; color: ${textSecondary}; margin-top: 2px;">Специальные форматы</div>
+          </div>
+        </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">Квадратные форматы: Заголовок</label>
@@ -683,6 +1393,114 @@ const renderMultipliersTab = () => {
       </div>
     </div>
   `;
+  } catch (error) {
+    console.error('Ошибка при рендеринге вкладки множителей:', error);
+    return `<div style="padding: 20px; color: red;">Ошибка при загрузке множителей: ${error.message}</div>`;
+  }
+};
+
+/**
+ * Рендерит вкладку с управлением фонами
+ */
+const renderBackgroundsTab = () => {
+  const state = getState();
+  const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color') || '#2a2a2a';
+  const bgPrimary = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary') || '#0d0d0d';
+  const textPrimary = getComputedStyle(document.documentElement).getPropertyValue('--text-primary') || '#e9e9e9';
+  const textSecondary = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#999999';
+  
+  // Получаем сохраненные фоны из localStorage или используем пустой массив
+  const savedBackgrounds = JSON.parse(localStorage.getItem('adminBackgrounds') || '[]');
+  
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+  
+  const colorBg = '#FF6C26';
+  
+  return `
+    <div style="padding: 14px; background: rgba(33, 150, 243, 0.12); border-left: 4px solid #2196F3; border-radius: 6px; margin-bottom: 20px;">
+      <div style="display: flex; align-items: flex-start; gap: 10px;">
+        <span class="material-icons" style="font-size: 20px; color: #2196F3; flex-shrink: 0; margin-top: 2px;">palette</span>
+        <div>
+          <div style="font-weight: 600; color: ${textPrimary}; margin-bottom: 4px; font-size: 14px;">Управление фонами</div>
+          <div style="font-size: 12px; color: ${textSecondary}; line-height: 1.5;">Настройте фоны, цвета текста и логотипы для каждого фона. При выборе фона автоматически применяются соответствующие настройки текста и логотипа.</div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="margin-bottom: 16px;">
+      <button class="btn btn-primary" id="adminAddBackground" style="display: flex; align-items: center; gap: 6px;">
+        <span class="material-icons" style="font-size: 18px;">add</span>
+        Добавить фон
+      </button>
+    </div>
+    
+    <div id="adminBackgroundsList" style="display: flex; flex-direction: column; gap: 16px;">
+      ${savedBackgrounds.map((bg, index) => `
+        <div class="admin-background-item" data-bg-index="${index}" style="border: 1px solid ${borderColor}; border-radius: 8px; padding: 16px; background: ${bgPrimary};">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 60px; height: 60px; border-radius: 8px; background: ${bg.bgColor || '#1e1e1e'}; border: 1px solid ${borderColor}; position: relative; overflow: hidden;">
+                ${bg.bgImage ? `<img src="${bg.bgImage}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
+              </div>
+              <div>
+                <div style="font-weight: 600; color: ${textPrimary}; margin-bottom: 4px;">Фон #${index + 1}</div>
+                <div style="font-size: 12px; color: ${textSecondary};">
+                  ${bg.bgImage ? 'Изображение' : `Цвет: ${bg.bgColor || '#1e1e1e'}`}
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-danger" data-remove-bg="${index}" style="padding: 8px;">
+              <span class="material-icons" style="font-size: 18px;">delete</span>
+            </button>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+            <div class="form-group">
+              <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Фон</label>
+              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="color" class="admin-bg-color" data-bg-index="${index}" value="${bg.bgColor || '#1e1e1e'}" style="width: 60px; height: 40px; border: 1px solid ${borderColor}; border-radius: 8px; cursor: pointer;">
+                <input type="text" class="admin-bg-color-hex" data-bg-index="${index}" value="${bg.bgColor || '#1e1e1e'}" placeholder="#1e1e1e" style="flex: 1; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+              </div>
+              <button class="btn" data-upload-bg="${index}" style="width: 100%; margin-bottom: 8px;">
+                <span class="material-icons" style="font-size: 18px; margin-right: 4px;">upload</span>
+                Загрузить изображение
+              </button>
+              <input type="file" class="admin-bg-upload-file" data-bg-index="${index}" accept="image/*" style="display: none;">
+              <button class="btn" data-select-bg="${index}" style="width: 100%; margin-bottom: 8px;">
+                <span class="material-icons" style="font-size: 18px; margin-right: 4px;">image</span>
+                Выбрать из библиотеки
+              </button>
+              ${bg.bgImage ? `<button class="btn btn-danger" data-clear-bg="${index}" style="width: 100%;">
+                <span class="material-icons" style="font-size: 18px; margin-right: 4px;">delete</span>
+                Удалить изображение
+              </button>` : ''}
+            </div>
+            
+            <div class="form-group">
+              <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Цвет текста</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="color" class="admin-text-color" data-bg-index="${index}" value="${bg.textColor || '#ffffff'}" style="width: 60px; height: 40px; border: 1px solid ${borderColor}; border-radius: 8px; cursor: pointer;">
+                <input type="text" class="admin-text-color-hex" data-bg-index="${index}" value="${bg.textColor || '#ffffff'}" placeholder="#ffffff" style="flex: 1; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Логотип</label>
+              <select class="admin-logo-folder" data-bg-index="${index}" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+                <option value="white" ${bg.logoFolder === 'white' ? 'selected' : ''}>Белый</option>
+                <option value="black" ${bg.logoFolder === 'black' || !bg.logoFolder ? 'selected' : ''}>Черный</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 };
 
 /**
@@ -690,6 +1508,15 @@ const renderMultipliersTab = () => {
  */
 export const showSizesAdmin = () => {
   console.log('showSizesAdmin вызвана');
+  
+  // Проверяем, есть ли уже модальное окно в DOM
+  const existingModal = document.getElementById('sizesAdminModal');
+  if (existingModal) {
+    console.log('Админка уже открыта, закрываем предыдущую');
+    existingModal.remove();
+    isAdminOpen = false;
+  }
+  
   if (isAdminOpen) {
     console.log('Админка уже открыта');
     return;
@@ -713,60 +1540,82 @@ export const showSizesAdmin = () => {
     bottom: 0 !important;
     z-index: 99999 !important;
     display: flex !important;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
+    align-items: center !important;
+    justify-content: center !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+    opacity: 1 !important;
   `;
   
   // Получаем цвета из CSS переменных
   const root = getComputedStyle(document.documentElement);
   const bgSecondary = root.getPropertyValue('--bg-secondary') || '#141414';
   const borderColor = root.getPropertyValue('--border-color') || '#2a2a2a';
+  const textPrimary = root.getPropertyValue('--text-primary') || '#e9e9e9';
+  const textSecondary = root.getPropertyValue('--text-secondary') || '#999999';
   
   adminModal.innerHTML = `
     <div class="sizes-admin-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px); z-index: 1;"></div>
-    <div class="sizes-admin-content" style="position: relative; background: ${bgSecondary}; border: 1px solid ${borderColor}; border-radius: 12px; width: 90%; max-width: 1000px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 2; overflow: hidden;">
-      <div class="sizes-admin-header">
-        <h2>Настройки</h2>
+    <div class="sizes-admin-content" style="position: relative; background: ${bgSecondary}; border: 1px solid ${borderColor}; border-radius: 12px; width: 90%; max-width: 1000px; height: 90vh; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); z-index: 2; overflow: hidden;">
+      <div class="sizes-admin-header" style="flex-shrink: 0;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span class="material-icons" style="font-size: 24px; color: ${root.getPropertyValue('--text-primary') || '#e9e9e9'};">settings</span>
+          <div>
+            <h2 style="margin: 0; font-size: 20px;">Настройки размеров</h2>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: ${root.getPropertyValue('--text-secondary') || '#999999'}; opacity: 0.8;">Управление форматами и значениями по умолчанию</p>
+          </div>
+        </div>
         <button class="sizes-admin-close" id="sizesAdminClose">
           <span class="material-icons">close</span>
         </button>
       </div>
-      <div class="sizes-admin-body" style="overflow-y: auto; flex: 1; padding: 20px;">
+      <div class="sizes-admin-body" style="overflow-y: auto; flex: 1 1 auto; padding: 20px; display: flex; flex-direction: column; min-height: 0; overflow-x: hidden;">
         <div class="sizes-admin-tabs" style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid ${borderColor};">
-          <button class="sizes-admin-tab active" data-tab="sizes">Размеры</button>
-          <button class="sizes-admin-tab" data-tab="defaults">Значения по умолчанию</button>
-          <button class="sizes-admin-tab" data-tab="multipliers">Множители форматов</button>
+          <button class="sizes-admin-tab active" data-tab="sizes" title="Управление размерами для разных платформ" style="display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons" style="font-size: 18px;">aspect_ratio</span>
+            <span>Размеры</span>
+          </button>
+          <button class="sizes-admin-tab" data-tab="defaults" title="Настройки значений по умолчанию для всех элементов" style="display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons" style="font-size: 18px;">tune</span>
+            <span>Значения по умолчанию</span>
+          </button>
         </div>
         
-        <div class="sizes-admin-tab-content" id="sizesAdminTabSizes">
+        <div class="sizes-admin-tab-content" id="sizesAdminTabSizes" style="width: 100%;">
+          <div style="margin-bottom: 16px; padding: 12px; background: rgba(33, 150, 243, 0.1); border-left: 3px solid #2196F3; border-radius: 4px;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <span class="material-icons" style="font-size: 18px; color: #2196F3;">info</span>
+              <span style="font-weight: 500; color: ${textPrimary};">Размеры автоматически группируются по типу формата</span>
+            </div>
+            <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: ${textSecondary};">
+              <span style="display: flex; align-items: center; gap: 4px;"><span style="color: #4CAF50;">■</span> Квадратные</span>
+              <span style="display: flex; align-items: center; gap: 4px;"><span style="color: #2196F3;">■</span> Горизонтальные</span>
+              <span style="display: flex; align-items: center; gap: 4px;"><span style="color: #FF9800;">■</span> Вертикальные</span>
+            </div>
+          </div>
           <div class="sizes-admin-toolbar" style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-            <button class="btn btn-primary" id="sizesAdminAddPlatform">
+            <button class="btn btn-primary" id="sizesAdminAddPlatform" title="Добавить новую платформу для размеров">
               <span class="material-icons">add</span> Добавить платформу
             </button>
-            <button class="btn" id="sizesAdminExport">
+            <button class="btn" id="sizesAdminExport" title="Экспортировать настройки размеров в JSON файл">
               <span class="material-icons">download</span> Экспорт JSON
             </button>
-            <button class="btn" id="sizesAdminImport">
+            <button class="btn" id="sizesAdminImport" title="Импортировать настройки размеров из JSON файла">
               <span class="material-icons">upload</span> Импорт JSON
             </button>
             <input type="file" id="sizesAdminImportFile" accept=".json" style="display: none;">
-            <button class="btn btn-danger" id="sizesAdminReset">
+            <button class="btn btn-danger" id="sizesAdminReset" title="Сбросить все размеры к значениям по умолчанию">
               <span class="material-icons">refresh</span> Сбросить к дефолту
             </button>
           </div>
           <div class="sizes-admin-platforms" id="sizesAdminPlatforms"></div>
         </div>
         
-        <div class="sizes-admin-tab-content" id="sizesAdminTabDefaults" style="display: none;">
+        <div class="sizes-admin-tab-content" id="sizesAdminTabDefaults" style="display: none; width: 100%; min-height: 200px;">
           ${renderDefaultsTab()}
         </div>
-        
-        <div class="sizes-admin-tab-content" id="sizesAdminTabMultipliers" style="display: none;">
-          ${renderMultipliersTab()}
         </div>
-      </div>
-      <div class="sizes-admin-footer" style="padding: 16px; border-top: 1px solid ${borderColor}; display: flex; gap: 8px; justify-content: flex-end;">
+      <div class="sizes-admin-footer" style="padding: 16px; border-top: 1px solid ${borderColor}; display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; background: ${bgSecondary}; position: relative; z-index: 10;">
         <button class="btn btn-primary" id="sizesAdminSave">Сохранить</button>
         <button class="btn" id="sizesAdminCancel">Отмена</button>
       </div>
@@ -774,10 +1623,37 @@ export const showSizesAdmin = () => {
   `;
   
   try {
+    // Удаляем предыдущее модальное окно, если оно существует
+    const existingModal = document.getElementById('sizesAdminModal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+    
     document.body.appendChild(adminModal);
+    
+    // Принудительно применяем стили после добавления в DOM
+    requestAnimationFrame(() => {
+      adminModal.style.display = 'flex';
+      adminModal.style.visibility = 'visible';
+      adminModal.style.opacity = '1';
+    });
+    
     console.log('Модальное окно добавлено в DOM');
     console.log('Модальное окно видимо:', adminModal.offsetParent !== null);
     console.log('Z-index модального окна:', window.getComputedStyle(adminModal).zIndex);
+    console.log('Display:', window.getComputedStyle(adminModal).display);
+    console.log('Visibility:', window.getComputedStyle(adminModal).visibility);
+    console.log('Position:', window.getComputedStyle(adminModal).position);
+    console.log('Width:', adminModal.offsetWidth, 'Height:', adminModal.offsetHeight);
+    console.log('ClientWidth:', adminModal.clientWidth, 'ClientHeight:', adminModal.clientHeight);
+    
+    // Проверяем содержимое
+    const content = adminModal.querySelector('.sizes-admin-content');
+    if (content) {
+      console.log('Контент найден, размеры:', content.offsetWidth, 'x', content.offsetHeight);
+    } else {
+      console.error('Контент НЕ найден!');
+    }
     
     // Рендерим платформы
     renderAdminPlatforms(sizes);
@@ -791,7 +1667,7 @@ export const showSizesAdmin = () => {
     
     // Обработчики событий
     setupAdminHandlers(sizes);
-    setupDefaultsHandlers();
+    setupDefaultsHandlers(); // Включает setupBackgroundsHandlers()
     setupMultipliersHandlers();
     setupTabHandlers();
     console.log('Обработчики событий установлены');
@@ -850,34 +1726,138 @@ const renderAdminPlatforms = (sizes) => {
   const container = document.getElementById('sizesAdminPlatforms');
   if (!container) return;
   
+  const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color') || '#2a2a2a';
+  const bgPrimary = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary') || '#0d0d0d';
+  const textPrimary = getComputedStyle(document.documentElement).getPropertyValue('--text-primary') || '#e9e9e9';
+  const textSecondary = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#999999';
+  
+  // Функция для определения типа формата
+  const getFormatType = (width, height) => {
+    const ratio = width / height;
+    if (Math.abs(ratio - 1) < 0.1) return 'square';
+    if (ratio > 1.2) return 'horizontal';
+    if (ratio < 0.8) return 'vertical';
+    return 'near-square';
+  };
+  
+  // Функция для получения иконки типа формата
+  const getFormatIcon = (type) => {
+    switch(type) {
+      case 'square': return 'crop_square';
+      case 'horizontal': return 'crop_landscape';
+      case 'vertical': return 'crop_portrait';
+      default: return 'aspect_ratio';
+    }
+  };
+  
+  // Функция для получения цвета типа формата
+  const getFormatColor = (type) => {
+    switch(type) {
+      case 'square': return '#4CAF50';
+      case 'horizontal': return '#2196F3';
+      case 'vertical': return '#FF9800';
+      default: return textSecondary;
+    }
+  };
+  
+  // Функция для получения названия типа формата
+  const getFormatName = (type) => {
+    switch(type) {
+      case 'square': return 'Квадратный';
+      case 'horizontal': return 'Горизонтальный';
+      case 'vertical': return 'Вертикальный';
+      default: return 'Почти квадратный';
+    }
+  };
+  
+  // Группируем размеры по типу формата
+  const groupSizesByType = (platformSizes) => {
+    const groups = {
+      square: [],
+      horizontal: [],
+      vertical: [],
+      'near-square': []
+    };
+    
+    platformSizes.forEach((size, index) => {
+      const type = getFormatType(size.width, size.height);
+      groups[type].push({...size, originalIndex: index});
+    });
+    
+    return groups;
+  };
+  
   let html = '';
   
   Object.keys(sizes).forEach((platform) => {
+    const groupedSizes = groupSizesByType(sizes[platform]);
+    const formatOrder = ['square', 'horizontal', 'vertical', 'near-square'];
+    
     html += `
-      <div class="sizes-admin-platform" data-platform="${platform}">
-        <div class="sizes-admin-platform-header">
-          <input type="text" class="sizes-admin-platform-name" value="${platform}" data-original="${platform}">
-          <button class="btn-small btn-danger" data-action="remove-platform" data-platform="${platform}">
+      <div class="sizes-admin-platform" data-platform="${platform}" style="margin-bottom: 24px; border: 1px solid ${borderColor}; border-radius: 8px; padding: 16px; background: ${bgPrimary};">
+        <div class="sizes-admin-platform-header" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid ${borderColor};">
+          <span class="material-icons" style="color: ${textSecondary}; font-size: 20px;">category</span>
+          <input type="text" class="sizes-admin-platform-name" value="${platform}" data-original="${platform}" style="flex: 1; font-weight: 600; font-size: 16px;">
+          <span style="color: ${textSecondary}; font-size: 12px;">${sizes[platform].length} ${sizes[platform].length === 1 ? 'размер' : sizes[platform].length < 5 ? 'размера' : 'размеров'}</span>
+          <button class="btn-small btn-danger" data-action="remove-platform" data-platform="${platform}" title="Удалить платформу">
             <span class="material-icons">delete</span>
           </button>
         </div>
         <div class="sizes-admin-sizes-list">
-          ${sizes[platform].map((size, index) => `
-            <div class="sizes-admin-size-item">
-              <input type="number" class="sizes-admin-size-width" value="${size.width}" min="1" placeholder="Ширина">
-              <span>×</span>
-              <input type="number" class="sizes-admin-size-height" value="${size.height}" min="1" placeholder="Высота">
-              <label>
-                <input type="checkbox" ${size.checked ? 'checked' : ''} class="sizes-admin-size-checked">
-                Выбрано
+    `;
+    
+    formatOrder.forEach(formatType => {
+      if (groupedSizes[formatType].length > 0) {
+        const formatColor = getFormatColor(formatType);
+        const formatIcon = getFormatIcon(formatType);
+        const formatName = getFormatName(formatType);
+        
+        html += `
+          <div class="sizes-admin-format-group" style="margin-bottom: 16px; padding: 12px; background: rgba(255, 255, 255, 0.02); border-radius: 6px; border-left: 3px solid ${formatColor};">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+              <span class="material-icons" style="color: ${formatColor}; font-size: 18px;">${formatIcon}</span>
+              <span style="color: ${textPrimary}; font-weight: 500; font-size: 13px;">${formatName} (${groupedSizes[formatType].length})</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+        `;
+        
+        groupedSizes[formatType].forEach((size) => {
+          const ratio = (size.width / size.height).toFixed(2);
+          const index = size.originalIndex;
+          
+          html += `
+            <div class="sizes-admin-size-item" style="display: flex; align-items: center; gap: 12px; padding: 10px; background: rgba(255, 255, 255, 0.03); border-radius: 6px; border: 1px solid ${borderColor};">
+              <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                <div style="width: 40px; height: 40px; border: 2px solid ${formatColor}; border-radius: 4px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); position: relative; overflow: hidden;" title="Пропорции: ${ratio}:1">
+                  <div style="position: absolute; width: ${Math.min(100, (size.width / Math.max(size.width, size.height)) * 100)}%; height: ${Math.min(100, (size.height / Math.max(size.width, size.height)) * 100)}%; background: ${formatColor}; opacity: 0.3;"></div>
+                  <span style="font-size: 10px; color: ${textPrimary}; font-weight: 600; z-index: 1;">${ratio}</span>
+                </div>
+                <input type="number" class="sizes-admin-size-width" value="${size.width}" min="1" placeholder="Ширина" style="width: 100px; padding: 6px 8px; border: 1px solid ${borderColor}; border-radius: 4px; background: ${bgPrimary}; color: ${textPrimary};">
+                <span style="color: ${textSecondary};">×</span>
+                <input type="number" class="sizes-admin-size-height" value="${size.height}" min="1" placeholder="Высота" style="width: 100px; padding: 6px 8px; border: 1px solid ${borderColor}; border-radius: 4px; background: ${bgPrimary}; color: ${textPrimary};">
+                <span style="color: ${textSecondary}; font-size: 12px; min-width: 60px;">${size.width}×${size.height}</span>
+              </div>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
+                <input type="checkbox" ${size.checked ? 'checked' : ''} class="sizes-admin-size-checked" style="cursor: pointer;">
+                <span style="color: ${textSecondary}; font-size: 12px;">Выбрано</span>
               </label>
-              <button class="btn-small btn-danger" data-action="remove-size" data-platform="${platform}" data-index="${index}">
-                <span class="material-icons">close</span>
+              <button class="btn-small btn-danger" data-action="remove-size" data-platform="${platform}" data-index="${index}" title="Удалить размер" style="padding: 6px;">
+                <span class="material-icons" style="font-size: 18px;">close</span>
               </button>
             </div>
-          `).join('')}
+          `;
+        });
+        
+        html += `
+            </div>
+          </div>
+        `;
+      }
+    });
+    
+    html += `
         </div>
-        <button class="btn-small" data-action="add-size" data-platform="${platform}">
+        <button class="btn-small" data-action="add-size" data-platform="${platform}" style="margin-top: 12px; width: 100%;">
           <span class="material-icons">add</span> Добавить размер
         </button>
       </div>
@@ -885,6 +1865,48 @@ const renderAdminPlatforms = (sizes) => {
   });
   
   container.innerHTML = html;
+};
+
+/**
+ * Обновляет превью пропорций для элемента размера
+ */
+const updateSizePreview = (sizeItem, width, height) => {
+  const preview = sizeItem.querySelector('div[title*="Пропорции"]');
+  if (!preview) return;
+  
+  const ratio = (width / height).toFixed(2);
+  const formatType = (() => {
+    const r = width / height;
+    if (Math.abs(r - 1) < 0.1) return 'square';
+    if (r > 1.2) return 'horizontal';
+    if (r < 0.8) return 'vertical';
+    return 'near-square';
+  })();
+  
+  const formatColor = (() => {
+    switch(formatType) {
+      case 'square': return '#4CAF50';
+      case 'horizontal': return '#2196F3';
+      case 'vertical': return '#FF9800';
+      default: return '#999999';
+    }
+  })();
+  
+  const textPrimary = getComputedStyle(document.documentElement).getPropertyValue('--text-primary') || '#e9e9e9';
+  
+  preview.style.borderColor = formatColor;
+  preview.title = `Пропорции: ${ratio}:1`;
+  const previewInner = preview.querySelector('div');
+  if (previewInner) {
+    previewInner.style.background = formatColor;
+    previewInner.style.width = `${Math.min(100, (width / Math.max(width, height)) * 100)}%`;
+    previewInner.style.height = `${Math.min(100, (height / Math.max(width, height)) * 100)}%`;
+  }
+  const ratioSpan = preview.querySelector('span');
+  if (ratioSpan) {
+    ratioSpan.textContent = ratio;
+    ratioSpan.style.color = textPrimary;
+  }
 };
 
 /**
@@ -976,9 +1998,12 @@ const setupAdminHandlers = (initialSizes) => {
     if (!sizeItem) return;
     
     const platform = sizeItem.closest('.sizes-admin-platform').dataset.platform;
-    const index = Array.from(sizeItem.parentElement.children).indexOf(sizeItem);
+    // Находим индекс через data-атрибут, который мы сохранили при рендеринге
+    const removeBtn = sizeItem.querySelector('[data-action="remove-size"]');
+    if (!removeBtn) return;
+    const index = parseInt(removeBtn.dataset.index, 10);
     
-    if (currentSizes[platform] && currentSizes[platform][index]) {
+    if (currentSizes[platform] && currentSizes[platform][index] !== undefined) {
       const widthInput = sizeItem.querySelector('.sizes-admin-size-width');
       const heightInput = sizeItem.querySelector('.sizes-admin-size-height');
       const checkedInput = sizeItem.querySelector('.sizes-admin-size-checked');
@@ -987,12 +2012,28 @@ const setupAdminHandlers = (initialSizes) => {
         const width = parseInt(widthInput.value, 10);
         if (!isNaN(width) && width > 0) {
           currentSizes[platform][index].width = width;
+          // Обновляем отображение размера
+          const sizeDisplay = sizeItem.querySelector('span[style*="min-width: 60px"]');
+          if (sizeDisplay && heightInput) {
+            const height = parseInt(heightInput.value, 10) || currentSizes[platform][index].height;
+            sizeDisplay.textContent = `${width}×${height}`;
+          }
+          // Обновляем превью пропорций
+          updateSizePreview(sizeItem, width, parseInt(heightInput?.value || currentSizes[platform][index].height, 10));
         }
       }
       if (heightInput) {
         const height = parseInt(heightInput.value, 10);
         if (!isNaN(height) && height > 0) {
           currentSizes[platform][index].height = height;
+          // Обновляем отображение размера
+          const sizeDisplay = sizeItem.querySelector('span[style*="min-width: 60px"]');
+          if (sizeDisplay && widthInput) {
+            const width = parseInt(widthInput.value, 10) || currentSizes[platform][index].width;
+            sizeDisplay.textContent = `${width}×${height}`;
+          }
+          // Обновляем превью пропорций
+          updateSizePreview(sizeItem, parseInt(widthInput?.value || currentSizes[platform][index].width, 10), height);
         }
       }
       if (checkedInput) {
@@ -1003,7 +2044,7 @@ const setupAdminHandlers = (initialSizes) => {
   
   // Сохранение
   document.getElementById('sizesAdminSave').addEventListener('click', () => {
-    // Валидация
+    // Валидация размеров
     for (const [platform, sizes] of Object.entries(currentSizes)) {
       if (!platform || !platform.trim()) {
         alert('Название платформы не может быть пустым');
@@ -1017,14 +2058,103 @@ const setupAdminHandlers = (initialSizes) => {
       }
     }
     
+    // Сохраняем размеры
     saveSizesConfig(currentSizes);
     updatePresetSizesFromConfig();
     renderPresetSizes();
     updatePreviewSizeSelect();
     updateSizesSummary();
+    
+    // Сохраняем значения по умолчанию и множители
+    const state = getState();
+    
+    // Создаем объект с значениями по умолчанию (исключаем изображения и файлы)
+    const defaultValues = {
+      logoSelected: state.logoSelected || '',
+      kvSelected: state.kvSelected || '',
+      title: state.title || '',
+      subtitle: state.subtitle || '',
+      legal: state.legal || '',
+      age: state.age || '18+',
+      bgColor: state.bgColor || '#1e1e1e',
+      titleColor: state.titleColor || '#ffffff',
+      subtitleColor: state.subtitleColor || '#e0e0e0',
+      subtitleOpacity: state.subtitleOpacity ?? 90,
+      legalColor: state.legalColor || '#ffffff',
+      legalOpacity: state.legalOpacity ?? 60,
+      titleAlign: state.titleAlign || 'left',
+      subtitleAlign: state.subtitleAlign || 'left',
+      legalAlign: state.legalAlign || 'left',
+      titleVPos: state.titleVPos || 'top',
+      titleSize: state.titleSize ?? 8,
+      subtitleSize: state.subtitleSize ?? 4,
+      titleSubtitleRatio: state.titleSubtitleRatio ?? 0.5,
+      legalSize: state.legalSize ?? 2,
+      ageSize: state.ageSize ?? 4,
+      logoSize: state.logoSize ?? 40,
+      titleWeight: state.titleWeight || 'Regular',
+      subtitleWeight: state.subtitleWeight || 'Regular',
+      legalWeight: state.legalWeight || 'Regular',
+      ageWeight: state.ageWeight || 'Regular',
+      titleLetterSpacing: state.titleLetterSpacing ?? 0,
+      subtitleLetterSpacing: state.subtitleLetterSpacing ?? 0,
+      legalLetterSpacing: state.legalLetterSpacing ?? 0,
+      titleLineHeight: state.titleLineHeight ?? 1.1,
+      subtitleLineHeight: state.subtitleLineHeight ?? 1.2,
+      legalLineHeight: state.legalLineHeight ?? 1.4,
+      subtitleGap: state.subtitleGap ?? -1,
+      ageGapPercent: state.ageGapPercent ?? 1,
+      logoPos: state.logoPos || 'left',
+      logoLanguage: state.logoLanguage || 'ru',
+      kvBorderRadius: state.kvBorderRadius ?? 0,
+      kvPosition: state.kvPosition || 'center',
+      bgSize: state.bgSize || 'cover',
+      bgPosition: state.bgPosition || 'center',
+      bgVPosition: state.bgVPosition || 'center',
+      textGradientOpacity: state.textGradientOpacity ?? 100,
+      centerTextOverlayOpacity: state.centerTextOverlayOpacity ?? 20,
+      paddingPercent: state.paddingPercent ?? 5,
+      layoutMode: state.layoutMode || 'auto'
+    };
+    
+    // Сохраняем значения по умолчанию в localStorage
+    localStorage.setItem('default-values', JSON.stringify(defaultValues));
+    
+    // Применяем значения по умолчанию к state (исключаем изображения и файлы)
+    // Используем batch для обновления всех значений сразу
+    batch(() => {
+      Object.keys(defaultValues).forEach(key => {
+        setKey(key, defaultValues[key]);
+      });
+    });
+    
+    // Сохраняем множители, если они есть
+    const currentMultipliers = state.formatMultipliers;
+    if (currentMultipliers) {
+      // Сохраняем в localStorage
+      localStorage.setItem('format-multipliers', JSON.stringify(currentMultipliers));
+      // Убеждаемся, что множители обновлены в state (создаем новый объект для триггера обновления)
+      const updatedMultipliers = JSON.parse(JSON.stringify(currentMultipliers));
+      // Принудительно обновляем state, даже если объект выглядит одинаковым
+      setState({ formatMultipliers: updatedMultipliers });
+    }
+    
+    // Небольшая задержка перед рендером, чтобы state успел обновиться
+    setTimeout(() => {
+      // Проверяем, что значения обновились
+      const checkState = getState();
+      console.log('Значения по умолчанию после сохранения:', {
+        titleSize: checkState.titleSize,
+        subtitleSize: checkState.subtitleSize,
+        logoSize: checkState.logoSize,
+        bgColor: checkState.bgColor
+      });
+      // Принудительно перерисовываем все макеты с новыми значениями
     renderer.render();
+    }, 50);
+    
     closeSizesAdmin();
-    alert('Размеры успешно сохранены!');
+    alert('Все настройки успешно сохранены!');
   });
   
   // Экспорт
@@ -1596,6 +2726,11 @@ const setupDefaultsHandlers = () => {
   if (defaultTitleSize) {
     defaultTitleSize.addEventListener('input', (e) => {
       setKey('titleSize', parseFloat(e.target.value) || 8);
+      // Пересчитываем размер подзаголовка на основе коэффициента
+      const state = getState();
+      const ratio = state.titleSubtitleRatio ?? 0.5;
+      const newSubtitleSize = parseFloat((state.titleSize * ratio).toFixed(2));
+      setKey('subtitleSize', newSubtitleSize);
       renderer.render();
     });
   }
@@ -1664,6 +2799,23 @@ const setupDefaultsHandlers = () => {
   if (defaultSubtitleOpacity) {
     defaultSubtitleOpacity.addEventListener('input', (e) => {
       setKey('subtitleOpacity', parseInt(e.target.value) || 90);
+      renderer.render();
+    });
+  }
+
+  const defaultTitleSubtitleRatio = document.getElementById('defaultTitleSubtitleRatio');
+  if (defaultTitleSubtitleRatio) {
+    defaultTitleSubtitleRatio.addEventListener('input', (e) => {
+      const ratio = parseFloat(e.target.value) || 0.5;
+      const ratioValue = document.getElementById('defaultTitleSubtitleRatioValue');
+      if (ratioValue) {
+        ratioValue.textContent = ratio.toFixed(2);
+      }
+      setKey('titleSubtitleRatio', ratio);
+      // Пересчитываем размер подзаголовка на основе нового коэффициента
+      const state = getState();
+      const newSubtitleSize = parseFloat((state.titleSize * ratio).toFixed(2));
+      setKey('subtitleSize', newSubtitleSize);
       renderer.render();
     });
   }
@@ -1899,6 +3051,17 @@ const setupDefaultsHandlers = () => {
       renderer.render();
     });
   }
+  
+  const defaultCenterTextOverlayOpacity = document.getElementById('defaultCenterTextOverlayOpacity');
+  if (defaultCenterTextOverlayOpacity) {
+    defaultCenterTextOverlayOpacity.addEventListener('input', (e) => {
+      setKey('centerTextOverlayOpacity', parseInt(e.target.value) || 20);
+      renderer.render();
+    });
+  }
+  
+  // Настройка обработчиков для управления фонами (перемещено из отдельной вкладки)
+  setupBackgroundsHandlers();
 };
 
 /**
@@ -1906,7 +3069,25 @@ const setupDefaultsHandlers = () => {
  */
 const setupMultipliersHandlers = () => {
   const state = getState();
-  const multipliers = state.formatMultipliers || {
+  
+  // Загружаем множители из localStorage, если их нет в state
+  let multipliers = state.formatMultipliers;
+  if (!multipliers) {
+    try {
+      const saved = localStorage.getItem('format-multipliers');
+      if (saved) {
+        multipliers = JSON.parse(saved);
+        // Инициализируем множители в state
+        setKey('formatMultipliers', JSON.parse(JSON.stringify(multipliers)));
+      }
+    } catch (e) {
+      console.warn('Ошибка при загрузке множителей из localStorage:', e);
+    }
+  }
+  
+  // Если множителей все еще нет, используем дефолтные
+  if (!multipliers) {
+    multipliers = {
     vertical: { logo: 2, title: 1, subtitle: 1, legal: 1, age: 1 },
     ultraWide: { logo: 0.75, titleSmall: 3, titleMedium: 2.2, titleLarge: 2, subtitleSmall: 3, subtitleMedium: 2.2, subtitleLarge: 2, legalNormal: 2.5, legalMedium: 2, age: 2 },
     veryWide: { logo: 0.75, titleMedium: 2.2, titleLarge: 2, titleExtraLarge: 2, subtitleMedium: 2.2, subtitleLarge: 2, subtitleExtraLarge: 2, legalNormal: 2.5, legalMedium: 2, legalExtraLarge: 2.5, age: 2 },
@@ -1914,16 +3095,40 @@ const setupMultipliersHandlers = () => {
     square: { title: 0.9, subtitle: 0.9 },
     tall: { title: 1.3, subtitle: 1.3 }
   };
+    // Инициализируем дефолтные множители в state
+    setKey('formatMultipliers', JSON.parse(JSON.stringify(multipliers)));
+  }
   
   // Функция для обновления множителя
   const updateMultiplier = (formatType, key, value) => {
-    if (!multipliers[formatType]) {
-      multipliers[formatType] = {};
+    // Получаем актуальное состояние
+    const currentState = getState();
+    let currentMultipliers = currentState.formatMultipliers || {};
+    
+    // Создаем копию множителей
+    const updatedMultipliers = JSON.parse(JSON.stringify(currentMultipliers));
+    
+    // Инициализируем тип формата, если его нет
+    if (!updatedMultipliers[formatType]) {
+      updatedMultipliers[formatType] = {};
     }
-    multipliers[formatType][key] = parseFloat(value) || 0;
-    setKey('formatMultipliers', JSON.parse(JSON.stringify(multipliers)));
-    // Автоматически перерисовываем превью
+    
+    // Обновляем значение
+    updatedMultipliers[formatType][key] = parseFloat(value) || 0;
+    
+    // Обновляем множители в state (используем setState для принудительного обновления)
+    setState({ formatMultipliers: updatedMultipliers });
+    
+    // Обновляем локальную переменную для последующих изменений
+    multipliers = updatedMultipliers;
+    
+    // Автоматически перерисовываем превью с небольшой задержкой
+    setTimeout(() => {
+      // Проверяем, что множители обновились в state
+      const checkState = getState();
+      console.log('Множители после обновления:', checkState.formatMultipliers?.[formatType]?.[key]);
     renderer.render();
+    }, 50);
   };
   
   // Вертикальные форматы
@@ -2000,6 +3205,336 @@ const setupMultipliersHandlers = () => {
 };
 
 /**
+ * Настраивает обработчики для управления фонами
+ */
+const setupBackgroundsHandlers = () => {
+  // Функция для сохранения фонов в localStorage
+  const saveBackgrounds = (backgrounds) => {
+    localStorage.setItem('adminBackgrounds', JSON.stringify(backgrounds));
+  };
+  
+  // Функция для получения фонов из localStorage
+  const getBackgrounds = () => {
+    return JSON.parse(localStorage.getItem('adminBackgrounds') || '[]');
+  };
+  
+  // Функция для вычисления настроек цвета
+  const getColorSettings = (color) => {
+    // Вычисляем цвет текста на основе яркости фона
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    // Специальная проверка для цвета #FF6C26 - всегда белый текст и белый логотип
+    let textColor = '#ffffff';
+    let logoFolder = 'white';
+    
+    if (color === '#FF6C26') {
+      textColor = '#ffffff';
+      logoFolder = 'white';
+    } else {
+      textColor = luminance > 0.5 ? '#1e1e1e' : '#ffffff';
+      logoFolder = luminance > 0.5 ? 'black' : 'white';
+    }
+    
+    return {
+      bgColor: color,
+      bgImage: null,
+      textColor: textColor,
+      logoFolder: logoFolder
+    };
+  };
+  
+  // Функция для перерисовки списка фонов (делаем доступной глобально для обновления при открытии вкладки)
+  window.refreshBackgroundsList = () => {
+    const backgroundsList = adminModal.querySelector('#adminBackgroundsList');
+    if (backgroundsList) {
+      let savedBackgrounds = JSON.parse(localStorage.getItem('adminBackgrounds') || '[]');
+      
+      // Проверяем, есть ли все предустановленные цвета в сохраненных фонах
+      const existingColors = savedBackgrounds.map(bg => bg.bgColor?.toUpperCase()).filter(Boolean);
+      const missingPresetColors = PRESET_BACKGROUND_COLORS.filter(color => 
+        !existingColors.includes(color.toUpperCase())
+      );
+      
+      // Добавляем недостающие предустановленные цвета
+      if (missingPresetColors.length > 0) {
+        const newBackgrounds = missingPresetColors.map(color => getColorSettings(color));
+        savedBackgrounds = [...savedBackgrounds, ...newBackgrounds];
+        // Сохраняем обновленный список
+        localStorage.setItem('adminBackgrounds', JSON.stringify(savedBackgrounds));
+      }
+      
+      // Если вообще нет сохраненных фонов, создаем все из предустановленных цветов
+      if (savedBackgrounds.length === 0) {
+        savedBackgrounds = PRESET_BACKGROUND_COLORS.map(color => getColorSettings(color));
+        localStorage.setItem('adminBackgrounds', JSON.stringify(savedBackgrounds));
+      }
+      const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color') || '#2a2a2a';
+      const bgPrimary = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary') || '#0d0d0d';
+      const textPrimary = getComputedStyle(document.documentElement).getPropertyValue('--text-primary') || '#e9e9e9';
+      const textSecondary = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary') || '#999999';
+      
+      backgroundsList.innerHTML = savedBackgrounds.map((bg, index) => `
+        <div class="admin-background-item" data-bg-index="${index}" style="border: 1px solid ${borderColor}; border-radius: 8px; padding: 16px; background: ${bgPrimary};">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 60px; height: 60px; border-radius: 8px; background: ${bg.bgColor || '#1e1e1e'}; border: 1px solid ${borderColor}; position: relative; overflow: hidden;">
+                ${bg.bgImage ? `<img src="${bg.bgImage}" style="width: 100%; height: 100%; object-fit: cover;">` : ''}
+              </div>
+              <div>
+                <div style="font-weight: 600; color: ${textPrimary}; margin-bottom: 4px;">Фон #${index + 1}</div>
+                <div style="font-size: 12px; color: ${textSecondary};">
+                  ${bg.bgImage ? 'Изображение' : `Цвет: ${bg.bgColor || '#1e1e1e'}`}
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-danger" data-remove-bg="${index}" style="padding: 8px;">
+              <span class="material-icons" style="font-size: 18px;">delete</span>
+            </button>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+            <div class="form-group">
+              <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Фон</label>
+              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="color" class="admin-bg-color" data-bg-index="${index}" value="${bg.bgColor || '#1e1e1e'}" style="width: 60px; height: 40px; border: 1px solid ${borderColor}; border-radius: 8px; cursor: pointer;">
+                <input type="text" class="admin-bg-color-hex" data-bg-index="${index}" value="${bg.bgColor || '#1e1e1e'}" placeholder="#1e1e1e" style="flex: 1; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+              </div>
+              <button class="btn" data-upload-bg="${index}" style="width: 100%; margin-bottom: 8px;">
+                <span class="material-icons" style="font-size: 18px; margin-right: 4px;">upload</span>
+                Загрузить изображение
+              </button>
+              <input type="file" class="admin-bg-upload-file" data-bg-index="${index}" accept="image/*" style="display: none;">
+              <button class="btn" data-select-bg="${index}" style="width: 100%; margin-bottom: 8px;">
+                <span class="material-icons" style="font-size: 18px; margin-right: 4px;">image</span>
+                Выбрать из библиотеки
+              </button>
+              ${bg.bgImage ? `<button class="btn btn-danger" data-clear-bg="${index}" style="width: 100%;">
+                <span class="material-icons" style="font-size: 18px; margin-right: 4px;">delete</span>
+                Удалить изображение
+              </button>` : ''}
+            </div>
+            
+            <div class="form-group">
+              <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Цвет текста</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="color" class="admin-text-color" data-bg-index="${index}" value="${bg.textColor || '#ffffff'}" style="width: 60px; height: 40px; border: 1px solid ${borderColor}; border-radius: 8px; cursor: pointer;">
+                <input type="text" class="admin-text-color-hex" data-bg-index="${index}" value="${bg.textColor || '#ffffff'}" placeholder="#ffffff" style="flex: 1; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label style="font-weight: 500; margin-bottom: 8px; font-size: 13px; display: block;">Логотип</label>
+              <select class="admin-logo-folder" data-bg-index="${index}" style="width: 100%; padding: 8px; border: 1px solid ${borderColor}; border-radius: 8px; background: ${bgPrimary}; color: ${textPrimary}; font-family: inherit; font-size: 14px;">
+                <option value="white" ${bg.logoFolder === 'white' ? 'selected' : ''}>Белый</option>
+                <option value="black" ${bg.logoFolder === 'black' || !bg.logoFolder ? 'selected' : ''}>Черный</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+  };
+  
+  // Добавление нового фона
+  const addBackgroundBtn = adminModal.querySelector('#adminAddBackground');
+  if (addBackgroundBtn) {
+    addBackgroundBtn.addEventListener('click', () => {
+      const backgrounds = getBackgrounds();
+      backgrounds.push({
+        bgColor: '#1e1e1e',
+        bgImage: null,
+        textColor: '#ffffff',
+        logoFolder: 'white'
+      });
+      saveBackgrounds(backgrounds);
+      window.refreshBackgroundsList();
+    });
+  }
+  
+  // Обработчик обновления списка фонов
+  adminModal.addEventListener('adminBackgroundsUpdated', () => {
+    window.refreshBackgroundsList();
+  });
+  
+  // Используем делегирование событий для динамически создаваемых элементов
+  const backgroundsList = adminModal.querySelector('#adminBackgroundsList');
+  if (backgroundsList) {
+    // Удаление фона
+    backgroundsList.addEventListener('click', (e) => {
+      const removeBtn = e.target.closest('[data-remove-bg]');
+      if (removeBtn) {
+        const index = parseInt(removeBtn.dataset.removeBg);
+        const backgrounds = getBackgrounds();
+        backgrounds.splice(index, 1);
+        saveBackgrounds(backgrounds);
+        window.refreshBackgroundsList();
+      }
+    });
+    
+    // Загрузка изображения фона
+    backgroundsList.addEventListener('click', (e) => {
+      const uploadBtn = e.target.closest('[data-upload-bg]');
+      if (uploadBtn) {
+        const index = parseInt(uploadBtn.dataset.uploadBg);
+        const fileInput = adminModal.querySelector(`.admin-bg-upload-file[data-bg-index="${index}"]`);
+        if (fileInput) fileInput.click();
+      }
+      
+      // Выбор из библиотеки
+      const selectBtn = e.target.closest('[data-select-bg]');
+      if (selectBtn) {
+        const index = parseInt(selectBtn.dataset.selectBg);
+        // Сохраняем индекс для использования в обработчике выбора
+        window._adminBgSelectIndex = index;
+        // Открываем модальное окно выбора фона
+        openBGSelectModal().then(() => {
+          // Обработчик будет установлен в backgroundSelector.js
+        });
+      }
+    });
+    
+    // Удаление изображения фона
+    backgroundsList.addEventListener('click', (e) => {
+      const clearBtn = e.target.closest('[data-clear-bg]');
+      if (clearBtn) {
+        const index = parseInt(clearBtn.dataset.clearBg);
+        const backgrounds = getBackgrounds();
+        if (backgrounds[index]) {
+          backgrounds[index].bgImage = null;
+          saveBackgrounds(backgrounds);
+          window.refreshBackgroundsList();
+        }
+      }
+    });
+    
+    // Изменение цвета фона
+    backgroundsList.addEventListener('input', (e) => {
+      if (e.target.classList.contains('admin-bg-color')) {
+        const index = parseInt(e.target.dataset.bgIndex);
+        const backgrounds = getBackgrounds();
+        if (backgrounds[index]) {
+          backgrounds[index].bgColor = e.target.value;
+          const hexInput = adminModal.querySelector(`.admin-bg-color-hex[data-bg-index="${index}"]`);
+          if (hexInput) hexInput.value = e.target.value;
+          saveBackgrounds(backgrounds);
+          window.refreshBackgroundsList();
+        }
+      } else if (e.target.classList.contains('admin-bg-color-hex')) {
+        const index = parseInt(e.target.dataset.bgIndex);
+        const backgrounds = getBackgrounds();
+        if (backgrounds[index] && /^#[0-9A-Fa-f]{6}$/i.test(e.target.value)) {
+          backgrounds[index].bgColor = e.target.value.toUpperCase();
+          const colorInput = adminModal.querySelector(`.admin-bg-color[data-bg-index="${index}"]`);
+          if (colorInput) colorInput.value = e.target.value;
+          saveBackgrounds(backgrounds);
+          refreshBackgroundsList();
+        }
+      } else if (e.target.classList.contains('admin-text-color')) {
+        const index = parseInt(e.target.dataset.bgIndex);
+        const backgrounds = getBackgrounds();
+        if (backgrounds[index]) {
+          backgrounds[index].textColor = e.target.value;
+          const hexInput = adminModal.querySelector(`.admin-text-color-hex[data-bg-index="${index}"]`);
+          if (hexInput) hexInput.value = e.target.value;
+          saveBackgrounds(backgrounds);
+          refreshBackgroundsList();
+        }
+      } else if (e.target.classList.contains('admin-text-color-hex')) {
+        const index = parseInt(e.target.dataset.bgIndex);
+        const backgrounds = getBackgrounds();
+        if (backgrounds[index] && /^#[0-9A-Fa-f]{6}$/i.test(e.target.value)) {
+          backgrounds[index].textColor = e.target.value.toUpperCase();
+          const colorInput = adminModal.querySelector(`.admin-text-color[data-bg-index="${index}"]`);
+          if (colorInput) colorInput.value = e.target.value;
+          saveBackgrounds(backgrounds);
+          refreshBackgroundsList();
+        }
+      } else if (e.target.classList.contains('admin-logo-folder')) {
+        const index = parseInt(e.target.dataset.bgIndex);
+        const backgrounds = getBackgrounds();
+        if (backgrounds[index]) {
+          backgrounds[index].logoFolder = e.target.value;
+          saveBackgrounds(backgrounds);
+        }
+      }
+    });
+    
+    // Загрузка файла изображения
+    backgroundsList.addEventListener('change', (e) => {
+      if (e.target.classList.contains('admin-bg-upload-file')) {
+        const index = parseInt(e.target.dataset.bgIndex);
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const backgrounds = getBackgrounds();
+            if (backgrounds[index]) {
+              backgrounds[index].bgImage = event.target.result;
+              saveBackgrounds(backgrounds);
+              window.refreshBackgroundsList();
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    });
+    
+    // Применение фона к текущему макету (двойной клик на элементе фона)
+    backgroundsList.addEventListener('dblclick', async (e) => {
+      const item = e.target.closest('.admin-background-item');
+      if (item) {
+        const index = parseInt(item.dataset.bgIndex);
+        const backgrounds = getBackgrounds();
+        const bg = backgrounds[index];
+        if (bg) {
+          // Применяем фон
+          if (bg.bgImage) {
+            // Если есть изображение, загружаем его
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = async () => {
+              const state = getState();
+              const activePairIndex = state.activePairIndex || 0;
+              const { updatePairBgImage } = await import('../../state/store.js');
+              updatePairBgImage(activePairIndex, img);
+              setState({ bgImage: img });
+              await applyBackgroundSettings(bg);
+            };
+            img.src = bg.bgImage;
+          } else {
+            // Если только цвет, применяем цвет
+            await applyPresetBgColor(bg.bgColor);
+            await applyBackgroundSettings(bg);
+          }
+        }
+      }
+    });
+  }
+  
+  // Функция для применения настроек текста и логотипа
+  const applyBackgroundSettings = async (bg) => {
+    // Устанавливаем цвет текста
+    setKey('titleColor', bg.textColor || '#ffffff');
+    
+    // Выбираем логотип на основе папки
+    const state = getState();
+    const language = state.logoLanguage || 'ru';
+    const logoType = 'main.svg'; // Можно сделать настраиваемым
+    const logoPath = `logo/${bg.logoFolder || 'white'}/${language}/${logoType}`;
+    setKey('logoSelected', logoPath);
+    
+    // Загружаем логотип через selectPreloadedLogo
+    await selectPreloadedLogo(logoPath);
+    
+    renderer.render();
+  };
+};
+
+/**
  * Настраивает обработчики для переключения вкладок
  */
 const setupTabHandlers = () => {
@@ -2009,16 +3544,102 @@ const setupTabHandlers = () => {
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       const targetTab = tab.dataset.tab;
+      console.log('Переключение на вкладку:', targetTab);
       
       // Убираем active у всех вкладок
       tabs.forEach(t => t.classList.remove('active'));
-      tabContents.forEach(content => content.style.display = 'none');
+      tabContents.forEach(content => {
+        content.style.display = 'none';
+        console.log('Скрыта вкладка:', content.id);
+      });
       
       // Активируем выбранную вкладку
       tab.classList.add('active');
       const targetContent = adminModal.querySelector(`#sizesAdminTab${targetTab.charAt(0).toUpperCase() + targetTab.slice(1)}`);
       if (targetContent) {
         targetContent.style.display = 'block';
+        // Принудительно устанавливаем стили для отображения
+        targetContent.style.visibility = 'visible';
+        targetContent.style.opacity = '1';
+        targetContent.style.height = 'auto';
+        targetContent.style.minHeight = '100px';
+        
+        // Обновляем список фонов при открытии вкладки "Значения по умолчанию"
+        if (targetTab === 'defaults' && typeof window.refreshBackgroundsList === 'function') {
+          requestAnimationFrame(() => {
+            window.refreshBackgroundsList();
+          });
+        }
+        
+        // Проверяем родительский контейнер
+        const parent = targetContent.parentElement;
+        if (parent) {
+          const parentStyle = window.getComputedStyle(parent);
+          console.log('Родительский контейнер:', parent.className || '(нет класса)', 'id:', parent.id || '(нет id)');
+          console.log('Родитель display:', parentStyle.display);
+          console.log('Родитель width:', parentStyle.width, 'height:', parentStyle.height);
+          console.log('Родитель flex-direction:', parentStyle.flexDirection);
+          console.log('Родитель размеры:', parent.offsetWidth, 'x', parent.offsetHeight);
+        }
+        
+        // Используем requestAnimationFrame для гарантированного отображения
+        requestAnimationFrame(() => {
+          const computedStyle = window.getComputedStyle(targetContent);
+          console.log('Показана вкладка:', targetContent.id);
+          console.log('Размеры offset:', targetContent.offsetWidth, 'x', targetContent.offsetHeight);
+          console.log('Размеры client:', targetContent.clientWidth, 'x', targetContent.clientHeight);
+          console.log('Размеры scroll:', targetContent.scrollWidth, 'x', targetContent.scrollHeight);
+          console.log('Computed display:', computedStyle.display);
+          console.log('Computed visibility:', computedStyle.visibility);
+          console.log('Computed width:', computedStyle.width);
+          console.log('Computed height:', computedStyle.height);
+          console.log('Computed min-height:', computedStyle.minHeight);
+          console.log('Computed max-height:', computedStyle.maxHeight);
+          console.log('Computed overflow:', computedStyle.overflow);
+          
+          // Проверяем первый дочерний элемент
+          const firstChild = targetContent.firstElementChild;
+          if (firstChild) {
+            console.log('Первый дочерний элемент:', firstChild.tagName, 'размеры:', firstChild.offsetWidth, 'x', firstChild.offsetHeight);
+            console.log('Computed display первого дочернего:', window.getComputedStyle(firstChild).display);
+          } else {
+            console.warn('Нет дочерних элементов!');
+          }
+          
+          // Если размеры все еще 0, пытаемся принудительно установить
+          if (targetContent.offsetWidth === 0 || targetContent.offsetHeight === 0) {
+            console.warn('Размеры все еще 0, пытаемся исправить...');
+            
+            // Устанавливаем явные размеры
+            targetContent.style.width = '100%';
+            targetContent.style.minHeight = '400px';
+            targetContent.style.display = 'block';
+            targetContent.style.overflow = 'visible';
+            targetContent.style.position = 'relative';
+            
+            // Если родитель flex, нужно установить flex-basis
+            if (parent && window.getComputedStyle(parent).display === 'flex') {
+              targetContent.style.flex = '1 1 auto';
+              targetContent.style.flexBasis = 'auto';
+              targetContent.style.flexGrow = '1';
+              targetContent.style.flexShrink = '1';
+            }
+            
+            // Принудительно устанавливаем размеры первому дочернему элементу
+            if (firstChild) {
+              firstChild.style.width = '100%';
+              firstChild.style.minHeight = '200px';
+            }
+            
+            // Проверяем еще раз после установки стилей
+            requestAnimationFrame(() => {
+              console.log('После исправления - размеры offset:', targetContent.offsetWidth, 'x', targetContent.offsetHeight);
+              console.log('После исправления - размеры первого дочернего:', firstChild ? firstChild.offsetWidth + 'x' + firstChild.offsetHeight : 'нет');
+            });
+          }
+        });
+      } else {
+        console.error('Вкладка не найдена:', `#sizesAdminTab${targetTab.charAt(0).toUpperCase() + targetTab.slice(1)}`);
       }
     });
   });

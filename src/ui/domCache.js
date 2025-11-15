@@ -17,8 +17,6 @@ const ELEMENT_IDS = [
   'subtitleOpacityValue',
   'subtitleSize',
   'subtitleSizeValue',
-  'titleSubtitleRatio',
-  'titleSubtitleRatioValue',
   'subtitleWeight',
   'subtitleFontFamily',
   'subtitleLetterSpacing',

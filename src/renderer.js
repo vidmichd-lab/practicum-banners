@@ -109,7 +109,7 @@ const renderToCanvas = (canvas, width, height, state) => {
   // Вычисляем множители размеров
   let logoSizePercent = state.logoSize;
   const multipliers = calculateSizeMultipliers(width, height, layoutType);
-  const { titleSizeMultiplier, subtitleSizeMultiplier, legalMultiplier, ageMultiplier } = multipliers;
+  const { logoSizeMultiplier, titleSizeMultiplier, subtitleSizeMultiplier, legalMultiplier, ageMultiplier } = multipliers;
   
   // Определяем, является ли формат квадратным
   const isSquare = height < width * LAYOUT_CONSTANTS.VERTICAL_THRESHOLD && 
@@ -118,11 +118,9 @@ const renderToCanvas = (canvas, width, height, state) => {
   // Проверяем наличие партнерского логотипа
   const hasPartnerLogo = state.partnerLogo && state.showLogo;
   
-  // Применяем множитель к логотипу
-  if (height >= width * LAYOUT_CONSTANTS.VERTICAL_THRESHOLD) {
-    logoSizePercent *= LAYOUT_CONSTANTS.VERTICAL_LOGO_MULTIPLIER;
-  } else if (isUltraWide || width >= height * 4 || width >= height * LAYOUT_CONSTANTS.HORIZONTAL_THRESHOLD) {
-    logoSizePercent *= LAYOUT_CONSTANTS.ULTRA_WIDE_LOGO_MULTIPLIER;
+  // Применяем множитель к логотипу (используем множитель из calculateSizeMultipliers)
+  if (logoSizeMultiplier !== 1) {
+    logoSizePercent *= logoSizeMultiplier;
   } else if (isSquare && hasPartnerLogo) {
     // Для квадратных форматов с партнерским логотипом умножаем размер логотипа на 1.5
     logoSizePercent *= 1.5;
@@ -661,8 +659,9 @@ const renderToCanvas = (canvas, width, height, state) => {
     const effectiveSubtitleAlign = effectiveTitleAlign;
     // subtitleWeight уже определен выше
     ctx.font = getFontString(subtitleWeight, subtitleSize, state.subtitleFontFamily || state.fontFamily);
-    const { r, g, b } = hexToRgb(state.subtitleColor);
-    const opacity = Math.max(0, Math.min(100, state.subtitleOpacity || 100)) / 100;
+    // Подзаголовок использует цвет заголовка с прозрачностью 90%
+    const { r, g, b } = hexToRgb(state.titleColor);
+    const opacity = 0.9; // Всегда 90% для подзаголовка
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
     ctx.textAlign = effectiveSubtitleAlign;
     ctx.textBaseline = 'alphabetic';
@@ -818,8 +817,9 @@ const renderToCanvas = (canvas, width, height, state) => {
   if (state.showLegal && legalLines.length > 0) {
     const legalWeight = getFontWeight(state.legalWeight);
     ctx.font = getFontString(legalWeight, legalSize, state.legalFontFamily || state.fontFamily);
-    const { r, g, b } = hexToRgb(state.legalColor);
-    const opacity = Math.max(0, Math.min(100, state.legalOpacity || 100)) / 100;
+    // Лигал использует цвет заголовка с прозрачностью 60%
+    const { r, g, b } = hexToRgb(state.titleColor);
+    const opacity = 0.6; // Всегда 60% для лигала
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
     ctx.textAlign = 'left';
 
@@ -953,8 +953,9 @@ const renderToCanvas = (canvas, width, height, state) => {
   if (state.showAge && state.age && ageBoundsRect) {
     const ageWeight = getFontWeight(state.ageWeight || state.legalWeight);
     ctx.font = getFontString(ageWeight, ageSizePx, state.ageFontFamily || state.fontFamily);
-    const { r, g, b } = hexToRgb(state.legalColor);
-    const opacity = Math.max(0, Math.min(100, state.legalOpacity || 100)) / 100;
+    // 18+ использует цвет заголовка с прозрачностью 80%
+    const { r, g, b } = hexToRgb(state.titleColor);
+    const opacity = 0.8; // Всегда 80% для 18+
     ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
     ctx.textAlign = 'left';
     // Draw age at the same baseline as legal's last line

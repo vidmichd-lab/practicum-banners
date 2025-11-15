@@ -33,7 +33,8 @@ export const calculateSuperWideKV = (state, width, height, paddingPx, logoBounds
   
   // Проверяем, что KV достаточно большой для отображения
   if ((kvW >= minKvSize || kvH >= minKvSize) && kvScale > 0) {
-    const kvX = logoRight + gap;
+    // Для супер-широких форматов размещаем KV справа, как в других широких форматах
+    const kvX = width - paddingPx - kvW;
     // Для широких форматов размещаем KV вплотную к лигалу (без отступа)
     // Используем всю доступную высоту до самого лигала
     const maxKvH = Math.max(minKvSize, legalTop - paddingPx);
@@ -53,6 +54,11 @@ export const calculateSuperWideKV = (state, width, height, paddingPx, logoBounds
           kvW = state.kv.width * kvScale;
         }
       }
+      // Пересчитываем позицию X после изменения ширины
+      const finalKvX = width - paddingPx - kvW;
+      // Размещаем KV вплотную к лигалу (без отступа)
+      const kvY = legalTop - kvH;
+      return { kvX: finalKvX, kvY, kvW, kvH, kvScale, paddingPx };
     }
     // Размещаем KV вплотную к лигалу (без отступа)
     const kvY = legalTop - kvH;
@@ -90,7 +96,8 @@ export const calculateUltraWideKV = (state, width, height, paddingPx, legalBlock
   
   // Проверяем, что KV достаточно большой для отображения
   if ((kvW >= minKvSize || kvH >= minKvSize) && kvScale > 0) {
-    const kvX = width / 2 - kvW / 2;
+    // Для ультрашироких форматов размещаем KV справа, как в горизонтальных форматах
+    const kvX = width - paddingPx - kvW;
     // Для широких форматов размещаем KV вплотную к лигалу (без отступа)
     // Используем всю доступную высоту до самого лигала
     const maxKvH = Math.max(minKvSize, legalTop - paddingPx);
@@ -110,6 +117,11 @@ export const calculateUltraWideKV = (state, width, height, paddingPx, legalBlock
           kvW = state.kv.width * kvScale;
         }
       }
+      // Пересчитываем позицию X после изменения ширины
+      const finalKvX = width - paddingPx - kvW;
+      // Размещаем KV вплотную к лигалу (без отступа)
+      const kvY = legalTop - kvH;
+      return { kvX: finalKvX, kvY, kvW, kvH, kvScale, paddingPx };
     }
     // Размещаем KV вплотную к лигалу (без отступа)
     const kvY = legalTop - kvH;

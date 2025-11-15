@@ -18,6 +18,7 @@ import {
   updatePairTitle,
   updatePairSubtitle,
   updatePairKV,
+  updatePairBgImage,
   addCustomSize,
   removeCustomSize,
   toggleCustomSize
@@ -83,7 +84,13 @@ import {
   applyPresetBgColor,
   updateBgPosition,
   updateBgUI,
-  initializeBackgroundUI
+  initializeBackgroundUI,
+  selectPreloadedBG,
+  selectPairBG,
+  refreshBGColumns,
+  initializeBGDropdown,
+  openBGSelectModal,
+  closeBGSelectModal
 } from './components/backgroundSelector.js';
 import {
   updateSizesSummary,
@@ -218,14 +225,6 @@ export const syncFormFields = () => {
   if (dom.subtitleSizeValue) {
     const subtitleSizeNum = typeof subtitleSize === 'number' && !isNaN(subtitleSize) ? subtitleSize : 4;
     dom.subtitleSizeValue.textContent = `${subtitleSizeNum}%`;
-  }
-  const titleSubtitleRatio = state.titleSubtitleRatio ?? 0.5;
-  if (dom.titleSubtitleRatio) {
-    dom.titleSubtitleRatio.value = titleSubtitleRatio;
-  }
-  if (dom.titleSubtitleRatioValue) {
-    const ratioNum = typeof titleSubtitleRatio === 'number' && !isNaN(titleSubtitleRatio) ? titleSubtitleRatio : 0.5;
-    dom.titleSubtitleRatioValue.textContent = ratioNum.toFixed(2);
   }
   // Конвертируем вес из числа в название для обратной совместимости
   const subtitleWeight = typeof state.subtitleWeight === 'number' 
@@ -832,6 +831,7 @@ const updateTitleVPosToggle = (vPos) => {
     } else if (vPos === 'bottom') {
       slider.style.transform = 'translateX(calc(200% - 5.333334px))';
     } else {
+      // top (по умолчанию)
       slider.style.transform = 'translateX(0)';
     }
   }
@@ -1087,6 +1087,27 @@ export const selectLogoLanguage = async (language) => {
   setKey('logoLanguage', language);
   updateChipGroup('logo-lang', language);
   
+  // Автоматически переключаем лигал в зависимости от языка логотипа
+  if (language === 'kz') {
+    // При выборе KZ устанавливаем лигал KZ
+    const legalKZ = state.legalKZ || '*Жарнама / Реклама. ТОО "Y. Izdeu men Jarnama", регистрационный номер:170240015454 Сайт: https://practicum.yandex.kz/.';
+    setKey('legal', legalKZ);
+    // Обновляем textarea в UI
+    const legalTextarea = document.getElementById('legal');
+    if (legalTextarea) {
+      legalTextarea.value = legalKZ;
+    }
+  } else if (language === 'ru') {
+    // При выборе RU устанавливаем лигал RU
+    const legalRU = 'Рекламодатель АНО ДПО «Образовательные технологии Яндекса», действующая на основании лицензии N° ЛО35-01298-77/00185314 от 24 марта 2015 года, 119021, г. Москва, ул. Тимура Фрунзе, д. 11, к. 2. ОГРН 1147799006123 Сайт: https://practicum.yandex.ru/';
+    setKey('legal', legalRU);
+    // Обновляем textarea в UI
+    const legalTextarea = document.getElementById('legal');
+    if (legalTextarea) {
+      legalTextarea.value = legalRU;
+    }
+  }
+  
   // Обновляем тумблер сразу, чтобы визуально было видно изменение
   updateLogoToggle(language);
   
@@ -1185,26 +1206,34 @@ export const updateSubtitleSize = (value) => {
   renderer.render();
 };
 
-export const updateTitleSubtitleRatio = (value) => {
+export const updateAgeSize = (value) => {
   const numeric = parseFloat(value);
   if (isNaN(numeric)) {
-    console.warn("Некорректное значение для titleSubtitleRatio:", value);
+    console.warn('Некорректное значение для ageSize:', value);
     return;
   }
-  setKey("titleSubtitleRatio", numeric);
+  setKey('ageSize', numeric);
   const dom = getDom();
-  if (dom.titleSubtitleRatioValue) {
-    dom.titleSubtitleRatioValue.textContent = numeric.toFixed(2);
+  if (dom.ageSizeValue) {
+    dom.ageSizeValue.textContent = `${numeric}%`;
   }
-  // Пересчитываем размер подзаголовка на основе нового коэффициента
-  const state = getState();
-  const newSubtitleSize = parseFloat((state.titleSize * numeric).toFixed(2));
-  setKey("subtitleSize", newSubtitleSize);
-  if (dom.subtitleSizeValue) {
-    dom.subtitleSizeValue.textContent = `${newSubtitleSize}%`;
+  renderer.render();
+};
+
+// updateKVBorderRadius теперь импортируется из ./components/kvSelector.js
+
+
+export const updateLegalSize = (value) => {
+  const numeric = parseFloat(value);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для legalSize:', value);
+    return;
   }
-  if (dom.subtitleSize) {
-    dom.subtitleSize.value = newSubtitleSize;
+  setKey('legalSize', numeric);
+  clearTextMeasurementCache();
+  const dom = getDom();
+  if (dom.legalSizeValue) {
+    dom.legalSizeValue.textContent = `${numeric.toFixed(1)}%`;
   }
   renderer.render();
 };
@@ -1222,38 +1251,6 @@ export const updateTextGradientOpacity = (value) => {
   }
   renderer.render();
 };
-
-export const updateLegalSize = (value) => {
-  const numeric = parseFloat(value);
-  if (isNaN(numeric)) {
-    console.warn('Некорректное значение для legalSize:', value);
-    return;
-  }
-  setKey('legalSize', numeric);
-  clearTextMeasurementCache();
-  const dom = getDom();
-  if (dom.legalSizeValue) {
-    dom.legalSizeValue.textContent = `${numeric.toFixed(1)}%`;
-  }
-  renderer.render();
-};
-
-export const updateAgeSize = (value) => {
-  const numeric = parseFloat(value);
-  if (isNaN(numeric)) {
-    console.warn('Некорректное значение для ageSize:', value);
-    return;
-  }
-  setKey('ageSize', numeric);
-  const dom = getDom();
-  if (dom.ageSizeValue) {
-    dom.ageSizeValue.textContent = `${numeric}%`;
-  }
-  renderer.render();
-};
-
-// updateKVBorderRadius теперь импортируется из ./components/kvSelector.js
-
 export const updateLegalOpacity = (value) => {
   const numeric = parseInt(value, 10);
   if (isNaN(numeric)) {
@@ -1521,6 +1518,12 @@ export const updateColorFromHex = async (key, value) => {
 // applyPresetBgColor теперь импортируется из ./components/backgroundSelector.js
 export { 
   applyPresetBgColor,
+  selectPreloadedBG,
+  selectPairBG,
+  refreshBGColumns,
+  initializeBGDropdown,
+  openBGSelectModal,
+  closeBGSelectModal,
   initializeBackgroundUI
 } from './components/backgroundSelector.js';
 
@@ -2782,11 +2785,12 @@ const renderTitleSubtitlePairs = () => {
 export const setActiveTitlePair = async (index) => {
   setActivePairIndex(index);
   
-  // Загружаем KV для активной пары
+  // Загружаем KV и фоновое изображение для активной пары
   const state = getState();
   const pairs = state.titleSubtitlePairs || [];
   const activePair = pairs[index];
   
+  // Загружаем KV
   if (activePair && activePair.kvSelected) {
     try {
       const img = await loadImage(activePair.kvSelected);
@@ -2804,6 +2808,27 @@ export const setActiveTitlePair = async (index) => {
     updateKVTriggerText('');
     updateKVUI();
   }
+  
+  // Устанавливаем фоновое изображение из активной пары
+  const bgImageSelected = activePair?.bgImageSelected || null;
+  if (bgImageSelected) {
+    if (typeof bgImageSelected === 'string') {
+      // Это путь к файлу, загружаем изображение
+      try {
+        const img = await loadImage(bgImageSelected);
+        setState({ bgImage: img });
+      } catch (error) {
+        console.error('Не удалось загрузить фоновое изображение для активной пары:', error);
+        setState({ bgImage: null });
+      }
+    } else {
+      // Это уже объект Image
+      setState({ bgImage: bgImageSelected });
+    }
+  } else {
+    setState({ bgImage: null });
+  }
+  updateBgUI();
   
   renderTitleSubtitlePairs();
   renderKVPairs();
@@ -2849,9 +2874,11 @@ export const initializeStateSubscribers = () => {
     const currentPairsStructure = serializePairsStructure(currentPairs);
     const currentActiveIndex = state.activePairIndex || 0;
     
-    // Если изменился активный индекс, загружаем KV для новой активной пары
+    // Если изменился активный индекс, загружаем KV и фоновое изображение для новой активной пары
     if (currentActiveIndex !== lastActiveIndex && currentActiveIndex >= 0 && currentActiveIndex < currentPairs.length) {
       const activePair = currentPairs[currentActiveIndex];
+      
+      // Загружаем KV
       if (activePair && activePair.kvSelected) {
         try {
           const img = await loadImage(activePair.kvSelected);
@@ -2866,6 +2893,27 @@ export const initializeStateSubscribers = () => {
         setState({ kv: null, kvSelected: '' });
         updateKVTriggerText('');
       }
+      
+      // Устанавливаем фоновое изображение из активной пары
+      const bgImageSelected = activePair?.bgImageSelected || null;
+      if (bgImageSelected) {
+        if (typeof bgImageSelected === 'string') {
+          // Это путь к файлу, загружаем изображение
+          try {
+            const img = await loadImage(bgImageSelected);
+            setState({ bgImage: img });
+          } catch (error) {
+            console.error('Не удалось загрузить фоновое изображение для активной пары:', error);
+            setState({ bgImage: null });
+          }
+        } else {
+          // Это уже объект Image
+          setState({ bgImage: bgImageSelected });
+        }
+      } else {
+        setState({ bgImage: null });
+      }
+      updateBgUI();
     }
     
     if (currentPairsStructure !== lastPairsStructure || currentActiveIndex !== lastActiveIndex) {
