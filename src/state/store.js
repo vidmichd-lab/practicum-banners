@@ -20,7 +20,7 @@ const createTitleSubtitlePair = (index = 0, baseState = null) => {
   // Контент: для первой пары — из сохранённых или встроенные дефолты, для новых пар — пусто
   let defaultTitle = `Курс «Frontend-разработчик» от ${brandName}`;
   let defaultSubtitle = 'Научитесь писать код для сайтов и веб-сервисов — с нуля за 10 месяцев';
-  let defaultKV = 'assets/3d/sign/01.webp';
+  let defaultKV = 'assets/3d/logos/02.webp';
   if (savedDefaults.title !== undefined) defaultTitle = savedDefaults.title;
   if (savedDefaults.subtitle !== undefined) defaultSubtitle = savedDefaults.subtitle;
   if (savedDefaults.kvSelected !== undefined) defaultKV = savedDefaults.kvSelected;
@@ -198,7 +198,7 @@ const createInitialState = () => {
     partnerLogo: null,
     partnerLogoFile: d('partnerLogoFile', null),
     kv: null,
-    kvSelected: d('kvSelected', 'assets/3d/sign/01.webp'),
+    kvSelected: d('kvSelected', 'assets/3d/logos/02.webp'),
     kvBorderRadius: d('kvBorderRadius', 0),
     kvPosition: d('kvPosition', 'center'), // 'left', 'center', 'right' - позиция KV
     bgColor: d('bgColor', '#1e1e1e'),
@@ -614,8 +614,7 @@ export const resetState = () => store.reset();
 export const createStateSnapshot = () => cloneDeep(store.getState());
 
 export const restoreState = (snapshot) => {
-  store.state = applyDerivedState({ ...snapshot }, snapshot);
-  store.notify();
+  store.setState(snapshot);
 };
 
 export const updateNestedPreset = (platform, index, updater) => {
@@ -923,8 +922,7 @@ export const applySavedSettings = (snapshot) => {
     snapshot.ageFontFamily = 'YS Text';
   }
   
-  store.state = applyDerivedState({ ...current, ...snapshot }, snapshot);
-  store.notify();
+  store.setState({ ...current, ...snapshot });
 };
 
 

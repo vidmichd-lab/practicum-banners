@@ -298,7 +298,7 @@ export const scanKV = async () => {
   // Для 3d: sign, icons, logos, numbers, other, shapes, tech, yandex
   // Для photo: pro, ai_reskill, old_reskill и другие
   // Для pro: assets, bg, photo_env, photo_faces
-  const knownSecondLevelFolders3d = ['sign', 'icons', 'logos', 'numbers', 'other', 'shapes', 'tech', 'yandex'];
+  const knownSecondLevelFolders3d = ['logos', 'numbers', 'other'];
   const knownSecondLevelFoldersPhoto = ['pro', 'ai_reskill', 'old_reskill'];
   const knownSecondLevelFoldersPro = ['assets', 'bg', 'photo_env', 'photo_faces'];
   

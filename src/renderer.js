@@ -267,8 +267,8 @@ const renderToCanvas = (canvas, width, height, state) => {
   let textArea;
   let maxTextWidth;
   
-  // Проверяем, что KV загружен и валиден перед использованием
-  const isKVValid = state.kv && state.kv.complete && state.kv.naturalWidth > 0 && state.kv.naturalHeight > 0;
+  // Проверяем, что KV загружен и валиден перед использованием (учитываем width/height для SVG и вне DOM)
+  const isKVValid = state.kv && state.kv.complete && ((state.kv.naturalWidth || state.kv.width) > 0) && ((state.kv.naturalHeight || state.kv.height) > 0);
   
   // Сначала вычисляем KV для разных типов макетов
   // Для охранных областей используем размеры охранной области
@@ -1474,7 +1474,8 @@ const renderToCanvas = (canvas, width, height, state) => {
     }
     
     // Проверяем, что изображение загружено и валидно
-    if (!state.kv.complete || state.kv.naturalWidth <= 0 || state.kv.naturalHeight <= 0) {
+    // Проверяем, что изображение загружено и валидно (учитываем width/height для SVG)
+    if (!state.kv.complete || (state.kv.naturalWidth || state.kv.width) <= 0 || (state.kv.naturalHeight || state.kv.height) <= 0) {
       kvRenderMeta = null;
     } else {
       // Проверяем и корректируем границы canvas ПЕРЕД отрисовкой
@@ -1580,8 +1581,10 @@ const renderToCanvas = (canvas, width, height, state) => {
   }
   
   if (state.showLogo && state.logo && logoBounds) {
-    // Проверяем, что изображение загружено и валидно
-    if (state.logo.complete && state.logo.naturalWidth > 0 && state.logo.naturalHeight > 0) {
+    // Рисуем, если есть хоть какие-то размеры (naturalWidth/Height у SVG или вне DOM могут быть 0)
+    const logoImgW = state.logo.naturalWidth || state.logo.width || 0;
+    const logoImgH = state.logo.naturalHeight || state.logo.height || 0;
+    if (state.logo.complete && logoImgW > 0 && logoImgH > 0) {
       // Проверяем и корректируем границы canvas ПЕРЕД отрисовкой
       const logoRight = logoBounds.x + logoBounds.width;
       const logoBottom = logoBounds.y + logoBounds.height;
@@ -1603,17 +1606,15 @@ const renderToCanvas = (canvas, width, height, state) => {
           const separatorX = logoBounds.x + logoBounds.width;
           const separatorY = logoBounds.y;
           const separatorHeight = logoBounds.height;
-          
-          // Отступ от основного логотипа до разделителя
-          const gapBeforeSeparator = 24;
-          // Отступ от разделителя до партнерского логотипа (одинаковое расстояние)
-          const gapAfterSeparator = 24;
-          
-          // Рассчитываем размеры партнерского логотипа
-          const partnerLogoScale = logoBounds.height / state.partnerLogo.height;
-          const partnerLogoWidth = state.partnerLogo.width * partnerLogoScale;
-          const partnerLogoX = separatorX + gapBeforeSeparator + gapAfterSeparator; // Отступ после разделителя
-          const partnerLogoRight = partnerLogoX + partnerLogoWidth;
+          const pW = state.partnerLogo.naturalWidth || state.partnerLogo.width || 0;
+          const pH = state.partnerLogo.naturalHeight || state.partnerLogo.height || 0;
+          if (pH > 0) {
+            const gapBeforeSeparator = 24;
+            const gapAfterSeparator = 24;
+            const partnerLogoScale = logoBounds.height / pH;
+            const partnerLogoWidth = pW * partnerLogoScale;
+            const partnerLogoX = separatorX + gapBeforeSeparator + gapAfterSeparator;
+            const partnerLogoRight = partnerLogoX + partnerLogoWidth;
           
           // Проверяем, что партнерский логотип не выходит за границы canvas
           if (partnerLogoRight <= width && partnerLogoX >= 0) {
@@ -1640,6 +1641,7 @@ const renderToCanvas = (canvas, width, height, state) => {
                 clampedPartnerLogoWidth,
                 logoBounds.height
               );
+            }
             }
           }
         }
@@ -1804,7 +1806,6 @@ const renderToCanvas = (canvas, width, height, state) => {
     canvasHeight: height
   };
 }
-};
 
 // Функция doRender перенесена в canvasManager
 // Используем canvasManager.doRender() напрямую

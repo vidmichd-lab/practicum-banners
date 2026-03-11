@@ -602,8 +602,9 @@ export const initEventDelegation = () => {
       window.closeKVSelectModal();
     } else if (modalId === 'guideModal' && typeof window.closeGuideModal === 'function') {
       window.closeGuideModal();
+    } else if (modalId === 'bgSelectModal' && typeof window.closeBGSelectModal === 'function') {
+      window.closeBGSelectModal();
     }
-  });
 
   // Обработка stop-propagation (дополнительная защита от всплытия)
   // Этот обработчик срабатывает после data-function, чтобы остановить всплытие к overlay
