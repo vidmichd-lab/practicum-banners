@@ -7,7 +7,7 @@
 const translations = {
   ru: {
     // Header
-    'app.title': 'Practicum AI-Craft',
+    'app.title': 'AI-Craft',
     'theme.toggle': 'Переключить тему',
     
     // Tabs
@@ -120,7 +120,7 @@ const translations = {
     'subtitle.gap': 'Отступ от заголовка',
     
     // Legal Section
-    'legal.show': 'Показывать юридический текст',
+    'legal.show': 'Показывать лигал',
     'legal.text': 'Текст',
     'legal.transform': 'Трансформация',
     'legal.transform.none': '—',
@@ -205,7 +205,7 @@ const translations = {
     
     // Guide Modal
     'guide.title': 'Как это работает?',
-    'guide.welcome': 'Добро пожаловать в Practicum AI-Craft!',
+    'guide.welcome': 'Добро пожаловать в AI-Craft!',
     'guide.intro': 'Этот инструмент поможет вам быстро создавать рекламные макеты для различных форматов и размеров.',
     'guide.layout.title': 'Макет',
     'guide.layout.desc': 'Настройте базовые параметры макета:',
@@ -481,7 +481,7 @@ const translations = {
   },
   tr: {
     // Header
-    'app.title': 'Practicum Düzen Oluşturucu',
+    'app.title': 'AI-Craft',
     'theme.toggle': 'Temayı değiştir',
     
     // Tabs
@@ -678,7 +678,7 @@ const translations = {
     
     // Guide Modal
     'guide.title': 'Nasıl çalışır?',
-    'guide.welcome': 'Practicum Düzen Oluşturucu\'ya hoş geldiniz!',
+    'guide.welcome': 'AI-Craft\'a hos geldiniz!',
     'guide.intro': 'Bu araç, çeşitli formatlar ve boyutlar için reklam düzenleri oluşturmanıza yardımcı olacaktır.',
     'guide.layout.title': 'Düzen',
     'guide.layout.desc': 'Temel düzen parametrelerini yapılandırın:',
@@ -956,7 +956,7 @@ const translations = {
   },
   en: {
     // Header
-    'app.title': 'Practicum Layout Generator',
+    'app.title': 'AI-Craft',
     'theme.toggle': 'Toggle theme',
     
     // Tabs
@@ -1154,7 +1154,7 @@ const translations = {
     
     // Guide Modal
     'guide.title': 'How does it work?',
-    'guide.welcome': 'Welcome to Practicum Layout Generator!',
+    'guide.welcome': 'Welcome to AI-Craft!',
     'guide.intro': 'This tool will help you quickly create advertising layouts for various formats and sizes.',
     'guide.layout.title': 'Layout',
     'guide.layout.desc': 'Configure basic layout parameters:',

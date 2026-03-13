@@ -14,6 +14,7 @@ import {
   updateSubtitleSize,
   updateSubtitleGap,
   updateTitleLogoGap,
+  updateRsyaCropGridVisible,
   updateLegalSize,
   updateAgeSize,
   updateAgeGapPercent,
@@ -41,6 +42,7 @@ import {
   selectProjectMode,
   selectVariantMode,
   selectLayoutMode,
+  selectRsyaLayout,
   updateColorFromPicker,
   updateColorFromHex,
   selectBgPosition,
@@ -362,6 +364,7 @@ const exposeGlobals = () => {
     updateSubtitleSize,
     updateSubtitleGap,
     updateTitleLogoGap,
+    updateRsyaCropGridVisible,
     updateAgeSize,
     updateAgeGapPercent,
     updateLegalSize,
@@ -403,6 +406,7 @@ const exposeGlobals = () => {
     toggleTitleAlign,
     toggleTitleVPos,
     selectLayoutMode,
+    selectRsyaLayout,
     updateColorFromPicker,
     updateColorFromHex,
   applyPresetBgColor,
@@ -745,12 +749,12 @@ const initialize = async () => {
       const savedBrandName = localStorage.getItem('brandName');
       if (savedBrandName) {
         setKey('brandName', savedBrandName);
-        document.title = 'Multi-Artboard Layout Generator';
+        document.title = 'AI-Craft';
       } else {
         // Используем значение из state
         const state = getState();
         if (state.brandName) {
-          document.title = 'Multi-Artboard Layout Generator';
+          document.title = 'AI-Craft';
         }
       }
     } catch (e) {
