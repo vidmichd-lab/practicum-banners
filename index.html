@@ -931,11 +931,25 @@
                 </div>
                 <input type="file" id="rsyaKV2Upload" accept="image/*" style="display:none;" data-handler="handleRsyaKV2Upload">
                 <input type="file" id="rsyaKV3Upload" accept="image/*" style="display:none;" data-handler="handleRsyaKV3Upload">
-                <label style="margin-top: 12px;">Масштаб</label>
-                <input type="range" id="rsyaKVScale" min="40" max="300" step="1" value="200" data-state-key="rsyaKVScale">
+                <label style="margin-top: 12px;">Масштаб визуала 1</label>
+                <input type="range" id="rsyaKVScale1" min="40" max="300" step="1" value="200" data-update-handler="updateRsyaKVScale1">
                 <div class="slider-value">
                   <span>40%</span>
-                  <span id="rsyaKVScaleValue">200%</span>
+                  <span id="rsyaKVScale1Value">200%</span>
+                  <span>300%</span>
+                </div>
+                <label style="margin-top: 12px;">Масштаб визуала 2</label>
+                <input type="range" id="rsyaKVScale2" min="40" max="300" step="1" value="200" data-update-handler="updateRsyaKVScale2">
+                <div class="slider-value">
+                  <span>40%</span>
+                  <span id="rsyaKVScale2Value">200%</span>
+                  <span>300%</span>
+                </div>
+                <label style="margin-top: 12px;">Масштаб визуала 3</label>
+                <input type="range" id="rsyaKVScale3" min="40" max="300" step="1" value="200" data-update-handler="updateRsyaKVScale3">
+                <div class="slider-value">
+                  <span>40%</span>
+                  <span id="rsyaKVScale3Value">200%</span>
                   <span>300%</span>
                 </div>
                 <label style="margin-top: 12px;">Расстояние между</label>

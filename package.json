@@ -1,0 +1,13 @@
+{
+  "name": "practicum-banners",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test:regression": "playwright test tests/renderer-regression.spec.mjs",
+    "test:regression:headed": "playwright test tests/renderer-regression.spec.mjs --headed"
+  },
+  "devDependencies": {
+    "playwright": "^1.54.2"
+  }
+}
