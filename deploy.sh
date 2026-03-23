@@ -354,13 +354,16 @@ SYNC_OUTPUT=$(aws --endpoint-url=${ENDPOINT_URL} s3 sync "${LOCAL_DIR}" "s3://${
     --exclude "*.pyc" \
     --exclude ".git/*" \
     --exclude ".gitignore" \
+    --exclude ".deploy-manifest" \
     --exclude "deploy*.sh" \
     --exclude "compress_images.py" \
     --exclude "DEPLOY.md" \
     --exclude "TROUBLESHOOTING.md" \
     --exclude "YANDEX_CLOUD_SETUP.md" \
     --exclude "*.md" \
+    --exclude "playwright-report/*" \
     --exclude "start_server.py" \
+    --exclude "test-results/*" \
     --exclude "*.py" \
     --exclude "*.tmp" \
     --dryrun 2>&1)
@@ -505,6 +508,9 @@ else
     ! -name '*.tmp' \
     ! -name '.gitignore' \
     ! -name '.gitattributes' \
+    ! -name '.deploy-manifest' \
+    ! -path './playwright-report/*' \
+    ! -path './test-results/*' \
     ! -name 'compress_images.py' \
     ! -name 'start_server.py' \
     ! -name 'deploy.sh' \
