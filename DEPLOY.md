@@ -1,6 +1,6 @@
 # Инструкция по деплою в Yandex Object Storage
 
-Этот документ описывает процесс размещения статического сайта в бакете `practicum-banners` на Yandex Object Storage.
+Этот документ описывает актуальный процесс публикации статического сайта из текущего репозитория в бакет `practicum-banners` на Yandex Object Storage.
 
 ## Предварительные требования
 
@@ -57,6 +57,13 @@ aws --endpoint-url=https://storage.yandexcloud.net s3 mb s3://practicum-banners
 
 ## Автоматический деплой
 
+Основной скрипт деплоя в репозитории: `deploy.sh`.
+
+Поддерживаются два режима:
+
+- `./deploy.sh` — инкрементальный деплой. Скрипт сравнивает локальные файлы с объектами в бакете и хранит локальный `.deploy-manifest` для ускорения повторных запусков.
+- `./deploy.sh --full` — полная синхронизация бакета через `aws s3 sync --dryrun` с последующей загрузкой изменённых файлов и удалением объектов, отсутствующих локально.
+
 Используйте скрипт `deploy.sh` для автоматического деплоя:
 
 ```bash
@@ -70,8 +77,23 @@ chmod +x deploy.sh
 - ✅ Настроит публичный доступ
 - ✅ Включит хостинг статического сайта
 - ✅ Настроит CORS
-- ✅ Загрузит все файлы проекта
-- ✅ Установит правильные Content-Type для файлов
+- ✅ При необходимости запустит конвертацию изображений в WebP через `compress_images.py`
+- ✅ При необходимости запустит конвертацию новых шрифтов в WOFF2 через `convert_fonts_to_woff2.py`
+- ✅ Загрузит только изменённые файлы с корректными `Content-Type` и `Cache-Control`
+- ✅ Очистит старые PNG/JPG из бакета, если для них уже существует WebP-версия
+
+## Что не попадает в бакет
+
+Скрипт не должен публиковать служебные и локальные файлы, в том числе:
+
+- `.git/*`, `.gitignore`, `.gitattributes`
+- `__pycache__/*`, `*.pyc`
+- `*.md`
+- `*.py`
+- `deploy.sh`, `deploy-*.sh`, `run_*.sh`
+- `compress_images.py`
+
+Отдельно стоит учитывать, что `.deploy-manifest` создаётся локально для инкрементального режима и может потребовать ручного удаления, если состояние деплоя разошлось с бакетом.
 
 ## Ручной деплой
 
@@ -85,9 +107,13 @@ aws --endpoint-url=https://storage.yandexcloud.net s3 sync ./ s3://practicum-ban
   --exclude "__pycache__/*" \
   --exclude "*.pyc" \
   --exclude ".git/*" \
+  --exclude ".gitignore" \
+  --exclude ".gitattributes" \
   --exclude "*.md" \
-  --exclude "deploy.sh" \
-  --exclude "start_server.py" \
+  --exclude "*.py" \
+  --exclude "deploy*.sh" \
+  --exclude "run_*.sh" \
+  --exclude "compress_images.py" \
   --delete
 ```
 
@@ -182,6 +208,23 @@ https://practicum-banners.storage.yandexcloud.net
 4. Настройте DNS-запись CNAME, указывающую на хостинг Yandex Object Storage
 5. В Yandex Certificate Manager добавьте TLS-сертификат для HTTPS
 
+## GitHub Actions
+
+В репозитории есть workflow `.github/workflows/deploy.yml`.
+
+Он работает отдельно от `deploy.sh`:
+
+- запускается при `push` в `main`;
+- определяет список изменённых файлов между `HEAD~1` и `HEAD`;
+- загружает только изменённые файлы в S3 через `s3cmd`;
+- удаляет объекты из бакета, если файл был удалён в репозитории.
+
+Для workflow нужны секреты:
+
+- `YC_BUCKET_NAME`
+- `YC_ACCESS_KEY_ID`
+- `YC_SECRET_ACCESS_KEY`
+
 ## Обновление сайта
 
 Для обновления сайта просто запустите скрипт деплоя снова:
@@ -190,18 +233,13 @@ https://practicum-banners.storage.yandexcloud.net
 ./deploy.sh
 ```
 
-Скрипт автоматически синхронизирует изменения и удалит файлы, которых больше нет в локальной папке.
+По умолчанию скрипт загружает только реально изменённые файлы. Если изменения не подхватились из-за локального манифеста или кеша, используйте:
 
-## Исключаемые файлы
+```bash
+./deploy.sh --full
+```
 
-При деплое автоматически исключаются:
-- `.DS_Store` (системные файлы macOS)
-- `__pycache__/` (кэш Python)
-- `*.pyc` (скомпилированные файлы Python)
-- `.git/` (репозиторий Git)
-- `*.md` (документация)
-- `deploy.sh` (скрипт деплоя)
-- `start_server.py` (локальный сервер)
+или удалите локальный `.deploy-manifest` и повторите обычный запуск.
 
 ## Устранение проблем
 
@@ -218,6 +256,7 @@ https://practicum-banners.storage.yandexcloud.net
 1. Наличие AWS CLI: `aws --version`
 2. Настройку credentials: `aws configure list`
 3. Доступность endpoint: `aws --endpoint-url=https://storage.yandexcloud.net s3 ls`
+4. Не мешает ли локальный `.deploy-manifest` обнаружению изменений
 
 ### Неправильные Content-Type
 
@@ -228,4 +267,3 @@ https://practicum-banners.storage.yandexcloud.net
 - [Документация Yandex Object Storage](https://cloud.yandex.ru/docs/storage/)
 - [Документация AWS CLI](https://docs.aws.amazon.com/cli/)
 - [Настройка хостинга статического сайта](https://cloud.yandex.ru/docs/storage/operations/hosting/setup)
-

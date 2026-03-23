@@ -65,6 +65,14 @@ const sanitizeLogoSizeMultipliers = (value) => {
   return result;
 };
 
+const sanitizeRsyaKVScales = (value, fallback = [200, 200, 200]) => {
+  const source = Array.isArray(value) ? value : fallback;
+  const next = [0, 1, 2].map((index) =>
+    sanitizeFiniteNumber(source[index], fallback[index] ?? 200, { min: 40, max: 300 })
+  );
+  return next;
+};
+
 const normalizeKVPath = (value) => {
   if (!value || typeof value !== 'string') return value;
   const normalized = value.replace(/(^|\/)assets\/pro\/assets\/0+(\d+)\.(webp|png|jpg|jpeg)$/i, '$1assets/pro/assets/$2.$3');
@@ -287,8 +295,10 @@ const createInitialState = () => {
     projectMode: initialProjectMode, // layouts | rsya
     variantMode: d('variantMode', d('proMode', false) ? 'pro' : (d('logoLanguage', 'ru') === 'kz' ? 'kz' : 'reskill')), // reskill | pro | kz
     rsyaLayout: d('rsyaLayout', 'center'), // center | left
+    activeRsyaVisualSlot: dn('activeRsyaVisualSlot', 0, { min: 0, max: 2 }),
     rsyaVisualCount: dn('rsyaVisualCount', 1, { min: 1, max: 3 }),
     rsyaKVScale: dn('rsyaKVScale', 200, { min: 40, max: 300 }),
+    rsyaKVScales: sanitizeRsyaKVScales(d('rsyaKVScales', [d('rsyaKVScale', 200), d('rsyaKVScale', 200), d('rsyaKVScale', 200)])),
     rsyaKVGap: dn('rsyaKVGap', 8, { min: -200, max: 300 }),
     rsyaKVOffsetX: dn('rsyaKVOffsetX', 0, { min: -500, max: 500 }),
     rsyaKVOffsetY: dn('rsyaKVOffsetY', 0, { min: -500, max: 500 }),
@@ -441,6 +451,30 @@ const applyDerivedState = (state, delta) => {
 
   if ('subtitleSize' in deltaKeys) {
     next.titleSize = parseFloat((state.subtitleSize / ratio).toFixed(2));
+  }
+
+  if ('rsyaKVScales' in deltaKeys && Array.isArray(delta.rsyaKVScales)) {
+    next.rsyaKVScales = sanitizeRsyaKVScales(delta.rsyaKVScales, next.rsyaKVScales || state.rsyaKVScales || [200, 200, 200]);
+  } else if (!Array.isArray(next.rsyaKVScales)) {
+    const fallbackScale = sanitizeFiniteNumber(next.rsyaKVScale ?? state.rsyaKVScale ?? 200, 200, { min: 40, max: 300 });
+    next.rsyaKVScales = sanitizeRsyaKVScales([fallbackScale, fallbackScale, fallbackScale]);
+  }
+
+  if ('rsyaKVScale' in deltaKeys && !('rsyaKVScales' in deltaKeys)) {
+    const activeSlot = sanitizeFiniteNumber(next.activeRsyaVisualSlot ?? state.activeRsyaVisualSlot ?? 0, 0, { min: 0, max: 2 });
+    const nextScales = [...(next.rsyaKVScales || state.rsyaKVScales || [200, 200, 200])];
+    nextScales[activeSlot] = sanitizeFiniteNumber(delta.rsyaKVScale, next.rsyaKVScale ?? 200, { min: 40, max: 300 });
+    next.rsyaKVScales = sanitizeRsyaKVScales(nextScales, next.rsyaKVScales || state.rsyaKVScales || [200, 200, 200]);
+    next.rsyaKVScale = next.rsyaKVScales[activeSlot];
+  }
+
+  if ('activeRsyaVisualSlot' in deltaKeys) {
+    const activeSlot = sanitizeFiniteNumber(delta.activeRsyaVisualSlot, state.activeRsyaVisualSlot ?? 0, { min: 0, max: 2 });
+    next.activeRsyaVisualSlot = activeSlot;
+    const scales = next.rsyaKVScales || state.rsyaKVScales || [200, 200, 200];
+    next.rsyaKVScale = sanitizeFiniteNumber(scales[activeSlot], next.rsyaKVScale ?? state.rsyaKVScale ?? 200, { min: 40, max: 300 });
+  } else if (next.activeRsyaVisualSlot === undefined) {
+    next.activeRsyaVisualSlot = state.activeRsyaVisualSlot ?? 0;
   }
 
   // Автоматически обновляем лигал при изменении языка логотипа
@@ -1128,6 +1162,22 @@ export const applySavedSettings = (snapshot) => {
   if (nextSnapshot.logoSizeMultipliers !== undefined) {
     nextSnapshot.logoSizeMultipliers = sanitizeLogoSizeMultipliers(nextSnapshot.logoSizeMultipliers);
   }
+  if (nextSnapshot.rsyaKVScales !== undefined) {
+    nextSnapshot.rsyaKVScales = sanitizeRsyaKVScales(
+      nextSnapshot.rsyaKVScales,
+      current.rsyaKVScales || [current.rsyaKVScale || 200, current.rsyaKVScale || 200, current.rsyaKVScale || 200]
+    );
+  } else {
+    const fallbackScale = sanitizeFiniteNumber(nextSnapshot.rsyaKVScale ?? current.rsyaKVScale ?? 200, current.rsyaKVScale ?? 200, { min: 40, max: 300 });
+    nextSnapshot.rsyaKVScales = sanitizeRsyaKVScales(
+      current.rsyaKVScales || [fallbackScale, fallbackScale, fallbackScale],
+      [fallbackScale, fallbackScale, fallbackScale]
+    );
+  }
+  if (nextSnapshot.activeRsyaVisualSlot === undefined) {
+    const activeSlot = sanitizeFiniteNumber(current.activeRsyaVisualSlot || 0, 0, { min: 0, max: 2 });
+    nextSnapshot.rsyaKVScale = nextSnapshot.rsyaKVScales[activeSlot];
+  }
   if (nextSnapshot.kvSelected !== undefined) {
     nextSnapshot.kvSelected = normalizeKVPath(nextSnapshot.kvSelected) || DEFAULT_KV_PATH;
   }
@@ -1139,6 +1189,10 @@ export const applySavedSettings = (snapshot) => {
   }
   if (nextSnapshot.rsyaLayout !== undefined && !['center', 'left'].includes(nextSnapshot.rsyaLayout)) {
     nextSnapshot.rsyaLayout = current.rsyaLayout || 'center';
+  }
+  if (nextSnapshot.activeRsyaVisualSlot !== undefined) {
+    nextSnapshot.activeRsyaVisualSlot = sanitizeFiniteNumber(nextSnapshot.activeRsyaVisualSlot, current.activeRsyaVisualSlot || 0, { min: 0, max: 2 });
+    nextSnapshot.rsyaKVScale = nextSnapshot.rsyaKVScales[nextSnapshot.activeRsyaVisualSlot];
   }
   if (Array.isArray(nextSnapshot.titleSubtitlePairs)) {
     nextSnapshot.titleSubtitlePairs = nextSnapshot.titleSubtitlePairs.map((pair) => ({

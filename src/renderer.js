@@ -1696,17 +1696,30 @@ const renderToCanvas = (canvas, width, height, state) => {
       }
       
       try {
-        const visuals = [state.kv, state.rsyaKV2, state.rsyaKV3].filter(Boolean);
-        const visualCount = Math.max(1, Math.min(3, visuals.length || 1));
+        const scaleFallback = Math.max(40, Math.min(300, Number(state.rsyaKVScale) || 200));
+        const perVisualScales = Array.isArray(state.rsyaKVScales)
+          ? state.rsyaKVScales
+          : [scaleFallback, scaleFallback, scaleFallback];
+        const visualSlots = [
+          { image: state.kv, slotIndex: 0, scale: perVisualScales[0] },
+          { image: state.rsyaKV2, slotIndex: 1, scale: perVisualScales[1] },
+          { image: state.rsyaKV3, slotIndex: 2, scale: perVisualScales[2] }
+        ].filter((slot) => !!slot.image);
+        const visualCount = Math.max(1, Math.min(3, visualSlots.length || 1));
         const useMultiKV = isRsyaMode || visualCount > 1;
 
         if (useMultiKV) {
-          const scalePercent = Math.max(40, Math.min(300, Number(state.rsyaKVScale) || 200));
           const gapRaw = Number.isFinite(Number(state.rsyaKVGap)) ? Number(state.rsyaKVGap) : 8;
           const offsetX = Number(state.rsyaKVOffsetX) || 0;
           const offsetY = Number(state.rsyaKVOffsetY) || 0;
-          let slotSize = Math.max(24, Math.min(kvPlannedMeta.kvW, kvPlannedMeta.kvH) * (scalePercent / 100));
-          const minGap = -slotSize + 4;
+          const baseSlotSize = Math.max(24, Math.min(kvPlannedMeta.kvW, kvPlannedMeta.kvH));
+          const slotMetas = visualSlots.map((slot) => ({
+            ...slot,
+            size: Math.max(24, baseSlotSize * (Math.max(40, Math.min(300, Number(slot.scale) || scaleFallback)) / 100))
+          }));
+          const tallestSlot = Math.max(...slotMetas.map((slot) => slot.size), 24);
+          const widestSlot = Math.max(...slotMetas.map((slot) => slot.size), 24);
+          const minGap = -widestSlot + 4;
           const gap = Math.max(minGap, Math.min(300, gapRaw));
           const rsyaTextBottom = Math.max(
             titleBounds ? (titleBounds.y + titleBounds.height) : 0,
@@ -1716,26 +1729,29 @@ const renderToCanvas = (canvas, width, height, state) => {
           const rsyaSafeTop = rsyaTextBottom + rsyaSafeGap;
           const rsyaSafeBottom = (useSafeArea ? (verticalPadding + effectiveHeight) : height) - paddingPx;
 
-          const totalW = visualCount * slotSize + (visualCount - 1) * gap;
+          const totalW = slotMetas.reduce((sum, slot, index) => sum + slot.size + (index > 0 ? gap : 0), 0);
           const startX = isRsyaLeftLayout
             ? (kvPlannedMeta.kvX + offsetX)
             : (kvPlannedMeta.kvX + (kvPlannedMeta.kvW - totalW) / 2 + offsetX);
-          let startY = kvPlannedMeta.kvY + (kvPlannedMeta.kvH - slotSize) / 2 + offsetY;
+          let startY = kvPlannedMeta.kvY + (kvPlannedMeta.kvH - tallestSlot) / 2 + offsetY;
 
           if (isRsyaMode && !isRsyaLeftLayout) {
             startY = Math.max(startY, rsyaSafeTop + offsetY);
-            const maxStartY = rsyaSafeBottom - slotSize;
+            const maxStartY = rsyaSafeBottom - tallestSlot;
             if (Number.isFinite(maxStartY) && maxStartY >= rsyaSafeTop) {
               startY = Math.min(startY, maxStartY);
             }
           }
 
-          for (let i = 0; i < visualCount; i++) {
-            const img = visuals[i] || state.kv;
+          let currentX = startX;
+          for (let i = 0; i < slotMetas.length; i++) {
+            const { image: img, size, slotIndex } = slotMetas[i];
             if (!img) continue;
-            const x = startX + i * (slotSize + gap);
-            const y = startY;
-            drawImageCover(ctx, img, x, y, slotSize, slotSize);
+            const x = currentX;
+            const y = startY + (tallestSlot - size) / 2;
+            drawImageCover(ctx, img, x, y, size, size);
+            slotMetas[i] = { ...slotMetas[i], x, y, w: size, h: size, slotIndex };
+            currentX += size + gap;
           }
 
           kvRenderMeta = {
@@ -1743,7 +1759,16 @@ const renderToCanvas = (canvas, width, height, state) => {
             kvX: startX,
             kvY: startY,
             kvW: totalW,
-            kvH: slotSize
+            kvH: tallestSlot,
+            slotMetas: slotMetas.map(({ slotIndex, x, y, w, h, size, scale }) => ({
+              slotIndex,
+              x,
+              y,
+              w,
+              h,
+              size,
+              scale
+            }))
           };
         } else {
           ctx.drawImage(state.kv, kvPlannedMeta.kvX, kvPlannedMeta.kvY, kvPlannedMeta.kvW, kvPlannedMeta.kvH);

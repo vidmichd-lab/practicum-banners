@@ -33,7 +33,8 @@ test('keeps logo, legal and age visible when wide layouts render without KV', as
     window.sessionStorage.clear();
   });
 
-  await page.goto('/', { waitUntil: 'networkidle' });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#previewCanvasWide');
 
   const results = await page.evaluate(async (renderCases) => {
     const { getState } = await import('/src/state/store.js');

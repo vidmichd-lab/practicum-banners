@@ -134,6 +134,38 @@ let selectedLogoFolder2 = null;
 let selectedLogoFolder3 = null;
 let rsyaFitResizeBound = false;
 
+const getRsyaKVScales = (state = getState()) => {
+  const fallback = Number.isFinite(Number(state?.rsyaKVScale)) ? Number(state.rsyaKVScale) : 200;
+  const source = Array.isArray(state?.rsyaKVScales) ? state.rsyaKVScales : [fallback, fallback, fallback];
+  return [0, 1, 2].map((index) => {
+    const numeric = Number(source[index]);
+    if (!Number.isFinite(numeric)) return fallback;
+    return Math.max(40, Math.min(300, numeric));
+  });
+};
+
+const syncRsyaScaleControls = (state = getState()) => {
+  const scales = getRsyaKVScales(state);
+  [0, 1, 2].forEach((slotIndex) => {
+    const scaleInput = document.getElementById(`rsyaKVScale${slotIndex + 1}`);
+    const scaleValue = document.getElementById(`rsyaKVScale${slotIndex + 1}Value`);
+    const scale = scales[slotIndex] ?? 200;
+    if (scaleInput) scaleInput.value = String(scale);
+    if (scaleValue) scaleValue.textContent = `${scale}%`;
+  });
+};
+
+const setActiveRsyaVisualSlot = (slot) => {
+  activeRsyaVisualSlot = Math.max(0, Math.min(2, Number(slot) || 0));
+  setKVModalTargetSlot(activeRsyaVisualSlot);
+  setState({
+    activeRsyaVisualSlot,
+    rsyaKVScale: getRsyaKVScales(getState())[activeRsyaVisualSlot] ?? 200
+  });
+  renderRsyaVisualReorder();
+  syncRsyaScaleControls(getState());
+};
+
 // Функции для работы со шрифтами теперь импортируются из ./components/fontSelector.js
 
 const normalizeKVAssetPath = (value) => {
@@ -167,6 +199,7 @@ const syncChips = (state) => {
 export const syncFormFields = () => {
   const state = getState();
   const dom = getDom();
+  activeRsyaVisualSlot = Math.max(0, Math.min(2, Number(state.activeRsyaVisualSlot) || 0));
 
   if (!dom.paddingPercent) return;
 
@@ -462,12 +495,7 @@ export const syncFormFields = () => {
     rsyaVisualCountInput.value = state.rsyaVisualCount || 1;
     if (rsyaVisualCountValue) rsyaVisualCountValue.textContent = String(state.rsyaVisualCount || 1);
   }
-  const rsyaKVScaleInput = document.getElementById('rsyaKVScale');
-  const rsyaKVScaleValue = document.getElementById('rsyaKVScaleValue');
-  if (rsyaKVScaleInput) {
-    rsyaKVScaleInput.value = state.rsyaKVScale || 200;
-    if (rsyaKVScaleValue) rsyaKVScaleValue.textContent = `${state.rsyaKVScale || 200}%`;
-  }
+  syncRsyaScaleControls(state);
   const rsyaKVGapInput = document.getElementById('rsyaKVGap');
   const rsyaKVGapValue = document.getElementById('rsyaKVGapValue');
   if (rsyaKVGapInput) {
@@ -912,33 +940,44 @@ export const clearRsyaKV3 = () => {
 
 export const swapRsyaKV12 = () => {
   const state = getState();
+  const scales = getRsyaKVScales(state);
   setState({
     kv: state.rsyaKV2 || state.kv,
     kvSelected: state.rsyaKV2Selected || state.kvSelected,
     rsyaKV2: state.kv || null,
-    rsyaKV2Selected: state.kvSelected || ''
+    rsyaKV2Selected: state.kvSelected || '',
+    rsyaKVScales: [scales[1], scales[0], scales[2]],
+    rsyaKVScale: [scales[1], scales[0], scales[2]][activeRsyaVisualSlot] || scales[0]
   });
   renderRsyaVisualReorder();
+  syncRsyaScaleControls(getState());
   renderer.render();
 };
 
 export const swapRsyaKV23 = () => {
   const state = getState();
+  const scales = getRsyaKVScales(state);
   setState({
     rsyaKV2: state.rsyaKV3 || null,
     rsyaKV2Selected: state.rsyaKV3Selected || '',
     rsyaKV3: state.rsyaKV2 || null,
-    rsyaKV3Selected: state.rsyaKV2Selected || ''
+    rsyaKV3Selected: state.rsyaKV2Selected || '',
+    rsyaKVScales: [scales[0], scales[2], scales[1]],
+    rsyaKVScale: [scales[0], scales[2], scales[1]][activeRsyaVisualSlot] || scales[0]
   });
   renderRsyaVisualReorder();
+  syncRsyaScaleControls(getState());
   renderer.render();
 };
 
-const getRsyaVisualSlots = (state) => ([
-  { image: state.kv || null, selected: state.kvSelected || '' },
-  { image: state.rsyaKV2 || null, selected: state.rsyaKV2Selected || '' },
-  { image: state.rsyaKV3 || null, selected: state.rsyaKV3Selected || '' }
-]);
+const getRsyaVisualSlots = (state) => {
+  const scales = getRsyaKVScales(state);
+  return [
+    { image: state.kv || null, selected: state.kvSelected || '', scale: scales[0], slotIndex: 0 },
+    { image: state.rsyaKV2 || null, selected: state.rsyaKV2Selected || '', scale: scales[1], slotIndex: 1 },
+    { image: state.rsyaKV3 || null, selected: state.rsyaKV3Selected || '', scale: scales[2], slotIndex: 2 }
+  ];
+};
 
 const syncRsyaVisualCount = () => {
   const slots = getRsyaVisualSlots(getState());
@@ -992,10 +1031,13 @@ const reorderRsyaVisualSlots = (fromIndex, toIndex) => {
     rsyaKV2: next[1].image,
     rsyaKV2Selected: next[1].selected,
     rsyaKV3: next[2].image,
-    rsyaKV3Selected: next[2].selected
+    rsyaKV3Selected: next[2].selected,
+    rsyaKVScales: next.map((slot) => slot.scale ?? 200),
+    rsyaKVScale: next[activeRsyaVisualSlot]?.scale ?? next[0]?.scale ?? 200
   });
   syncRsyaVisualCount();
   renderRsyaVisualReorder();
+  syncRsyaScaleControls(getState());
   renderer.render();
 };
 
@@ -1056,9 +1098,7 @@ const initializeRsyaVisualReorder = () => {
     if (actionBtn) {
       const slot = Number(actionBtn.dataset.rsyaVisualSlot);
       const action = actionBtn.dataset.rsyaAction;
-      activeRsyaVisualSlot = Math.max(0, Math.min(2, slot));
-      setKVModalTargetSlot(activeRsyaVisualSlot);
-      renderRsyaVisualReorder();
+      setActiveRsyaVisualSlot(slot);
 
       if (action === 'library') {
         openKVSelectModal(null, 'rsya-slot');
@@ -1082,9 +1122,7 @@ const initializeRsyaVisualReorder = () => {
     const item = event.target.closest('.rsya-visual-item');
     if (!item) return;
     const slot = Number(item.dataset.rsyaVisualSlot);
-    activeRsyaVisualSlot = Math.max(0, Math.min(2, slot));
-    setKVModalTargetSlot(activeRsyaVisualSlot);
-    renderRsyaVisualReorder();
+    setActiveRsyaVisualSlot(slot);
 
     const uploadInputId = slot === 0 ? 'kvUpload' : (slot === 1 ? 'rsyaKV2Upload' : 'rsyaKV3Upload');
     const input = document.getElementById(uploadInputId);
@@ -1095,10 +1133,12 @@ const initializeRsyaVisualReorder = () => {
   window.__refreshRsyaVisualReorder = () => {
     syncRsyaVisualCount();
     renderRsyaVisualReorder();
+    syncRsyaScaleControls(getState());
   };
 
   setKVModalTargetSlot(activeRsyaVisualSlot);
   renderRsyaVisualReorder();
+  syncRsyaScaleControls(getState());
 };
 
 export const updateRsyaCropPreviews = (sourceCanvas, state) => {
@@ -1263,6 +1303,22 @@ const projectMetaToActiveCrop = (meta, sourceCanvas, activeCanvas, cropKey, stat
   };
 };
 
+const projectRsyaSlotMetaToActiveCrop = (slotMeta, sourceCanvas, activeCanvas, cropKey, state = null) => {
+  if (!slotMeta) return null;
+  return projectMetaToActiveCrop(
+    {
+      kvX: slotMeta.x,
+      kvY: slotMeta.y,
+      kvW: slotMeta.w,
+      kvH: slotMeta.h
+    },
+    sourceCanvas,
+    activeCanvas,
+    cropKey,
+    state
+  );
+};
+
 const updateRsyaKVOverlay = (forceVisible = false) => {
   const overlay = document.getElementById('rsyaKVOverlay');
   const sourceCanvas = document.getElementById('previewCanvasWide');
@@ -1370,7 +1426,9 @@ export const initializeRsyaCanvasDrag = () => {
   const detectClickedRsyaVisualSlot = (event) => {
     const state = getState();
     const activePreviewCanvas = document.getElementById('rsyaActivePreviewCanvas');
-    if (!activePreviewCanvas) return 0;
+    const sourceCanvas = document.getElementById('previewCanvasWide');
+    const kvMeta = renderer.getRenderMeta()?.kvRenderMeta;
+    if (!activePreviewCanvas || !sourceCanvas) return 0;
     const overlayRect = updateRsyaKVOverlay(true);
     if (!overlayRect) return 0;
 
@@ -1379,6 +1437,37 @@ export const initializeRsyaCanvasDrag = () => {
     const py = event.clientY - activeRect.top;
     if (px < overlayRect.left || px > overlayRect.left + overlayRect.width || py < overlayRect.top || py > overlayRect.top + overlayRect.height) {
       return 0;
+    }
+
+    if (Array.isArray(kvMeta?.slotMetas) && kvMeta.slotMetas.length > 0) {
+      const displayScale = Math.min(activeRect.width / activePreviewCanvas.width, activeRect.height / activePreviewCanvas.height);
+      const drawW = activePreviewCanvas.width * displayScale;
+      const drawH = activePreviewCanvas.height * displayScale;
+      const displayOffsetX = (activeRect.width - drawW) / 2;
+      const displayOffsetY = (activeRect.height - drawH) / 2;
+      let matchedSlot = null;
+      let bestArea = Number.POSITIVE_INFINITY;
+      kvMeta.slotMetas.forEach((slotMeta) => {
+        const projectedSlot = projectRsyaSlotMetaToActiveCrop(slotMeta, sourceCanvas, activePreviewCanvas, activeRsyaCropKey, state);
+        if (!projectedSlot) return;
+        const displayRect = {
+          x: displayOffsetX + projectedSlot.x * displayScale,
+          y: displayOffsetY + projectedSlot.y * displayScale,
+          w: projectedSlot.w * displayScale,
+          h: projectedSlot.h * displayScale
+        };
+        const insideSlot = px >= displayRect.x && px <= displayRect.x + displayRect.w &&
+          py >= displayRect.y && py <= displayRect.y + displayRect.h;
+        if (!insideSlot) return;
+        const area = displayRect.w * displayRect.h;
+        if (area < bestArea) {
+          bestArea = area;
+          matchedSlot = slotMeta.slotIndex;
+        }
+      });
+      if (matchedSlot !== null) {
+        return matchedSlot;
+      }
     }
 
     const allSlots = [state.kv, state.rsyaKV2, state.rsyaKV3];
@@ -1468,11 +1557,14 @@ export const initializeRsyaCanvasDrag = () => {
         const baseHeight = Math.max(1, drag.baseMetaH || 1);
         const scaledHeight = Math.max(12, baseHeight - dy);
         const nextScale = Math.max(40, Math.min(300, Math.round((drag.baseScale || 100) * (scaledHeight / baseHeight))));
-        setKey('rsyaKVScale', nextScale);
-        const scaleInput = document.getElementById('rsyaKVScale');
-        const scaleValue = document.getElementById('rsyaKVScaleValue');
-        if (scaleInput) scaleInput.value = String(nextScale);
-        if (scaleValue) scaleValue.textContent = `${nextScale}%`;
+        const scales = [...getRsyaKVScales(getState())];
+        scales[activeRsyaVisualSlot] = nextScale;
+        setState({
+          rsyaKVScales: scales,
+          rsyaKVScale: nextScale,
+          activeRsyaVisualSlot
+        });
+        syncRsyaScaleControls(getState());
       } else {
         let nextOffsetX = Math.round(drag.baseX + dx);
         let nextOffsetY = Math.round(drag.baseY + dy);
@@ -1502,9 +1594,7 @@ export const initializeRsyaCanvasDrag = () => {
   const onUp = async (event) => {
     if (drag && drag.type === 'kv' && !drag.moved && (Date.now() - drag.startedAt) <= CLICK_DURATION_THRESHOLD) {
       const clickedSlot = detectClickedRsyaVisualSlot(event);
-      activeRsyaVisualSlot = Math.max(0, Math.min(2, clickedSlot));
-      setKVModalTargetSlot(activeRsyaVisualSlot);
-      renderRsyaVisualReorder();
+      setActiveRsyaVisualSlot(clickedSlot);
       await openKVSelectModal(null, 'preview-canvas');
     }
     drag = null;
@@ -1521,12 +1611,13 @@ export const initializeRsyaCanvasDrag = () => {
     const mode = detectHoverMode(event);
 
     if (mode === 'resize') {
+      const activeSlotMeta = meta?.slotMetas?.find((slotMeta) => slotMeta.slotIndex === activeRsyaVisualSlot);
       drag = {
         type: 'kv-scale',
         startX: event.clientX,
         startY: event.clientY,
-        baseScale: Number(state.rsyaKVScale) || 200,
-        baseMetaH: meta ? Number(meta.kvH) || 1 : 1
+        baseScale: getActiveRsyaVisualScale(state),
+        baseMetaH: activeSlotMeta ? Number(activeSlotMeta.h) || 1 : (meta ? Number(meta.kvH) || 1 : 1)
       };
       setDraggingCursor('nesw-resize');
     } else if (mode === 'move') {
@@ -2409,6 +2500,7 @@ export const selectProMode = async (enabled) => {
 
 export const initializeProModeToggle = async () => {
   const state = getState();
+  activeRsyaVisualSlot = Math.max(0, Math.min(2, Number(state.activeRsyaVisualSlot) || 0));
   const projectMode = state.projectMode || 'rsya';
   const variantMode = state.variantMode || (state.proMode ? 'pro' : (state.logoLanguage === 'kz' ? 'kz' : 'reskill'));
 
@@ -2425,6 +2517,7 @@ export const initializeProModeToggle = async () => {
   if (rsyaLayoutToggle) {
     setToggleSwitchValue('rsyaLayoutToggle', state.rsyaLayout || 'center');
   }
+  syncRsyaScaleControls(getState());
 };
 
 export const updatePadding = (value) => {
@@ -2450,6 +2543,46 @@ export const updateLogoSize = (value) => {
   if (dom.logoSizeValue) dom.logoSizeValue.textContent = `${numeric}%`;
   renderer.render();
 };
+
+export const updateRsyaKVScale = (value) => {
+  const numeric = parseInt(value, 10);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для rsyaKVScale:', value);
+    return;
+  }
+  const scales = [...getRsyaKVScales(getState())];
+  scales[activeRsyaVisualSlot] = Math.max(40, Math.min(300, numeric));
+  setState({
+    rsyaKVScales: scales,
+    rsyaKVScale: scales[activeRsyaVisualSlot],
+    activeRsyaVisualSlot
+  });
+  syncRsyaScaleControls(getState());
+  renderer.render();
+};
+
+const updateRsyaKVScaleBySlot = (slotIndex, value) => {
+  const numeric = parseInt(value, 10);
+  if (isNaN(numeric)) {
+    console.warn('Некорректное значение для rsyaKVScale:', value);
+    return;
+  }
+  const nextSlot = Math.max(0, Math.min(2, slotIndex));
+  const scales = [...getRsyaKVScales(getState())];
+  scales[nextSlot] = Math.max(40, Math.min(300, numeric));
+  const currentActiveSlot = Math.max(0, Math.min(2, Number(getState().activeRsyaVisualSlot) || activeRsyaVisualSlot));
+  setState({
+    rsyaKVScales: scales,
+    rsyaKVScale: scales[currentActiveSlot],
+    activeRsyaVisualSlot: currentActiveSlot
+  });
+  syncRsyaScaleControls(getState());
+  renderer.render();
+};
+
+export const updateRsyaKVScale1 = (value) => updateRsyaKVScaleBySlot(0, value);
+export const updateRsyaKVScale2 = (value) => updateRsyaKVScaleBySlot(1, value);
+export const updateRsyaKVScale3 = (value) => updateRsyaKVScaleBySlot(2, value);
 
 export const updateTitleSize = (value) => {
   const numeric = parseFloat(value);
